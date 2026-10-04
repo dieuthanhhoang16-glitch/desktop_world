@@ -17,6 +17,9 @@ PLAN-*.md
 codex-*.md
 CHANGELOG-draft.md
 docs/**
+# desktop-world fork: 我们自己的项目文档入库
+!docs/desktop-world-plan.md
+!docs/art-style-research.md
 !docs/guides/
 !docs/guides/copilot-setup.md
 !docs/guides/copilot-setup.zh-CN.md
@@ -172,3 +175,4 @@ Microsoft/
 
 # Emoji export scratch
 clawd-emoji-final/
+world/out/

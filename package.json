@@ -4,6 +4,10 @@
   "description": "A desktop pet that reacts to your Claude Code sessions in real-time.",
   "main": "src/main.js",
   "scripts": {
+    "world:daily": "electron world/cli.js",
+    "world:share": "electron world/share/send.js",
+    "world:channels": "node world/share/configure.js",
+    "world:tidy": "node world/tidy/tidy.js",
     "start": "node launch.js",
     "build": "electron-builder --win",
     "build:win:x64": "electron-builder --win nsis:x64",

@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Desktop World · 今日早报</title>
+<style>
+  :root {
+    --bg-0: #070b1a;
+    --bg-1: #0c1430;
+    --bg-2: #0f2e33;
+    --ink: #e8ecf8;
+    --ink-dim: #9aa3c0;
+    --ink-faint: #6b7391;
+    --card: rgba(255, 255, 255, 0.055);
+    --card-edge: rgba(255, 255, 255, 0.10);
+    --green: #4ade80;
+    --green-soft: rgba(74, 222, 128, 0.16);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251, 191, 36, 0.12);
+    --blue: #7dd3fc;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+      "Segoe UI", "Noto Sans CJK SC", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(120vmin 80vmin at 12% 108%, rgba(74, 222, 128, 0.14), transparent 60%),
+      radial-gradient(100vmin 70vmin at 96% -8%, rgba(125, 211, 252, 0.12), transparent 55%),
+      radial-gradient(150vmin 100vmin at 55% 45%, var(--bg-1), transparent 75%),
+      linear-gradient(158deg, var(--bg-0) 0%, var(--bg-2) 130%);
+  }
+  .stars { position: absolute; inset: 0; opacity: 0.5; }
+  .stars i {
+    position: absolute; border-radius: 50%; background: #fff;
+    width: 0.35vmin; height: 0.35vmin; opacity: 0.55;
+  }
+  .page { position: absolute; inset: 0; padding: 5.5vmin 6vmin; display: flex; }
+
+  /* ---------- 左栏 ---------- */
+  .left { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; padding-right: 4.5vmin; }
+  .brand { font-size: 1.7vmin; letter-spacing: 0.45em; color: var(--ink-faint); font-weight: 600; }
+  .date-row { display: flex; align-items: baseline; gap: 2vmin; margin-top: 1.2vmin; }
+  .date { font-size: 7.5vmin; font-weight: 800; letter-spacing: 0.02em; }
+  .weekday { font-size: 2.6vmin; color: var(--ink-dim); font-weight: 500; }
+
+  .quote {
+    margin-top: 3.6vmin; padding: 3.2vmin 3.6vmin;
+    background: var(--card); border: 1px solid var(--card-edge); border-radius: 2.2vmin;
+    position: relative; max-width: 96%;
+  }
+  .quote::before {
+    content: "“"; position: absolute; top: -1.2vmin; left: 1.6vmin;
+    font-size: 9vmin; color: var(--green); opacity: 0.5; font-family: Georgia, serif;
+  }
+  .quote .oneline { font-size: 3.4vmin; font-weight: 700; line-height: 1.5; }
+  .quote .src { margin-top: 1.2vmin; font-size: 1.6vmin; color: var(--ink-faint); }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 1.4vmin; margin-top: 2.8vmin; }
+  .chip {
+    padding: 1.1vmin 1.9vmin; border-radius: 999px;
+    background: var(--card); border: 1px solid var(--card-edge);
+    font-size: 1.9vmin; color: var(--ink-dim); white-space: nowrap;
+  }
+  .chip b { color: var(--ink); font-weight: 700; margin-right: 0.4em; }
+
+  .garden { margin-top: auto; padding-top: 2vmin; }
+  .garden .label { font-size: 1.7vmin; color: var(--ink-faint); letter-spacing: 0.25em; margin-bottom: 1vmin; }
+  .garden .row { font-size: 3.2vmin; letter-spacing: 0.15em; line-height: 1.2; }
+  .garden .row .dim { opacity: 0.25; }
+
+  .ideas { margin-top: 2.6vmin; display: flex; gap: 1.6vmin; }
+  .idea {
+    flex: 1; padding: 1.9vmin 2.1vmin; border-radius: 1.6vmin;
+    background: var(--amber-soft); border: 1px solid rgba(251, 191, 36, 0.25);
+    font-size: 2vmin; line-height: 1.55; color: #fde9c8;
+    display: flex; gap: 1vmin; align-items: flex-start;
+  }
+  .idea .bulb { flex: 0 0 auto; }
+
+  /* ---------- 右栏看板 ---------- */
+  .board {
+    flex: 0 0 34%; max-width: 34%; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--card-edge); border-radius: 2.4vmin;
+    padding: 2.6vmin; min-height: 0;
+  }
+  .board h2 { font-size: 2.2vmin; font-weight: 700; letter-spacing: 0.12em; }
+  .board h2 .en { display: block; font-size: 1.4vmin; color: var(--ink-faint); letter-spacing: 0.35em; margin-top: 0.6vmin; font-weight: 600; }
+  .cols { display: flex; gap: 1.8vmin; margin-top: 2.2vmin; flex: 1; min-height: 0; }
+  .col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .col h3 {
+    font-size: 1.8vmin; color: var(--ink-dim); font-weight: 600;
+    display: flex; align-items: center; gap: 0.8vmin; margin-bottom: 1.4vmin;
+  }
+  .col h3 .dot { width: 0.9vmin; height: 0.9vmin; border-radius: 50%; }
+  .col.active h3 .dot { background: var(--green); box-shadow: 0 0 1.2vmin var(--green); }
+  .col.done h3 .dot { background: var(--ink-faint); }
+  .col h3 .count { margin-left: auto; color: var(--ink-faint); font-weight: 500; }
+  .cards { display: flex; flex-direction: column; gap: 1.2vmin; overflow: hidden; }
+  .card {
+    background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 1.3vmin; padding: 1.5vmin 1.7vmin;
+  }
+  .card .proj {
+    display: inline-block; font-size: 1.3vmin; color: var(--blue);
+    background: rgba(125, 211, 252, 0.12); border-radius: 0.6vmin;
+    padding: 0.35vmin 0.9vmin; margin-bottom: 0.8vmin; letter-spacing: 0.05em;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .card .title {
+    font-size: 1.7vmin; font-weight: 600; line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .card .meta { font-size: 1.35vmin; color: var(--ink-faint); margin-top: 0.8vmin; }
+  .empty-board {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--ink-faint); font-size: 2vmin; text-align: center; gap: 1.6vmin; line-height: 1.8;
+  }
+  .empty-board .big { font-size: 6vmin; }
+  .overflow-note { font-size: 1.4vmin; color: var(--ink-faint); margin-top: 1.2vmin; text-align: right; }
+</style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+<div class="page">
+  <main class="left">
+    <div class="brand">DESKTOP WORLD · 今日早报</div>
+    <div class="date-row">
+      <div class="date" id="date"></div>
+      <div class="weekday" id="weekday"></div>
+    </div>
+
+    <section class="quote">
+      <div class="oneline" id="oneline"></div>
+      <div class="src" id="src"></div>
+    </section>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="garden">
+      <div class="label">今日生长 TODAY'S GROWTH</div>
+      <div class="row" id="garden"></div>
+    </div>
+
+    <div class="ideas" id="ideas"></div>
+  </main>
+
+  <aside class="board">
+    <h2>任务看板<span class="en">AGENT BOARD</span></h2>
+    <div id="boardBody"></div>
+  </aside>
+</div>
+
+<script>
+(function () {
+  var R = window.__REPORT__ || {};
+  var digest = R.digest || { totals: {}, sessions: [], topTools: [], projects: [], hours: [] };
+  var sessions = digest.sessions || [];
+
+  // 星星点缀
+  var stars = document.getElementById('stars');
+  for (var i = 0; i < 90; i++) {
+    var s = document.createElement('i');
+    s.style.left = (Math.random() * 100).toFixed(2) + '%';
+    s.style.top = (Math.random() * 100).toFixed(2) + '%';
+    s.style.opacity = (0.15 + Math.random() * 0.5).toFixed(2);
+    stars.appendChild(s);
+  }
+
+  // 头部日期
+  var d = (R.meta && R.meta.date) || (digest.date || '');
+  document.getElementById('date').textContent = d.replace(/-/g, ' / ');
+  document.getElementById('weekday').textContent = (R.meta && R.meta.weekday) || digest.weekday || '';
+
+  // 一句话
+  document.getElementById('oneline').textContent = R.oneline || '今天还没有一句话总结。';
+  var genAt = R.meta && R.meta.generatedAt ? new Date(R.meta.generatedAt) : new Date();
+  document.getElementById('src').textContent =
+    (R.source === 'claude' ? '由本地 Claude 汇总' : '由本地数据汇总') +
+    ' · ' + String(genAt.getHours()).padStart(2, '0') + ':' + String(genAt.getMinutes()).padStart(2, '0') + ' 生成';
+
+  // 统计 chips
+  var chips = [];
+  var t = digest.totals || {};
+  chips.push(['会话', t.sessions || 0]);
+  chips.push(['输入', t.prompts || 0]);
+  chips.push(['工具调用', t.toolCalls || 0]);
+  (digest.topTools || []).slice(0, 3).forEach(function (x) { chips.push([x.name, x.count]); });
+  // 最活跃时段
+  var bestH = -1, bestN = 0;
+  (digest.hours || []).forEach(function (n, h) { if (n > bestN) { bestN = n; bestH = h; } });
+  if (bestH >= 0) chips.push(['高峰', String(bestH).padStart(2, '0') + ':00 档']);
+  document.getElementById('stats').innerHTML = chips
+    .map(function (c) { return '<span class="chip"><b>' + esc(c[1]) + '</b>' + esc(c[0]) + '</span>'; })
+    .join('');
+
+  // 生长条：每个完成会话一株 🌿，进行中 🔆，封顶 14 株
+  var done = sessions.filter(function (s) { return s.status !== '进行中'; }).length;
+  var doing = sessions.length - done;
+  var plants = '';
+  var shownDone = Math.min(done, 14 - Math.min(doing, 3));
+  for (var g = 0; g < shownDone; g++) plants += '🌿';
+  for (var g2 = 0; g2 < Math.min(doing, 3); g2++) plants += '🔆';
+  if (!plants) plants = '<span class="dim">🌱 种子还在等今天的第一场雨</span>';
+  document.getElementById('garden').innerHTML = plants;
+
+  // 新思路
+  var ideas = (R.ideas || []).slice(0, 3);
+  document.getElementById('ideas').innerHTML = ideas.length
+    ? ideas.map(function (x) {
+        return '<div class="idea"><span class="bulb">💡</span><span>' + esc(x) + '</span></div>';
+      }).join('')
+    : '<div class="idea"><span class="bulb">💡</span><span>今天没有新的思路，好好休息。</span></div>';
+
+  // 看板
+  var act = sessions.filter(function (s) { return s.status === '进行中'; });
+  var fin = sessions.filter(function (s) { return s.status !== '进行中'; });
+  var MAX_CARDS = 6;
+  var body = document.getElementById('boardBody');
+  if (!sessions.length) {
+    body.innerHTML =
+      '<div class="empty-board"><div class="big">🌙</div>' +
+      '<div>今天森林很安静<br>没有 Claude Code 会话记录<br>明天再来一起种点新东西吧</div></div>';
+  } else {
+    body.innerHTML =
+      '<div class="cols">' +
+      colHtml('进行中', 'active', act) +
+      colHtml('已完成', 'done', fin) +
+      '</div>' +
+      (sessions.length > MAX_CARDS * 2
+        ? '<div class="overflow-note">仅展示最近 ' + MAX_CARDS * 2 + ' 个会话，共 ' + sessions.length + ' 个</div>'
+        : '');
+  }
+
+  function colHtml(label, cls, list) {
+    var cards = list.slice(0, MAX_CARDS).map(function (s) {
+      var tools = (s.topTools || []).map(function (x) { return x.name; }).join(' / ');
+      var meta = [s.durationMin + ' 分钟', s.toolCalls + ' 次工具', tools].filter(Boolean).join(' · ');
+      return (
+        '<div class="card"><span class="proj">' + esc(s.project) + '</span>' +
+        '<div class="title">' + esc(s.title) + '</div>' +
+        '<div class="meta">' + esc(meta) + '</div></div>'
+      );
+    }).join('');
+    return (
+      '<div class="col ' + cls + '"><h3><span class="dot"></span>' + label +
+      '<span class="count">' + list.length + '</span></h3>' +
+      '<div class="cards">' + cards + '</div></div>'
+    );
+  }
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+})();
+</script>
+</body>
+</html>

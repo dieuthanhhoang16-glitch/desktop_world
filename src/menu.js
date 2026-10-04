@@ -281,6 +281,39 @@ module.exports = function initMenu(ctx) {
           if (typeof ctx.openDashboard === "function") ctx.openDashboard();
         },
       },
+      // desktop-world fork：每日早报壁纸（v0.1 硬编码中文标签，i18n 后补）
+      {
+        label: "🌅 生成今日早报壁纸",
+        click: () => {
+          try {
+            require("../world/app-integration").runDailyWallpaper();
+          } catch (err) {
+            console.error("[world] 入口加载失败：", err);
+          }
+        },
+      },
+      // desktop-world fork：分享日报到已配置渠道（v0.2）
+      {
+        label: "📮 分享今日早报",
+        click: () => {
+          try {
+            require("../world/app-integration").shareDaily();
+          } catch (err) {
+            console.error("[share] 入口加载失败：", err);
+          }
+        },
+      },
+      // desktop-world fork：桌面文件整理（v0.3，申请-确认式）
+      {
+        label: "🧹 整理桌面文件",
+        click: () => {
+          try {
+            require("../world/app-integration").tidyDesktop();
+          } catch (err) {
+            console.error("[tidy] 入口加载失败：", err);
+          }
+        },
+      },
       buildPermissionAutomationMenuItem(),
     ];
 
