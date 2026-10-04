@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { collect } = require('./collector');
 const { summarize } = require('./summarizer');
+const { worldForReport, worldForReuse } = require('./garden');
 
 function reportPath(outDir, date) {
   return path.join(outDir, `daily-${date}.json`);
@@ -51,6 +52,8 @@ async function runDaily({ outDir, setWallpaper = true, noLlm = false, reuseRepor
     report = loadLatestReport(outDir);
     if (!report) throw new Error(`--reuse：在 ${outDir} 找不到任何 daily-*.json，请先跑一次完整流水线`);
     onStep(`复用报告：${report.meta.date}`);
+    // 复用旧报告时没有 digest 可结算，优先沿用报告里保存的世界快照，没有再读当前状态
+    if (!report.world) report.world = worldForReuse(outDir);
   } else {
     onStep('采集今日 Claude Code 活动…');
     const digest = await collect();
@@ -64,6 +67,9 @@ async function runDaily({ outDir, setWallpaper = true, noLlm = false, reuseRepor
       ideas: summary.ideas,
       source: summary.source,
     };
+    // 生长世界：把今日成果结算进持久世界（同日重复运行幂等，不重复加分）
+    report.world = worldForReport(outDir, digest, digest.date);
+    onStep(`世界结算：Lv${report.world.level} ${report.world.stageIcon}${report.world.stageName}（+${report.world.todayXp}xp，连续耕种第 ${report.world.streak} 天）`);
   }
 
   const reportFile = saveReport(outDir, report);

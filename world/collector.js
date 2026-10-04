@@ -7,6 +7,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { collectCodex, CODEX_SESSIONS_DIR } = require('./collector-codex');
+
 const PROJECTS_DIR =
   process.env.CLAUDE_PROJECTS_DIR || path.join(os.homedir(), '.claude', 'projects');
 
@@ -134,6 +136,7 @@ async function collect(options = {}) {
     generatedAt: now.toISOString(),
     source: 'claude-code',
     totals: { sessions: 0, prompts: 0, toolCalls: 0 },
+    agents: [], // e.g. [{agent:'claude-code',sessions:3},{agent:'codex',sessions:1}]
     topTools: [],
     projects: [],
     hours: new Array(24).fill(0),
@@ -181,12 +184,28 @@ async function collect(options = {}) {
       status: isActive ? '进行中' : '已完成',
       end: s.end.toISOString(),
       gitBranch: s.gitBranch,
+      agent: 'claude',
     });
     digest.totals.prompts += s.prompts.length;
     digest.totals.toolCalls += s.toolCalls;
     for (let h = 0; h < 24; h++) digest.hours[h] += s.hours[h];
     for (const [k, v] of Object.entries(s.tools)) globalTools[k] = (globalTools[k] || 0) + v;
     projectSessions.set(s.project, (projectSessions.get(s.project) || 0) + 1);
+  }
+
+  // —— 多 agent：Codex 会话合并进同一份 digest（options.codex === false 可关闭）——
+  const claudeSessions = digest.sessions.length;
+  digest.agents = [{ agent: 'claude-code', sessions: claudeSessions }];
+  if (options.codex !== false) {
+    const codexDir = options.codexDir || CODEX_SESSIONS_DIR;
+    const cx = collectCodex({ dir: codexDir, todayStart, now, activeWindowMs: ACTIVE_WINDOW_MS });
+    for (const session of cx) {
+      digest.sessions.push(session);
+      digest.totals.prompts += typeof session.promptCount === 'number' ? session.promptCount : 8;
+      digest.totals.toolCalls += session.toolCalls;
+      projectSessions.set(session.project, (projectSessions.get(session.project) || 0) + 1);
+    }
+    if (cx.length) digest.agents.push({ agent: 'codex', sessions: cx.length });
   }
 
   digest.sessions.sort((a, b) => {

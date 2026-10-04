@@ -34,10 +34,14 @@ clawd 引擎（src/，不改动）          world/ 模块（fork 新增）
 - **v0.1 ✅** Claude Code 采集 → 一句话总结+新思路 → 早报壁纸（CLI + 托盘入口 + 单测）
 - **v0.2 ✅** 分享插件（2026-10-05）：企业微信（文字+图片 base64）/ 钉钉（加签+关键词+图片降级）/ 飞书（富文本，图片需自建应用 image_key 待评估）；配置 CLI + `npm run world:share` + 托盘「📮 分享今日早报」；本地 mock 冒烟通过（7.8MB→90KB 压缩、降级兜底均验证）
 - **v0.3 ✅** 桌面文件整理（2026-10-05）：`world/tidy/` 纯 Node 管线（扫描→分类→计划→执行→撤销）；扩展名规则+文件名矫正+LLM 细分"其他"桶；申请-确认式（CLI y 确认 / App 系统对话框）；undo 一键还原、重名避让、1 小时新文件保护、只收顶层散文件；托盘「🧹 整理桌面文件」；单测覆盖 scan/classify/plan/apply/undo。皮肤联动（乱=杂草）留到 v0.4 生长世界
-- **v0.4** 生长世界 + 桌宠皮肤定调 + 世界景观随完成度生长 + 多 agent（复用上游 hooks）
+- **v0.4 ✅** 生长世界 + 桌宠皮肤定调 + 多 agent（2026-10-05）：
+  - **生长世界**：`world/garden/` 持久化世界（world-state.json）——出勤+会话+工具结算 xp，6 阶段（种子→新芽→树苗→开花树→果林→空中花园）；景观带为**确定性**像素 SVG（scene.js 纯函数），同日重跑幂等；壁纸/分享文案都带世界状态。
+  - **多 agent**：`collector-codex.js` 合并 `~/.codex/sessions`（宽进严出），`digest.agents` 分来源统计。
+  - **皮肤定调**：`world/creature/` 生成内置主题 `themes/sprout`「芽芽 Sprout」——程序化 16-bit 像素，15 主状态+workingTiers+8+1 mini 状态，过官方 `validate-theme.js` 全绿。定位占位皮肤：让"世界园丁"先上任；AI 美术（$10–50 管线，见 art-style-research）替换 assets 即转正。
   - 美术方向（调研已完成，docs/art-style-research.md）：**主推 16-bit 像素风 APNG**（复用 Calico 同引擎路径，AI 生成管线最成熟，$10–50 + 3–5 天修帧）；备选扁平矢量 SVG+CSS（Cloudling 路线，"生长"可程序化生成）。低多边形 3D 留作二期；黏土/水墨/CRT 蒸汽波否决或降为限定皮肤。
   - 格式契约已核实：theme.json schemaVersion 1（约 15 主状态 + workingTiers + 8 mini 状态），追眼状态强制 SVG；脚手架 `scripts/create-theme.js` + 校验器可直接用。
   - 死胡同已标注：无可商用的成套 12 状态桌宠素材包；Codex 社区宠物素材多为 CC BY-NC 禁商用；官方主题（Hash Sage 等）版权全保留不可复用。
+- **v0.5**（下一步候选）：桌宠形态随世界等级进化、tidy 联动（桌面乱 → 壁纸长杂草）、世界景观截图进分享卡片、AI 美术管线出正式芽芽素材、其他 agent 采集（Gemini/Kimi 复用 codex 模式）。
 
 ## 开发备忘
 

@@ -20,7 +20,9 @@ function buildPrompt(digest) {
     高频工具: digest.topTools,
     涉及项目: digest.projects,
     每小时活跃量: digest.hours,
+    各助手会话数: Object.fromEntries((digest.agents || []).map((a) => [a.agent, a.sessions])),
     会话: digest.sessions.slice(0, 10).map((s) => ({
+      助手: s.agent || 'claude',
       项目: s.project,
       首个输入: s.title,
       状态: s.status,
@@ -29,7 +31,7 @@ function buildPrompt(digest) {
     })),
   };
   return [
-    '你是我的个人工作日报助手。下面这份 JSON 是我今天使用 AI 编程助手（Claude Code）的本地活动统计。',
+    '你是我的个人工作日报助手。下面这份 JSON 是我今天使用 AI 编程助手（Claude Code、Codex 等）在本机的活动统计。',
     '请输出：',
     '1) oneline：今日一句话总结，≤40 个汉字。要具体（带上项目名/做了什么/卡在哪），口语化，禁止"今天很努力"式空话。',
     '2) ideas：3 条"明天值得尝试的新思路"，每条 ≤30 字，必须可从数据里真实出现的内容延伸（例如反复手工做的事可以脚本化/交给 agent 的新玩法）。',

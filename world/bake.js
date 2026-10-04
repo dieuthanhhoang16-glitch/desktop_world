@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const { BrowserWindow, screen } = require('electron');
+const { withSvg } = require('./garden');
 
 const TEMPLATE = path.join(__dirname, 'template', 'daily-card.html');
 
@@ -95,6 +96,8 @@ async function applyWallpaper(pngPath) {
  */
 async function bakeWallpaper({ report, outDir, setWallpaper = true }) {
   fs.mkdirSync(outDir, { recursive: true });
+  // 生长世界：烘焙时才把世界描述渲染成像素 SVG（svg 不进落盘的报告 JSON）
+  if (report.world && !report.world.svg) report.world = withSvg(report.world);
   const disp = screen.getPrimaryDisplay();
   const scale = disp.scaleFactor || 1;
   const width = Math.round(disp.size.width * scale);

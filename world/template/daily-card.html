@@ -70,6 +70,21 @@
   .garden .row { font-size: 3.2vmin; letter-spacing: 0.15em; line-height: 1.2; }
   .garden .row .dim { opacity: 0.25; }
 
+  /* ---------- 生长世界景观带（v0.4）---------- */
+  .worldband { margin-top: auto; padding-top: 2vmin; }
+  .worldband .scene {
+    width: 100%; height: 22vmin; border-radius: 1.6vmin; overflow: hidden;
+    border: 1px solid var(--card-edge); background: #0b1026;
+    box-shadow: 0 1vmin 3vmin rgba(0, 0, 0, 0.35);
+  }
+  .worldband .scene svg { width: 100%; height: 100%; display: block; }
+  .worldband .world-meta {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-top: 1.2vmin; font-size: 1.8vmin; color: var(--ink-dim); gap: 2vmin;
+  }
+  .worldband .world-meta .stage { font-size: 2.2vmin; font-weight: 700; color: var(--ink); }
+  .worldband .world-meta .xpp { color: var(--green); font-weight: 600; }
+
   .ideas { margin-top: 2.6vmin; display: flex; gap: 1.6vmin; }
   .idea {
     flex: 1; padding: 1.9vmin 2.1vmin; border-radius: 1.6vmin;
@@ -138,6 +153,11 @@
 
     <div class="stats" id="stats"></div>
 
+    <section class="worldband" id="worldband" hidden>
+      <div class="scene" id="worldScene"></div>
+      <div class="world-meta" id="worldMeta"></div>
+    </section>
+
     <div class="garden">
       <div class="label">今日生长 TODAY'S GROWTH</div>
       <div class="row" id="garden"></div>
@@ -186,6 +206,10 @@
   chips.push(['会话', t.sessions || 0]);
   chips.push(['输入', t.prompts || 0]);
   chips.push(['工具调用', t.toolCalls || 0]);
+  // 多 agent 明细（Claude 之外才单独显示）
+  (digest.agents || []).forEach(function (a) {
+    if (a.agent !== 'claude-code' && a.sessions) chips.push([a.agent === 'codex' ? 'Codex 会话' : a.agent, a.sessions]);
+  });
   (digest.topTools || []).slice(0, 3).forEach(function (x) { chips.push([x.name, x.count]); });
   // 最活跃时段
   var bestH = -1, bestN = 0;
@@ -194,6 +218,20 @@
   document.getElementById('stats').innerHTML = chips
     .map(function (c) { return '<span class="chip"><b>' + esc(c[1]) + '</b>' + esc(c[0]) + '</span>'; })
     .join('');
+
+  // 生长世界景观带（v0.4）：有世界数据就展示像素景观，替换掉每日 emoji 生长条
+  var world = R.world;
+  if (world && world.svg) {
+    var wb = document.getElementById('worldband');
+    wb.hidden = false;
+    document.querySelector('.garden').style.display = 'none';
+    document.getElementById('worldScene').innerHTML = world.svg; // svg 由 world/garden/scene.js 生成，来源可信
+    var nextTxt = world.next ? '距「' + world.next.icon + world.next.name + '」还差 ' + world.next.remain + 'xp' : '已是最高形态';
+    document.getElementById('worldMeta').innerHTML =
+      '<span class="stage">' + esc(world.stageIcon + ' ' + world.stageName) + ' · Lv' + world.level + '</span>' +
+      '<span>耕种 ' + world.daysActive + ' 天 · 连续 ' + world.streak + ' 天 · 今日 <span class="xpp">+' + world.todayXp + ' xp</span></span>' +
+      '<span>' + esc(nextTxt) + '</span>';
+  }
 
   // 生长条：每个完成会话一株 🌿，进行中 🔆，封顶 14 株
   var done = sessions.filter(function (s) { return s.status !== '进行中'; }).length;

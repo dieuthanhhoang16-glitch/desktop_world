@@ -8,6 +8,7 @@
     "world:share": "electron world/share/send.js",
     "world:channels": "node world/share/configure.js",
     "world:tidy": "node world/tidy/tidy.js",
+    "world:theme": "node world/creature/generate.js --validate",
     "start": "node launch.js",
     "build": "electron-builder --win",
     "build:win:x64": "electron-builder --win nsis:x64",

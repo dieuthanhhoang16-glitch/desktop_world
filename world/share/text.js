@@ -30,7 +30,15 @@ function buildShareText(report) {
 
   const stats = [`会话 ${t.sessions || 0}`, `输入 ${t.prompts || 0}`, `工具调用 ${t.toolCalls || 0}`];
   if (top) stats.push(`高频 ${top}`);
-  lines.push('', `📊 ${stats.join(' · ')}`, '', '#DesktopWorld日报');
+  lines.push('', `📊 ${stats.join(' · ')}`);
+
+  // 生长世界状态（v0.4+ 的日报都会有；旧报告没有就跳过）
+  const w = report.world;
+  if (w && typeof w.level === 'number') {
+    const next = w.next ? `，距「${w.next.icon}${w.next.name}」还差 ${w.next.remain}xp` : '，已满级';
+    lines.push(`🗺️ 世界 Lv${w.level} ${w.stageIcon}${w.stageName} · 连续耕种 ${w.streak} 天${next}`);
+  }
+  lines.push('', '#DesktopWorld日报');
 
   return { title, markdown: lines.join('\n'), lines };
 }
