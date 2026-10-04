@@ -227,6 +227,12 @@ module.exports = function initMenu(ctx) {
     });
     ctx.tray = new Tray(icon);
     ctx.tray.setToolTip("Clawd Desktop Pet");
+    // desktop-world fork：按 live.json 恢复动态桌面（幂等，只生效一次）
+    try {
+      require("../world/app-integration").ensureLiveAutostart();
+    } catch (err) {
+      console.error("[live] 自动恢复入口加载失败：", err);
+    }
     buildTrayMenu();
   }
 
@@ -314,6 +320,41 @@ module.exports = function initMenu(ctx) {
           }
         },
       },
+      // desktop-world fork：动态桌面（v0.5）——透明热刷新窗口，标签随当前状态切换
+      ...(() => {
+        let liveOpen = false;
+        let liveDraggable = false;
+        try {
+          const wi = require("../world/app-integration");
+          liveOpen = wi.isLiveOpen();
+          liveDraggable = wi.isLiveDraggable();
+        } catch { /* world 模块不可用时照常渲染其他项 */ }
+        return [
+          {
+            label: liveOpen ? "🖥️ 关闭动态桌面" : "🖥️ 开启动态桌面",
+            click: () => {
+              try {
+                require("../world/app-integration").toggleLiveDesktop();
+              } catch (err) {
+                console.error("[live] 入口加载失败：", err);
+              }
+              buildTrayMenu();
+            },
+          },
+          {
+            label: liveDraggable ? "🔒 锁定动态桌面（点击穿透）" : "↔️ 解锁拖动动态桌面",
+            enabled: liveOpen,
+            click: () => {
+              try {
+                require("../world/app-integration").toggleLiveDrag();
+              } catch (err) {
+                console.error("[live] 入口加载失败：", err);
+              }
+              buildTrayMenu();
+            },
+          },
+        ];
+      })(),
       buildPermissionAutomationMenuItem(),
     ];
 

@@ -155,4 +155,71 @@ async function tidyDesktop() {
   }
 }
 
-module.exports = { runDailyWallpaper, shareDaily, tidyDesktop };
+// ---------- v0.5 · 动态桌面（透明热刷新窗口，代替"只能截图换壁纸"） ----------
+
+let liveStarted = false;
+
+function liveOutDir() {
+  const { app } = require('electron');
+  return path.join(app.getPath('userData'), 'world');
+}
+
+function isLiveOpen() {
+  try {
+    return require('./live/live').isOpen();
+  } catch {
+    return false;
+  }
+}
+// 菜单用：true = 当前可拖动（未开穿透）
+function isLiveDraggable() {
+  try {
+    const live = require('./live/live');
+    return live.isOpen() && live.isLiveClickable();
+  } catch {
+    return false;
+  }
+}
+
+function toggleLiveDesktop() {
+  const live = require('./live/live');
+  const { open } = live.toggle(liveOutDir());
+  if (open) {
+    liveStarted = true;
+    const cfg = live.loadCfg();
+    notify(
+      '动态桌面已开启 🖥️',
+      `${cfg.clickThrough ? '点击穿透、不影响操作' : '可拖动位置'}，每 ${cfg.refreshMin} 分钟自动刷新数据`
+    );
+  } else {
+    notify('动态桌面已关闭', '烘焙壁纸还是原样，不影响');
+  }
+  return open;
+}
+
+function toggleLiveDrag() {
+  const live = require('./live/live');
+  if (!live.isOpen()) {
+    notify('动态桌面还没开', '先点「开启动态桌面」');
+    return null;
+  }
+  const { clickThrough } = live.toggleClickThrough();
+  notify(clickThrough ? '已锁定：点击穿透 🔒' : '已解锁：可以拖动 ↔️', clickThrough ? '鼠标会直接点到桌面图标' : '调整好后记得再锁回去');
+  return clickThrough;
+}
+
+// App 启动时按 live.json 的 enabled 自动恢复窗口（托盘重建菜单时调用，幂等）。
+function ensureLiveAutostart() {
+  if (liveStarted) return;
+  try {
+    const live = require('./live/live');
+    if (live.loadCfg().enabled) {
+      liveStarted = true;
+      live.open(liveOutDir()).catch((err) => console.error('[live] 自动恢复失败：', err.message));
+    }
+  } catch (err) {
+    console.error('[live] 自动恢复失败：', err.message);
+  }
+}
+
+module.exports = { runDailyWallpaper, shareDaily, tidyDesktop, toggleLiveDesktop, toggleLiveDrag, isLiveOpen, isLiveDraggable, ensureLiveAutostart };

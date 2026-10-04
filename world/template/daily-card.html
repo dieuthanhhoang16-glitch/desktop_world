@@ -128,6 +128,23 @@
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
   .card .meta { font-size: 1.35vmin; color: var(--ink-faint); margin-top: 0.8vmin; }
+  .card .cattag { font-size: 1.1vmin; margin-left: 0.7vmin; padding: 0.25vmin 0.7vmin; border-radius: 0.5vmin; vertical-align: 0.15vmin; }
+
+  /* ---------- 专案追踪（v0.5）---------- */
+  #watchSection { display: none; flex-direction: column; gap: 1vmin; margin-top: 2vmin; }
+  .wcard {
+    background: rgba(255, 255, 255, 0.06); border: 1px solid var(--card-edge);
+    border-radius: 1.3vmin; padding: 1.3vmin 1.5vmin;
+  }
+  .wcard .whead { display: flex; align-items: baseline; gap: 1vmin; }
+  .wcard .wname { font-size: 1.8vmin; font-weight: 700; }
+  .wcard .wcat { font-size: 1.15vmin; padding: 0.2vmin 0.8vmin; border-radius: 0.6vmin; white-space: nowrap; }
+  .wcard .wtoday { margin-left: auto; font-size: 1.5vmin; color: var(--green); font-weight: 600; white-space: nowrap; }
+  .wcard .wtoday.rest { color: var(--ink-faint); font-weight: 400; }
+  .wcard .wmeta { font-size: 1.3vmin; color: var(--ink-faint); margin-top: 0.7vmin; }
+  .wcard .spark { display: flex; align-items: flex-end; gap: 2px; height: 2.2vmin; margin-top: 0.9vmin; }
+  .wcard .spark i { width: 4px; min-height: 2px; background: var(--green); opacity: 0.75; border-radius: 1px 1px 0 0; }
+  .wcard .spark i.today { opacity: 1; box-shadow: 0 0 0.6vmin var(--green); }
   .empty-board {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     color: var(--ink-faint); font-size: 2vmin; text-align: center; gap: 1.6vmin; line-height: 1.8;
@@ -168,25 +185,30 @@
 
   <aside class="board">
     <h2>任务看板<span class="en">AGENT BOARD</span></h2>
+    <div id="watchSection"></div>
     <div id="boardBody"></div>
   </aside>
 </div>
 
 <script>
 (function () {
-  var R = window.__REPORT__ || {};
+  // 星星只铺一次底；render 支持反复调用（live 桌面模式每 15 分钟热刷新）
+  var starsEl = document.getElementById('stars');
+  if (!starsEl.childElementCount) {
+    for (var i = 0; i < 90; i++) {
+      var s = document.createElement('i');
+      s.style.left = (Math.random() * 100).toFixed(2) + '%';
+      s.style.top = (Math.random() * 100).toFixed(2) + '%';
+      s.style.opacity = (0.15 + Math.random() * 0.5).toFixed(2);
+      starsEl.appendChild(s);
+    }
+  }
+
+  var CAT_COLORS = { 学习: '#7dd3fc', 工作: '#4ade80', 生活: '#fbbf24', 开源: '#ff9ec6', 其他: '#9aa3c0' };
+
+  function render(R) {
   var digest = R.digest || { totals: {}, sessions: [], topTools: [], projects: [], hours: [] };
   var sessions = digest.sessions || [];
-
-  // 星星点缀
-  var stars = document.getElementById('stars');
-  for (var i = 0; i < 90; i++) {
-    var s = document.createElement('i');
-    s.style.left = (Math.random() * 100).toFixed(2) + '%';
-    s.style.top = (Math.random() * 100).toFixed(2) + '%';
-    s.style.opacity = (0.15 + Math.random() * 0.5).toFixed(2);
-    stars.appendChild(s);
-  }
 
   // 头部日期
   var d = (R.meta && R.meta.date) || (digest.date || '');
@@ -210,6 +232,10 @@
   (digest.agents || []).forEach(function (a) {
     if (a.agent !== 'claude-code' && a.sessions) chips.push([a.agent === 'codex' ? 'Codex 会话' : a.agent, a.sessions]);
   });
+  // 分类维度（学习×N 工作×M…），来自 watch 标注
+  if (R.watch && R.watch.categories) {
+    Object.keys(R.watch.categories).forEach(function (c) { chips.push([c, R.watch.categories[c]]); });
+  }
   (digest.topTools || []).slice(0, 3).forEach(function (x) { chips.push([x.name, x.count]); });
   // 最活跃时段
   var bestH = -1, bestN = 0;
@@ -251,6 +277,42 @@
       }).join('')
     : '<div class="idea"><span class="bulb">💡</span><span>今天没有新的思路，好好休息。</span></div>';
 
+  // 专案追踪（v0.5）：被 watch 文件夹的今日/累计进度
+  var wsec = document.getElementById('watchSection');
+  var wlist = (R.watch && R.watch.active && R.watch.list) || [];
+  if (wlist.length) {
+    wlist = wlist.slice().sort(function (a, b) {
+      return (b.today - a.today) || (b.days - a.days) || (b.totalSessions - a.totalSessions);
+    }).slice(0, 4);
+    wsec.style.display = 'flex';
+    wsec.innerHTML = wlist.map(wcardHtml).join('');
+  } else {
+    wsec.style.display = 'none';
+    wsec.innerHTML = '';
+  }
+
+  function catStyle(cat) {
+    var c = CAT_COLORS[cat] || CAT_COLORS.其他;
+    return 'color:' + c + ';background:' + c + '22;border:1px solid ' + c + '55;';
+  }
+
+  function wcardHtml(w) {
+    var max = Math.max.apply(null, [1].concat(w.spark || []));
+    var spark = (w.spark || []).map(function (n, idx) {
+      var cls = idx === (w.spark.length - 1) ? ' class="today"' : '';
+      return '<i' + cls + ' style="height:' + Math.max(2, Math.round((n / max) * 100)) + '%"></i>';
+    }).join('');
+    var todayTxt = w.today > 0
+      ? '<span class="wtoday">今日 ×' + w.today + ' 会话</span>'
+      : '<span class="wtoday rest">今日休息</span>';
+    return (
+      '<div class="wcard"><div class="whead"><span class="wname">' + esc(w.name) + '</span>' +
+      '<span class="wcat" style="' + catStyle(w.category) + '">' + esc(w.category) + '</span>' + todayTxt +
+      '</div><div class="wmeta">累计 ' + w.days + ' 天 · 连击 ' + w.streak + '🔥 · 共 ' + w.totalSessions + ' 会话 / ' + w.totalToolCalls + ' 次工具</div>' +
+      '<div class="spark">' + spark + '</div></div>'
+    );
+  }
+
   // 看板
   var act = sessions.filter(function (s) { return s.status === '进行中'; });
   var fin = sessions.filter(function (s) { return s.status !== '进行中'; });
@@ -275,8 +337,9 @@
     var cards = list.slice(0, MAX_CARDS).map(function (s) {
       var tools = (s.topTools || []).map(function (x) { return x.name; }).join(' / ');
       var meta = [s.durationMin + ' 分钟', s.toolCalls + ' 次工具', tools].filter(Boolean).join(' · ');
+      var cat = s.category ? '<span class="cattag" style="' + catStyle(s.category) + '">' + esc(s.category) + '</span>' : '';
       return (
-        '<div class="card"><span class="proj">' + esc(s.project) + '</span>' +
+        '<div class="card"><span class="proj">' + esc(s.project) + '</span>' + cat +
         '<div class="title">' + esc(s.title) + '</div>' +
         '<div class="meta">' + esc(meta) + '</div></div>'
       );
@@ -293,6 +356,10 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+  } // render 到此为止
+
+  render(window.__REPORT__ || {});
+  window.__worldRender = render; // live 桌面模式的热刷新入口
 })();
 </script>
 </body>

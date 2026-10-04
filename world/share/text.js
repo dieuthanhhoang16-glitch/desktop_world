@@ -30,7 +30,17 @@ function buildShareText(report) {
 
   const stats = [`会话 ${t.sessions || 0}`, `输入 ${t.prompts || 0}`, `工具调用 ${t.toolCalls || 0}`];
   if (top) stats.push(`高频 ${top}`);
+  const cats = report.watch && report.watch.categories;
+  if (cats && Object.keys(cats).length) {
+    stats.push(Object.entries(cats).map(([c, n]) => `${c}×${n}`).join(' '));
+  }
   lines.push('', `📊 ${stats.join(' · ')}`);
+
+  // 专案追踪：今天动了哪些被 watch 的文件夹
+  const watchedToday = ((report.watch && report.watch.list) || []).filter((w) => w.today > 0);
+  if (watchedToday.length) {
+    lines.push(`📌 今日专案：${watchedToday.map((w) => `${w.name} ×${w.today}（累计 ${w.days} 天，连击 ${w.streak}🔥）`).join('、')}`);
+  }
 
   // 生长世界状态（v0.4+ 的日报都会有；旧报告没有就跳过）
   const w = report.world;

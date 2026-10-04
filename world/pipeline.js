@@ -8,6 +8,7 @@ const path = require('path');
 const { collect } = require('./collector');
 const { summarize } = require('./summarizer');
 const { worldForReport, worldForReuse } = require('./garden');
+const { prepareWatch } = require('./watch/state');
 
 function reportPath(outDir, date) {
   return path.join(outDir, `daily-${date}.json`);
@@ -58,11 +59,18 @@ async function runDaily({ outDir, setWallpaper = true, noLlm = false, reuseRepor
     onStep('采集今日 Claude Code 活动…');
     const digest = await collect();
     onStep(`采集完成：${digest.totals.sessions} 个会话 / ${digest.totals.toolCalls} 次工具调用`);
+    // 专案追踪：给会话标分类（学习/工作/…）+ 结算各文件夹累计进度（同日幂等）
+    const watch = prepareWatch(outDir, digest, digest.date);
+    if (watch.active) {
+      const todayWatched = watch.list.filter((w) => w.today > 0);
+      if (todayWatched.length) onStep(`专案：${todayWatched.map((w) => `${w.name}×${w.today}`).join(' · ')}`);
+    }
     onStep('调用本地 claude 生成一句话总结…');
     const summary = await summarize(digest, { noLlm });
     report = {
       meta: { date: digest.date, weekday: digest.weekday, generatedAt: digest.generatedAt, source: digest.source },
       digest,
+      watch: watch.active ? watch : undefined,
       oneline: summary.oneline,
       ideas: summary.ideas,
       source: summary.source,

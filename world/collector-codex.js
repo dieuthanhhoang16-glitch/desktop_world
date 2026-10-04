@@ -116,6 +116,7 @@ function collectCodex({ dir = CODEX_SESSIONS_DIR, todayStart, now, activeWindowM
 
     sessions.push({
       project: s.cwd ? path.basename(s.cwd) : 'codex',
+      cwd: s.cwd, // 完整路径：world/watch 专案追踪按它匹配
       title: s.prompts[0] ? s.prompts[0].slice(0, 80) : '(无文本输入)',
       firstPromptSample: s.prompts.slice(0, 3),
       promptCount: s.prompts.length >= 8 ? '8+' : s.prompts.length,

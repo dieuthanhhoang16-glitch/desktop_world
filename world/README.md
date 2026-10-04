@@ -1,4 +1,4 @@
-# world/ — Desktop World 每日早报模块（v0.4）
+# world/ — Desktop World 每日早报模块（v0.5）
 
 > 本项目 fork 自 clawd-on-desk（AGPL-3.0）。本目录是 fork 后的差异化模块，
 > 与上游 `src/` 引擎保持解耦：只新增、不改动（唯一接线点见下方「App 内集成」）。
@@ -111,6 +111,42 @@ npm run world:tidy -- --no-llm   # 不用 claude 给"其他"桶细分类
 - `CLAUDE_BIN` — claude CLI 路径（默认 `claude`）
 - `CLAUDE_PROJECTS_DIR` — Claude 转录目录（默认 `~/.claude/projects`）
 - `CODEX_SESSIONS_DIR` — Codex 转录目录（默认 `~/.codex/sessions`）
+- `WORLD_WATCH_FILE` — 专案追踪配置路径（默认 `~/.desktop-world/watch.json`）
+- `WORLD_LIVE_FILE` — 动态桌面配置路径（默认 `~/.desktop-world/live.json`）
+
+## 专案追踪（v0.5）
+
+把「特定文件夹」登记进追踪列表，早报（卡片 / 分享文案 / 动态桌面）里就会出现它的进度卡：
+今日会话数、累计天数、连击🔥、14 天柱图；会话卡片还会带分类角标（学习 / 工作 / 生活 / 开源 / 其他）。
+
+```bash
+npm run world:watch -- --add 工作 ~/Documents/desktop-world --name 桌面世界
+npm run world:watch -- --add 学习 ~/Documents/co-agent-paper
+npm run world:watch -- --list
+npm run world:watch -- --remove 桌面世界
+```
+
+- 配置存 `~/.desktop-world/watch.json`（0600，`WORLD_WATCH_FILE` 可覆盖）。
+- 分类挂在文件夹上；`--add` 时不给分类就按名字启发式猜（带 paper/thesis/学习… → 学习，否则工作）。
+- 匹配规则：会话 cwd 的最长路径前缀命中；子目录可以单独登记。
+- 结算按天、同日幂等：一天跑多次流水线不会重复累计，只会刷新"今天"的柱高。
+  特例同日升级：凌晨 0 会话先结算过、当天之后才开工，仍会按新的一天补记。
+- 没配置任何文件夹时，整个功能在模板和分享文案里完全静默（不显示）。
+
+## 动态桌面（v0.5）
+
+烘焙壁纸是把早报"截图贴上去"，会裁剪、会糊；动态桌面是另一个思路——
+透明无框、点击穿透的常驻窗口，直接渲染早报模板本身（原生清晰度），数据每 15 分钟自动热刷：
+
+- 托盘菜单「🖥️ 开启动态桌面」：右下角浮出早报卡片；「↔️ 解锁拖动」可挪位置，拖完「🔒 锁定」回穿透。
+- 配置存 `~/.desktop-world/live.json`（`WORLD_LIVE_FILE` 覆盖）：`{enabled, clickThrough, refreshMin, w, h, x, y}`；
+  `enabled:true` 时 App 启动自动恢复窗口。
+- 同日刷新 = 轻刷：只更新统计/世界/专案数据（只读世界状态，绝不重复结算），一句话沿用最新日报、不调 LLM；
+  跨过零点 = 自动升级跑完整流水线（世界结算 + 生成新一句话 + 重烘焙衬底壁纸）。
+- 开发预览：`npm run world:live`（独立进程、窗口可拖动）。
+
+边界：窗口浮在桌面图标**上方**（与桌宠同一层）。图标下方的真·壁纸层（macOS 私有桌面 API /
+Windows WorkerW 重父级）列入 v0.6 调研项；烘焙壁纸仍然保留，作为分享图片的底稿和动态窗口的衬底。
 
 ## 模块
 
@@ -124,19 +160,22 @@ npm run world:tidy -- --no-llm   # 不用 claude 给"其他"桶细分类
 | `cli.js` | 独立 Electron 命令行入口 |
 | `app-integration.js` | 桌宠 App 内入口（托盘菜单调用、系统通知反馈、防抖） |
 | `collector-codex.js` | Codex 会话采集（宽进严出解析，可 `options.codex:false` 关闭） |
+| `watch/` | 专案追踪：`config.js`（文件夹登记/分类/最长前缀匹配）、`state.js`（按天结算同日幂等/视图）、`watch.js`（CLI） |
+| `live/` | 动态桌面：`live.js`（透明穿透窗口 + 15 分钟热刷新）、`preview.js`（开发预览入口） |
 | `garden/` | 生长世界：`state.js`（持久状态/结算/阶段表）、`scene.js`（确定性像素 SVG）、`index.js`（门面） |
 | `creature/` | 桌宠皮肤「芽芽」：`sprites.js`（23 状态像素精灵库）、`generate.js`（themes/sprout 生成器） |
 
 ## App 内集成
 
-托盘 & 右键菜单 → "🌅 生成今日早报壁纸"（`src/menu.js`，一处新增代码块即全部接线）。
+托盘菜单 →「🌅 生成今日早报壁纸」「📮 分享今日早报」「🧹 整理桌面文件」「🖥️ 动态桌面」「↔️ 解锁拖动」（`src/menu.js`，click 内懒 require `world/app-integration.js`）。
 
 ## 已知取舍
 
 - Codex 采集按"事件类型名含 call/tool 即计工具调用"的粗粒度策略，数字仅供趋势参考。
 - 看板"进行中/已完成"按 45 分钟活跃窗口启发式判定，会随使用精化。
 - 正在运行的会话（含触发生成动作的那个会话本身）也会进统计，属预期行为。
-- 生长世界 v0.4 只长在壁纸上；与桌宠的状态联动（桌宠形态随世界等级/tidy 出杂草）待 v0.5。
+- 生长世界与桌宠的状态联动（桌宠形态随世界等级/tidy 出杂草）待 v0.6。
+- 动态桌面窗口浮在桌面图标上方；图标下面的真·壁纸层（私有 API / WorkerW）调研列入 v0.6。
 - 皮肤素材为程序化占位像素，生效需要 App 里手动切主题一次；AI 美术替换后升级为正式皮肤。
 - 设壁纸的 Linux 分支只覆盖 GNOME（gsettings）；KDE 等需后续补。
 - 打包（electron-builder）时需确认 `world/`、`themes/sprout/` 未被 `files` 规则排除——发版前核对。

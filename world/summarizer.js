@@ -23,6 +23,7 @@ function buildPrompt(digest) {
     各助手会话数: Object.fromEntries((digest.agents || []).map((a) => [a.agent, a.sessions])),
     会话: digest.sessions.slice(0, 10).map((s) => ({
       助手: s.agent || 'claude',
+      分类: s.category || null,
       项目: s.project,
       首个输入: s.title,
       状态: s.status,
