@@ -47,6 +47,8 @@ clawd 引擎（src/，不改动）          world/ 模块（fork 新增）
   - **版式二修**：总结+灵感挪到右栏底部（看板在上总结钉底），会话卡片改用 LLM 产的 sessionBriefs「干了什么」做主标题（原首条输入降为副行）；修复看板列 `#boardBody` 未受 flex 约束溢压住总结区（DOM 级 scrollHeight 检查守门）；动态桌面首次启动自动开启一次。
   - **新皮肤「Girl 蓝双马尾」**（2026-10-05）：用户自制素材（8 段 AI 视频 + 1 张静态图）→ `world/creature/convert-girl.sh` 制备（ffmpeg 取中段 2s、lanczos 缩 200²、colorkey 去白底、二遍调色板 256 色压到 190–620KB/个）；15 主状态全映射（缺的状态用语义最近的动画顶档，如 waking=开心挥手、roam=idle），工作分级 敲键盘/三颗星星/搬砖，子代理分级 + 指挥棒，拖动=转星星，点击=挥手；miniMode 暂不支持（无 mini 素材）；官方校验器全绿零警告。
 - **v0.6**（方向已定，读码清单见 [docs/v0.6-research.md](v0.6-research.md)）：真·图标下方壁纸层（mac 读 Plash、Windows 读 Lively，各取一招）；widget 面板化（短期看 Übersicht + Rainmeter 的 measure/meter 分层，把早报拆 tile）；芽芽 v2 素材（Shimeji-ee 的动作拆法 + Calico 实测分档：常驻 41 帧/反应 ~30/过场 ~20，单文件 ≤800KB，最近邻引擎已保）；另有桌宠形态随世界等级进化、tidy 联动长杂草、其他 agent 采集（Gemini/Kimi 复用 codex 模式）。
+  - **mac 桌面层 PoC ✅（2026-10-05，adf604b0）**：`world/live/poc/` —— Plash 源码实读（官方闭源→fork 快照）+ Swift 最小复现，公开 API 复验窗口 layer == kCGDesktopWindowLevel（-2147483623）比图标层低 20 级；下一段 = Electron 映射评估（N-API 薄桥 setLevel/collectionBehavior vs Swift sidecar 宿主）。
+  - **v0.6.1 动态桌面 widget 化（2026-10-05，用户定调）**：无卡片化（透明 widget 风、文字投影、body.live/body.bake 双形态，烘焙壁纸一像素不动）；**组件永不碰系统壁纸**（跨日流水线 setWallpaper:false，壁纸只留手动入口）；默认可交互可拖动（app-region，老配置 clickThrough:true 一次性迁移）；**桌宠入住景观**（girl APNG 进像素世界带，workingTiers 分级/深夜睡觉/引擎可 `setPetState` 覆盖）；右栏**随手记**（按天 notes.json 0600，仅本机不进烘焙）。
 
 ## 开发备忘
 

@@ -157,6 +157,52 @@
     display: flex; gap: 0.8vmin; align-items: flex-start;
   }
   .idea .bulb { flex: 0 0 auto; }
+
+  /* ---------- 桌宠入住景观（v0.6.1，仅 live 组件显示）---------- */
+  .scenewrap { position: relative; }
+  #petImg {
+    position: absolute; right: 1.2vmin; bottom: 0.6vmin;
+    height: 21vmin; width: auto; image-rendering: pixelated; pointer-events: none;
+    filter: drop-shadow(0 0.4vmin 0.8vmin rgba(0, 0, 0, 0.35));
+  }
+  #petImg[hidden] { display: none; }
+
+  /* ---------- 随手记（v0.6.1，仅 live 组件；不进烘焙壁纸）---------- */
+  .notes { flex: 0 0 auto; margin-top: 1.4vmin; border-top: 1px dashed var(--card-edge); padding-top: 1.2vmin; }
+  .notes .label { font-size: 1.3vmin; color: var(--ink-faint); letter-spacing: 0.3em; }
+  .notes .label .hint { letter-spacing: 0.08em; opacity: 0.75; }
+  .notes-body {
+    margin-top: 0.8vmin; min-height: 3.4vmin; max-height: 10.5vmin; overflow-y: auto;
+    font-size: 1.6vmin; line-height: 1.55; padding: 0.8vmin 1vmin; border-radius: 0.8vmin;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.07);
+    outline: none; white-space: pre-wrap; word-break: break-word;
+  }
+  .notes-body:focus { border-color: rgba(125, 211, 252, 0.45); }
+  .notes-body:empty::before { content: '随手写点什么，只存在你自己电脑上…'; color: var(--ink-faint); }
+
+  /* ================= 模式拆分 =================
+     body.bake：烘焙壁纸（默认样式，保持今天的样子一个像素不动）
+     body.live：动态桌面组件——无卡片化 widget 风，直接"印"在桌面上 */
+  body.live {
+    background: transparent;
+    --card: rgba(7, 11, 26, 0.52);
+    --card-edge: rgba(255, 255, 255, 0.16);
+    --amber-soft: rgba(7, 11, 26, 0.52);
+  }
+  body.live .stars { display: none; }
+  body.live .page {
+    -webkit-app-region: drag; /* 左栏/空白处按住即可拖动窗口 */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65), 0 0 8px rgba(0, 0, 0, 0.40);
+  }
+  body.live .board {
+    background: transparent; border: none; border-radius: 0; padding: 0.4vmin 0 0;
+    -webkit-app-region: no-drag; /* 看板区要留给点击/编辑 */
+  }
+  body.live .card,
+  body.live .wcard { background: rgba(7, 11, 26, 0.5); border-color: rgba(255, 255, 255, 0.13); }
+  body.live .idea { border-color: rgba(251, 191, 36, 0.35); }
+  body.live .notes-body { background: rgba(7, 11, 26, 0.45); border-color: rgba(255, 255, 255, 0.12); }
+  body.live .notes-body:focus { background: rgba(7, 11, 26, 0.6); }
 </style>
 </head>
 <body>
@@ -172,7 +218,10 @@
     <div class="stats" id="stats"></div>
 
     <section class="worldband" id="worldband" hidden>
-      <div class="scene" id="worldScene"></div>
+      <div class="scenewrap">
+        <div class="scene" id="worldScene"></div>
+        <img id="petImg" alt="" hidden>
+      </div>
       <div class="world-meta" id="worldMeta"></div>
     </section>
 
@@ -196,11 +245,20 @@
       </div>
       <div class="ideas" id="ideas"></div>
     </section>
+    <section class="notes" id="notesSection" hidden>
+      <div class="label">随手记 NOTES <span class="hint">点这里直接写</span></div>
+      <div class="notes-body" id="notesBody" contenteditable="plaintext-only" spellcheck="false"></div>
+    </section>
   </aside>
 </div>
 
 <script>
 (function () {
+  // 模式拆分：bake = 烘焙壁纸（注入了 window.__REPORT__，保持卡片形态）；
+  //           live = 动态桌面组件（无 __REPORT__，无卡片化 widget + 桌宠 + 随手记）
+  var LIVE = !window.__REPORT__;
+  document.body.className = LIVE ? 'live' : 'bake';
+
   // 星星只铺一次底；render 支持反复调用（live 桌面模式每 15 分钟热刷新）
   var starsEl = document.getElementById('stars');
   if (!starsEl.childElementCount) {
@@ -214,6 +272,8 @@
   }
 
   var CAT_COLORS = { 学习: '#7dd3fc', 工作: '#4ade80', 生活: '#fbbf24', 开源: '#ff9ec6', 其他: '#9aa3c0' };
+  var notesDate = null; // 随手记当前已加载的日期键（live 模式）
+  var notesBodyEl = document.getElementById('notesBody');
 
   function render(R) {
   var digest = R.digest || { totals: {}, sessions: [], topTools: [], projects: [], hours: [] };
@@ -261,6 +321,31 @@
       '<span class="stage">' + esc(world.stageIcon + ' ' + world.stageName) + ' · Lv' + world.level + '</span>' +
       '<span>耕种 ' + world.daysActive + ' 天 · 连续 ' + world.streak + ' 天 · 今日 <span class="xpp">+' + world.todayXp + ' xp</span></span>' +
       '<span>' + esc(nextTxt) + '</span>';
+  }
+
+  // 桌宠入住景观（仅 live 组件；烘焙壁纸保持纯静态世界）
+  var petEl = document.getElementById('petImg');
+  if (petEl) {
+    if (LIVE && world && world.svg && R.pet && R.pet.src) {
+      if (petEl.getAttribute('src') !== R.pet.src) petEl.src = R.pet.src;
+      petEl.title = R.pet.name || '';
+      petEl.hidden = false;
+    } else {
+      petEl.hidden = true;
+    }
+  }
+
+  // 随手记（仅 live 组件 + preload 桥存在）：换日/换报时重读当日便签，
+  // 正在编辑（有焦点）时绝不覆盖，免得光标乱跳
+  if (LIVE && window.__worldNotes) {
+    var nd = (R.meta && R.meta.date) || '';
+    document.getElementById('notesSection').hidden = false;
+    if (nd && nd !== notesDate) {
+      notesDate = nd;
+      window.__worldNotes.load(nd).then(function (t) {
+        if (nd === notesDate && document.activeElement !== notesBodyEl) notesBodyEl.textContent = t || '';
+      });
+    }
   }
 
   // 生长条：每个完成会话一株 🌿，进行中 🔆，封顶 14 株（无世界数据时的兜底展示）
@@ -373,6 +458,23 @@
       .replace(/"/g, '&quot;');
   }
   } // render 到此为止
+
+  // 随手记编辑：防抖 400ms 落盘。报表还没回来时（首次打开）按本地今天存档
+  if (LIVE && window.__worldNotes && notesBodyEl) {
+    var notesSaveTimer = null;
+    function activeNotesKey() {
+      if (notesDate) return notesDate;
+      var n = new Date();
+      return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+    }
+    notesBodyEl.addEventListener('input', function () {
+      notesDate = notesDate || activeNotesKey();
+      if (notesSaveTimer) clearTimeout(notesSaveTimer);
+      notesSaveTimer = setTimeout(function () {
+        window.__worldNotes.save(activeNotesKey(), notesBodyEl.innerText || '');
+      }, 400);
+    });
+  }
 
   render(window.__REPORT__ || {});
   window.__worldRender = render; // live 桌面模式的热刷新入口
