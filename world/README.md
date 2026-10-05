@@ -133,7 +133,7 @@ npm run world:watch -- --remove 桌面世界
   特例同日升级：凌晨 0 会话先结算过、当天之后才开工，仍会按新的一天补记。
 - 没配置任何文件夹时，整个功能在模板和分享文案里完全静默（不显示）。
 
-## 动态桌面（v0.6.1 重做形态）
+## 动态桌面（v0.6.1 重做形态，v0.6.2 看板增强）
 
 烘焙壁纸是把早报"截图贴上去"，会裁剪、会糊；动态桌面是另一个思路——
 透明无框、常驻的桌面组件，直接渲染早报模板本身（原生清晰度），数据每 15 分钟自动热刷。
@@ -150,6 +150,15 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
   `live.setPetState()` 注入引擎真状态覆盖。烘焙壁纸保持纯静态世界，不含桌宠。
 - **随手记**：右栏底部可编辑便签区，按天存 `<outDir>/notes.json`（0600，仅本机；
   不进烘焙壁纸、不进分享图）。防抖 400ms 落盘，换日自动切换当日条目（`world/live/notes.js`）。
+- **已完成列清理（v0.6.2）**：每张已完成卡片悬停出现「×」**隐藏该条**——只把卡片从今天
+  的看板拿掉（按天存 `<outDir>/dismissed.json`，0600），不动原始会话记录；footer 出现
+  「已隐藏 N 条 · 全部恢复」一键撤销。已完成列不再封顶 4 张，全量展示 + 细滚动条。
+  隐藏键是采集层面的稳定会话 id（`agent:id`，无 id 退内容哈希，`world/live/board.js`）。
+- **今日卡点 / 技术总结（v0.6.2）**：日报总结时 LLM 顺带产出当天**卡点**（卡住/返工/报错/
+  受阻，≤4 条）与**技术总结 tips**（可复用经验，≤4 条）；流水线把它们写成
+  `<outDir>/blockers-YYYY-MM-DD.md`、`tips-YYYY-MM-DD.md`。动态桌面右栏出现
+  「🚧 今日卡点」「💡 技术总结」两个 chip（悬停看全文），点击**用系统默认程序打开当日 md**；
+  当天没产出就静默不出现。烘焙壁纸不含这两个 chip。
 - **组件永不碰系统壁纸**：跨零点升级完整流水线只做世界结算 + 新一句话（`setWallpaper:false`）；
   壁纸烘焙只保留手动入口（托盘「🌅 生成今日早报壁纸」/ CLI `world:daily`），产物仍是 IM 分享底稿。
 - 配置存 `~/.desktop-world/live.json`（`WORLD_LIVE_FILE` 覆盖）：`{enabled, clickThrough, refreshMin, w, h, x, y}`；
@@ -164,15 +173,15 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
 | 文件 | 职责 |
 |---|---|
 | `collector.js` | 采集当日会话 → digest（项目/标题/时长/工具分布/活跃直方图/看板状态） |
-| `summarizer.js` | digest → `{oneline, ideas[3]}`（`claude -p`，失败降级模板） |
+| `summarizer.js` | digest → `{oneline, ideas[3], blockers[≤4], techTips[≤4]}`（`claude -p`，失败降级模板，降级时卡点/tips 为空） |
 | `template/daily-card.html` | 早报卡片模板（左：日期/统计/世界景观；右：专案+看板列在上，一句话+灵感钉底；`window.__worldRender` 热刷） |
 | `bake.js` | 隐藏窗口渲染 → `capturePage` → PNG → 设壁纸（macOS/Windows/Linux） |
-| `pipeline.js` | 串联 collect → summarize → 世界结算 → 落盘 → bake，CLI 与 App 共用 |
+| `pipeline.js` | 串联 collect → summarize → 世界结算 → 落盘（含当日卡点/tips md）→ bake，CLI 与 App 共用 |
 | `cli.js` | 独立 Electron 命令行入口 |
 | `app-integration.js` | 桌宠 App 内入口（托盘菜单调用、系统通知反馈、防抖） |
 | `collector-codex.js` | Codex 会话采集（宽进严出解析，可 `options.codex:false` 关闭） |
 | `watch/` | 专案追踪：`config.js`（文件夹登记/分类/最长前缀匹配）、`state.js`（按天结算同日幂等/视图）、`watch.js`（CLI） |
-| `live/` | 动态桌面：`live.js`（widget 窗口 + 15 分钟热刷新 + 随手记 IPC）、`notes.js`（按天便签存储）、`pet.js`（景观桌宠动画挑选）、`preload.js`（最小 contextBridge）、`preview.js`（开发预览入口）、`poc/`（桌面层 PoC：Swift 桌面层窗口 + 层级验证器） |
+| `live/` | 动态桌面：`live.js`（widget 窗口 + 15 分钟热刷新 + 随手记/看板隐藏/开 md IPC）、`notes.js`（按天便签存储）、`board.js`（按天隐藏清单 + 稳定会话键）、`pet.js`（景观桌宠动画挑选）、`preload.js`（最小 contextBridge）、`preview.js`（开发预览入口）、`poc/`（桌面层 PoC：Swift 桌面层窗口 + 层级验证器） |
 | `garden/` | 生长世界：`state.js`（持久状态/结算/阶段表）、`scene.js`（确定性像素 SVG）、`index.js`（门面） |
 | `creature/` | 桌宠皮肤「芽芽」：`sprites.js`（23 状态像素精灵库）、`generate.js`（themes/sprout 生成器） |
 

@@ -115,6 +115,7 @@ function collectCodex({ dir = CODEX_SESSIONS_DIR, todayStart, now, activeWindowM
     if (!s || !s.end || s.end < todayStart) continue;
 
     sessions.push({
+      id: s.id, // 同 claude 侧：看板"隐藏这条"的稳定键
       project: s.cwd ? path.basename(s.cwd) : 'codex',
       cwd: s.cwd, // 完整路径：world/watch 专案追踪按它匹配
       title: s.prompts[0] ? s.prompts[0].slice(0, 80) : '(无文本输入)',

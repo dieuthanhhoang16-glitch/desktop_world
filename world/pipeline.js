@@ -35,6 +35,37 @@ function loadLatestReport(outDir) {
   }
 }
 
+// 把今日卡点/技术总结写成可在系统里直接打开的 md。
+// 生成/复用报告后调用；没料就不写文件（UI 也会静默）。返回写出的文件路径数组。
+function writeDayNotes(outDir, report) {
+  const date = report.meta && report.meta.date;
+  if (!date) return [];
+  const hour = String(new Date().getHours()).padStart(2, '0');
+  const minute = String(new Date().getMinutes()).padStart(2, '0');
+  const sections = [
+    ['blockers', '今日卡点', report.blockers, '从会话标题反推，可能有误报，点开对照当天记录自己判断。'],
+    ['tips', '技术总结', report.techTips, '今天沉淀的可复用经验；能落地的建议配合"明日新思路"一起用。'],
+  ];
+  const files = [];
+  for (const [key, title, list, foot] of sections) {
+    if (!Array.isArray(list) || !list.length) continue;
+    const body = [
+      `# ${date} ${title}`,
+      '',
+      ...list.map((x) => `- ${x}`),
+      '',
+      '---',
+      `_由 Desktop World 日报生成（${report.source === 'claude' ? '本地 Claude' : '本地模板'}，${hour}:${minute}）。${foot}_`,
+      '',
+    ].join('\n');
+    const file = path.join(outDir, `${key}-${date}.md`);
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(file, body);
+    files.push(file);
+  }
+  return files;
+}
+
 /**
  * @param {object} opts
  * @param {string} opts.outDir
@@ -74,6 +105,8 @@ async function runDaily({ outDir, setWallpaper = true, noLlm = false, reuseRepor
       oneline: summary.oneline,
       ideas: summary.ideas,
       sessionBriefs: summary.sessionBriefs, // 每条会话的"干了什么"（顺序对应 digest.sessions 前 10 条）
+      blockers: summary.blockers, // 今日卡点（LLM 有料才有，UI 对空静默）
+      techTips: summary.techTips, // 技术总结 tips
       source: summary.source,
     };
     // 生长世界：把今日成果结算进持久世界（同日重复运行幂等，不重复加分）
@@ -84,10 +117,14 @@ async function runDaily({ outDir, setWallpaper = true, noLlm = false, reuseRepor
   const reportFile = saveReport(outDir, report);
   onStep(`报告已保存：${reportFile}`);
 
+  // 今日卡点 / 技术总结写成 md（动态桌面里点 chip 打开的就是这两个文件；没料就不写）
+  const mdFiles = writeDayNotes(outDir, report);
+  if (mdFiles.length) onStep(`随笔 md：${mdFiles.map((f) => path.basename(f)).join('、')}`);
+
   onStep('渲染壁纸…');
   const pngPath = await bakeWallpaper({ report, outDir, setWallpaper });
   onStep(setWallpaper ? `壁纸已设置：${pngPath}` : `壁纸 PNG 已生成（未设置）：${pngPath}`);
   return { report, pngPath, reportFile };
 }
 
-module.exports = { runDaily, loadLatestReport, saveReport };
+module.exports = { runDaily, loadLatestReport, saveReport, writeDayNotes };

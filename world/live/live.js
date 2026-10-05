@@ -27,6 +27,8 @@ const CFG_FILE = process.env.WORLD_LIVE_FILE || path.join(os.homedir(), '.deskto
 let win = null;
 let timer = null;
 let notesFile = null; // open() 时确定为 <outDir>/notes.json
+let dismissedFile = null; // open() 时确定为 <outDir>/dismissed.json
+let liveOutDirRef = null; // open() 时记下 outDir（打开当日 md 用）
 let petOverride = null; // app 侧引擎状态注入（见 setPetState），缺省时走数据推导
 
 function loadCfg() {
@@ -85,6 +87,16 @@ async function buildLiveReport(outDir, digest) {
     // 今日实况直接来自 digest，无需结算也准
   }
 
+  // 看板「隐藏这条」：从 dismissed.json 标注 s.hidden（模板据此过滤；原始会话记录不受影响）
+  if (outDir) {
+    try {
+      const board = require('./board');
+      board.annotateHidden(digest.sessions, board.list(path.join(outDir, 'dismissed.json'), digest.date));
+    } catch (e) {
+      console.error('[live] 隐藏清单读取失败（忽略）：', e.message);
+    }
+  }
+
   // 桌宠入住景观：挑当前主题的动画文件（数据驱动分级 + 引擎覆盖优先）
   let pet;
   try {
@@ -117,6 +129,8 @@ async function buildLiveReport(outDir, digest) {
     oneline: latest.oneline || '今天的一句话还没生成，点一次「生成今日早报壁纸」。',
     ideas: latest.ideas || [],
     sessionBriefs: latest.sessionBriefs, // 会话一句话沿用日报（顺序已对上新 digest 前 10 条，未必覆盖新会话）
+    blockers: latest.blockers, // 今日卡点 / 技术总结：跟日报走，轻刷不重算
+    techTips: latest.techTips,
     source: latest.source || 'fallback',
   };
 }
@@ -161,11 +175,13 @@ async function refresh(outDir, onFullDay) {
 
 let notesIpcReady = false;
 
-/** 随手记 IPC：只服务本窗口的 webContents，日期键由 notes.js 校验。 */
+/** 组件窗 IPC：只服务本窗口的 webContents（随手记 / 看板隐藏 / 打开当日 md）。 */
 function ensureNotesIpc() {
   if (notesIpcReady) return;
   notesIpcReady = true;
   const notes = require('./notes');
+  const board = require('./board');
+  const { shell } = require('electron');
   const ok = (e) => win && !win.isDestroyed() && e.sender === win.webContents;
   ipcMain.handle('world:notes:load', (e, date) => {
     if (!ok(e) || !notesFile) return '';
@@ -180,12 +196,43 @@ function ensureNotesIpc() {
       return '';
     }
   });
+  ipcMain.handle('world:board:hide', (e, date, sid) => {
+    if (!ok(e) || !dismissedFile) return [];
+    try {
+      return board.hide(dismissedFile, String(date || ''), String(sid || ''));
+    } catch (err) {
+      console.error('[live] 隐藏失败：', err.message);
+      return [];
+    }
+  });
+  ipcMain.handle('world:board:unhide-all', (e, date) => {
+    if (!ok(e) || !dismissedFile) return [];
+    try {
+      return board.unhideAll(dismissedFile, String(date || ''));
+    } catch (err) {
+      console.error('[live] 恢复失败：', err.message);
+      return [];
+    }
+  });
+  // 打开当日随笔 md：只允许 outDir 下的 blockers|tips-YYYY-MM-DD.md，白名单式拼路径
+  ipcMain.handle('world:open:md', async (e, kind, date) => {
+    if (!ok(e) || !liveOutDirRef) return false;
+    if (kind !== 'blockers' && kind !== 'tips') return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return false;
+    const file = path.join(liveOutDirRef, `${kind}-${date}.md`);
+    if (!fs.existsSync(file)) return false;
+    const err = await shell.openPath(file);
+    if (err) console.error('[live] 打开 md 失败：', err);
+    return !err;
+  });
 }
 
 async function open(outDir) {
   if (isOpen()) return win;
   const cfg = loadCfg();
   notesFile = path.join(outDir, 'notes.json');
+  dismissedFile = path.join(outDir, 'dismissed.json');
+  liveOutDirRef = outDir;
   ensureNotesIpc();
   const area = screen.getPrimaryDisplay().workAreaSize;
   const w = Math.min(cfg.w, area.width - 40);

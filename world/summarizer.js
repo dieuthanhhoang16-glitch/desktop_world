@@ -37,8 +37,10 @@ function buildPrompt(digest) {
     '1) oneline：今日一句话总结，≤40 个汉字。要具体（带上项目名/做了什么/卡在哪），口语化，禁止"今天很努力"式空话。',
     '2) ideas：3 条"明天值得尝试的新思路"，每条 ≤30 字，必须可从数据里真实出现的内容延伸（例如反复手工做的事可以脚本化/交给 agent 的新玩法）。',
     '3) sessionBriefs：按"会话"数组的顺序，为每条会话写 ≤22 字的"干了什么"，让不在这条会话里的人一眼看懂（动词开头，例"修复托盘菜单溢出问题""续写论文实验章节"）。数组长度必须是 min(会话数, 10)，顺序一一对应；实在看不出内容就写"项目里零散探索"。',
-    '4) 若数据很少（会话数 ≤1），oneline 如实表达今天较安静，ideas 给明日规划或休息类建议。',
-    '严格只输出 JSON，形如 {"oneline":"...","ideas":["...","...","..."],"sessionBriefs":["...","..."]}，不要 markdown 代码块、不要任何解释。',
+    '4) blockers：今日卡点——从会话标题/首个输入里能看出的卡住、返工、报错、权限受阻的痕迹，最多 4 条，每条 ≤22 字，写明卡点和（若可推断）它影响的事；看不出卡点就给空数组，禁止硬编。',
+    '5) techTips：今日技术总结——从今天做的事里沉淀的可复用经验/技巧（工具用法、调参结论、避坑），最多 4 条，每条 ≤26 字，要具体可操作；没有可沉淀的就给空数组。',
+    '6) 若数据很少（会话数 ≤1），oneline 如实表达今天较安静，ideas 给明日规划或休息类建议。',
+    '严格只输出 JSON，形如 {"oneline":"...","ideas":["..."],"sessionBriefs":["..."],"blockers":["..."],"techTips":["..."]}，不要 markdown 代码块、不要任何解释。',
     '',
     '数据：',
     JSON.stringify(compact),
@@ -125,7 +127,8 @@ function fallbackSummary(digest) {
           '给最活跃的项目跑一次代码体检',
           '把今天的成果贴进早报分享一下',
         ];
-  return { oneline, ideas, source: 'fallback' };
+  // 卡点/技术总结没有 LLM 就不硬凑——UI 对空数组静默
+  return { oneline, ideas, blockers: [], techTips: [], source: 'fallback' };
 }
 
 /**
@@ -141,10 +144,17 @@ async function summarize(digest, options = {}) {
       const sessionBriefs = Array.isArray(obj.sessionBriefs)
         ? obj.sessionBriefs.filter((x) => typeof x === 'string' && x.trim()).map((x) => trimSentence(x, 26)).slice(0, 10)
         : null;
+      const pickList = (v, maxLen, maxN) => {
+        if (!Array.isArray(v)) return undefined;
+        const list = v.filter((x) => typeof x === 'string' && x.trim()).map((x) => trimSentence(x, maxLen)).slice(0, maxN);
+        return list.length ? list : undefined;
+      };
       return {
         oneline: trimSentence(obj.oneline),
         ideas: obj.ideas.filter((x) => typeof x === 'string').slice(0, 3),
         sessionBriefs: sessionBriefs && sessionBriefs.length ? sessionBriefs : undefined,
+        blockers: pickList(obj.blockers, 26, 4), // 今日卡点（看不出就交给 UI 静默）
+        techTips: pickList(obj.techTips, 30, 4), // 技术总结
         source: 'claude',
         raw,
       };

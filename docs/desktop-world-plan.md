@@ -49,6 +49,7 @@ clawd 引擎（src/，不改动）          world/ 模块（fork 新增）
 - **v0.6**（方向已定，读码清单见 [docs/v0.6-research.md](v0.6-research.md)）：真·图标下方壁纸层（mac 读 Plash、Windows 读 Lively，各取一招）；widget 面板化（短期看 Übersicht + Rainmeter 的 measure/meter 分层，把早报拆 tile）；芽芽 v2 素材（Shimeji-ee 的动作拆法 + Calico 实测分档：常驻 41 帧/反应 ~30/过场 ~20，单文件 ≤800KB，最近邻引擎已保）；另有桌宠形态随世界等级进化、tidy 联动长杂草、其他 agent 采集（Gemini/Kimi 复用 codex 模式）。
   - **mac 桌面层 PoC ✅（2026-10-05，adf604b0）**：`world/live/poc/` —— Plash 源码实读（官方闭源→fork 快照）+ Swift 最小复现，公开 API 复验窗口 layer == kCGDesktopWindowLevel（-2147483623）比图标层低 20 级；下一段 = Electron 映射评估（N-API 薄桥 setLevel/collectionBehavior vs Swift sidecar 宿主）。
   - **v0.6.1 动态桌面 widget 化（2026-10-05，用户定调）**：无卡片化（透明 widget 风、文字投影、body.live/body.bake 双形态，烘焙壁纸一像素不动）；**组件永不碰系统壁纸**（跨日流水线 setWallpaper:false，壁纸只留手动入口）；默认可交互可拖动（app-region，老配置 clickThrough:true 一次性迁移）；**桌宠入住景观**（girl APNG 进像素世界带，workingTiers 分级/深夜睡觉/引擎可 `setPetState` 覆盖）；右栏**随手记**（按天 notes.json 0600，仅本机不进烘焙）。
+  - **v0.6.2 看板增强（2026-10-05，用户点菜）**：已完成列卡片**隐藏该条**（悬停「×」，按天存 dismissed.json，可「全部恢复」，不动原始会话记录；补采集层 `id` 透传做稳定键，无 id 退内容哈希）+ 列**全量滚动**（不再封顶 4 张，细滚动条）；日报新增**今日卡点/技术总结 tips**（LLM 增量产出 → report 字段 → `writeDayNotes` 落 `<outDir>/blockers|tips-YYYY-MM-DD.md`），动态桌面右栏双 chip **点击系统默认程序打开当日 md**（主进程白名单校验 kind+日期后才 shell.openPath）；烘焙形态不含新元素。37 条单测全绿。
 
 ## 开发备忘
 
