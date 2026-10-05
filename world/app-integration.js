@@ -209,13 +209,19 @@ function toggleLiveDrag() {
 }
 
 // App 启动时按 live.json 的 enabled 自动恢复窗口（托盘重建菜单时调用，幂等）。
+// 首次运行（还没有 live.json）视为 v0.5 升级：自动开启一次并告知用户如何关。
 function ensureLiveAutostart() {
   if (liveStarted) return;
   try {
     const live = require('./live/live');
-    if (live.loadCfg().enabled) {
+    const firstRun = !live.hasSavedCfg();
+    if (firstRun) live.saveCfg({ enabled: true });
+    if (firstRun || live.loadCfg().enabled) {
       liveStarted = true;
       live.open(liveOutDir()).catch((err) => console.error('[live] 自动恢复失败：', err.message));
+      if (firstRun) {
+        notify('动态桌面已就位 🖥️', '右下角是活的早报卡片，自动刷新；托盘菜单可随时关闭或解锁拖动');
+      }
     }
   } catch (err) {
     console.error('[live] 自动恢复失败：', err.message);

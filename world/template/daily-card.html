@@ -36,121 +36,127 @@
     position: absolute; border-radius: 50%; background: #fff;
     width: 0.35vmin; height: 0.35vmin; opacity: 0.55;
   }
-  .page { position: absolute; inset: 0; padding: 5.5vmin 6vmin; display: flex; }
+  .page { position: absolute; inset: 0; padding: 4.5vmin 5vmin; display: flex; gap: 4vmin; }
 
-  /* ---------- 左栏 ---------- */
-  .left { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; padding-right: 4.5vmin; }
-  .brand { font-size: 1.7vmin; letter-spacing: 0.45em; color: var(--ink-faint); font-weight: 600; }
-  .date-row { display: flex; align-items: baseline; gap: 2vmin; margin-top: 1.2vmin; }
-  .date { font-size: 7.5vmin; font-weight: 800; letter-spacing: 0.02em; }
-  .weekday { font-size: 2.6vmin; color: var(--ink-dim); font-weight: 500; }
+  /* ---------- 左栏：日期 + 统计 + 生长世界 ---------- */
+  .left { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+  .brand { font-size: 1.5vmin; letter-spacing: 0.45em; color: var(--ink-faint); font-weight: 600; }
+  .date-row { display: flex; align-items: baseline; gap: 2vmin; margin-top: 1vmin; }
+  .date { font-size: 6.8vmin; font-weight: 800; letter-spacing: 0.02em; }
+  .weekday { font-size: 2.4vmin; color: var(--ink-dim); font-weight: 500; }
 
-  .quote {
-    margin-top: 3.6vmin; padding: 3.2vmin 3.6vmin;
-    background: var(--card); border: 1px solid var(--card-edge); border-radius: 2.2vmin;
-    position: relative; max-width: 96%;
-  }
-  .quote::before {
-    content: "“"; position: absolute; top: -1.2vmin; left: 1.6vmin;
-    font-size: 9vmin; color: var(--green); opacity: 0.5; font-family: Georgia, serif;
-  }
-  .quote .oneline { font-size: 3.4vmin; font-weight: 700; line-height: 1.5; }
-  .quote .src { margin-top: 1.2vmin; font-size: 1.6vmin; color: var(--ink-faint); }
-
-  .stats { display: flex; flex-wrap: wrap; gap: 1.4vmin; margin-top: 2.8vmin; }
+  .stats { display: flex; flex-wrap: wrap; gap: 1.2vmin; margin-top: 2.4vmin; }
   .chip {
-    padding: 1.1vmin 1.9vmin; border-radius: 999px;
+    padding: 1vmin 1.7vmin; border-radius: 999px;
     background: var(--card); border: 1px solid var(--card-edge);
-    font-size: 1.9vmin; color: var(--ink-dim); white-space: nowrap;
+    font-size: 1.7vmin; color: var(--ink-dim); white-space: nowrap;
   }
   .chip b { color: var(--ink); font-weight: 700; margin-right: 0.4em; }
 
-  .garden { margin-top: auto; padding-top: 2vmin; }
-  .garden .label { font-size: 1.7vmin; color: var(--ink-faint); letter-spacing: 0.25em; margin-bottom: 1vmin; }
-  .garden .row { font-size: 3.2vmin; letter-spacing: 0.15em; line-height: 1.2; }
+  .garden { margin-top: auto; padding-top: 1.6vmin; }
+  .garden .label { font-size: 1.5vmin; color: var(--ink-faint); letter-spacing: 0.25em; margin-bottom: 0.9vmin; }
+  .garden .row { font-size: 2.8vmin; letter-spacing: 0.15em; line-height: 1.2; }
   .garden .row .dim { opacity: 0.25; }
 
-  /* ---------- 生长世界景观带（v0.4）---------- */
-  .worldband { margin-top: auto; padding-top: 2vmin; }
+  /* ---------- 生长世界景观带（v0.4，v0.5 放大为左栏主角）---------- */
+  .worldband { margin-top: auto; padding-top: 1.6vmin; }
   .worldband .scene {
-    width: 100%; height: 22vmin; border-radius: 1.6vmin; overflow: hidden;
+    width: 100%; height: 30vmin; border-radius: 1.6vmin; overflow: hidden;
     border: 1px solid var(--card-edge); background: #0b1026;
     box-shadow: 0 1vmin 3vmin rgba(0, 0, 0, 0.35);
   }
   .worldband .scene svg { width: 100%; height: 100%; display: block; }
   .worldband .world-meta {
     display: flex; align-items: baseline; justify-content: space-between;
-    margin-top: 1.2vmin; font-size: 1.8vmin; color: var(--ink-dim); gap: 2vmin;
+    margin-top: 1.1vmin; font-size: 1.7vmin; color: var(--ink-dim); gap: 2vmin;
   }
-  .worldband .world-meta .stage { font-size: 2.2vmin; font-weight: 700; color: var(--ink); }
+  .worldband .world-meta .stage { font-size: 2vmin; font-weight: 700; color: var(--ink); }
   .worldband .world-meta .xpp { color: var(--green); font-weight: 600; }
 
-  .ideas { margin-top: 2.6vmin; display: flex; gap: 1.6vmin; }
-  .idea {
-    flex: 1; padding: 1.9vmin 2.1vmin; border-radius: 1.6vmin;
-    background: var(--amber-soft); border: 1px solid rgba(251, 191, 36, 0.25);
-    font-size: 2vmin; line-height: 1.55; color: #fde9c8;
-    display: flex; gap: 1vmin; align-items: flex-start;
-  }
-  .idea .bulb { flex: 0 0 auto; }
-
-  /* ---------- 右栏看板 ---------- */
+  /* ---------- 右栏：看板在上，总结+灵感钉在底 ---------- */
   .board {
-    flex: 0 0 34%; max-width: 34%; display: flex; flex-direction: column;
-    background: var(--card); border: 1px solid var(--card-edge); border-radius: 2.4vmin;
-    padding: 2.6vmin; min-height: 0;
+    flex: 0 0 41%; max-width: 41%; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--card-edge); border-radius: 2.2vmin;
+    padding: 2.2vmin; min-height: 0; overflow: hidden;
   }
-  .board h2 { font-size: 2.2vmin; font-weight: 700; letter-spacing: 0.12em; }
-  .board h2 .en { display: block; font-size: 1.4vmin; color: var(--ink-faint); letter-spacing: 0.35em; margin-top: 0.6vmin; font-weight: 600; }
-  .cols { display: flex; gap: 1.8vmin; margin-top: 2.2vmin; flex: 1; min-height: 0; }
-  .col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .board h2 { font-size: 2vmin; font-weight: 700; letter-spacing: 0.12em; flex: 0 0 auto; }
+  .board h2 .en { display: block; font-size: 1.25vmin; color: var(--ink-faint); letter-spacing: 0.35em; margin-top: 0.5vmin; font-weight: 600; }
+
+  .board-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin-top: 1.8vmin; overflow: hidden; }
+  #boardBody { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .cols { display: flex; gap: 1.5vmin; flex: 1 1 auto; min-height: 0; }
+  .col { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .col h3 {
-    font-size: 1.8vmin; color: var(--ink-dim); font-weight: 600;
-    display: flex; align-items: center; gap: 0.8vmin; margin-bottom: 1.4vmin;
+    font-size: 1.6vmin; color: var(--ink-dim); font-weight: 600;
+    display: flex; align-items: center; gap: 0.7vmin; margin-bottom: 1.1vmin; flex: 0 0 auto;
   }
-  .col h3 .dot { width: 0.9vmin; height: 0.9vmin; border-radius: 50%; }
+  .col h3 .dot { width: 0.8vmin; height: 0.8vmin; border-radius: 50%; }
   .col.active h3 .dot { background: var(--green); box-shadow: 0 0 1.2vmin var(--green); }
   .col.done h3 .dot { background: var(--ink-faint); }
   .col h3 .count { margin-left: auto; color: var(--ink-faint); font-weight: 500; }
-  .cards { display: flex; flex-direction: column; gap: 1.2vmin; overflow: hidden; }
+  .cards { display: flex; flex-direction: column; gap: 1vmin; overflow: hidden; min-height: 0; }
   .card {
     background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 1.3vmin; padding: 1.5vmin 1.7vmin;
+    border-radius: 1.2vmin; padding: 1.2vmin 1.4vmin; flex: 0 0 auto;
   }
   .card .proj {
-    display: inline-block; font-size: 1.3vmin; color: var(--blue);
-    background: rgba(125, 211, 252, 0.12); border-radius: 0.6vmin;
-    padding: 0.35vmin 0.9vmin; margin-bottom: 0.8vmin; letter-spacing: 0.05em;
+    display: inline-block; font-size: 1.15vmin; color: var(--blue);
+    background: rgba(125, 211, 252, 0.12); border-radius: 0.5vmin;
+    padding: 0.3vmin 0.8vmin; margin-bottom: 0.7vmin; letter-spacing: 0.05em;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .card .title {
-    font-size: 1.7vmin; font-weight: 600; line-height: 1.45;
+    font-size: 1.6vmin; font-weight: 700; line-height: 1.45;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .card .meta { font-size: 1.35vmin; color: var(--ink-faint); margin-top: 0.8vmin; }
-  .card .cattag { font-size: 1.1vmin; margin-left: 0.7vmin; padding: 0.25vmin 0.7vmin; border-radius: 0.5vmin; vertical-align: 0.15vmin; }
+  .card .raw {
+    font-size: 1.2vmin; color: var(--ink-faint); line-height: 1.4; margin-top: 0.5vmin;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .card .meta { font-size: 1.2vmin; color: var(--ink-faint); margin-top: 0.6vmin; }
+  .card .cattag { font-size: 1vmin; margin-left: 0.6vmin; padding: 0.2vmin 0.6vmin; border-radius: 0.45vmin; vertical-align: 0.15vmin; }
 
-  /* ---------- 专案追踪（v0.5）---------- */
-  #watchSection { display: none; flex-direction: column; gap: 1vmin; margin-top: 2vmin; }
+  /* ---------- 专案追踪（v0.5，位于看板顶部，最多 2 张紧凑卡）---------- */
+  #watchSection { display: none; flex-direction: column; gap: 0.9vmin; margin-bottom: 1.4vmin; flex: 0 0 auto; }
   .wcard {
     background: rgba(255, 255, 255, 0.06); border: 1px solid var(--card-edge);
-    border-radius: 1.3vmin; padding: 1.3vmin 1.5vmin;
+    border-radius: 1.2vmin; padding: 1vmin 1.3vmin;
   }
-  .wcard .whead { display: flex; align-items: baseline; gap: 1vmin; }
-  .wcard .wname { font-size: 1.8vmin; font-weight: 700; }
-  .wcard .wcat { font-size: 1.15vmin; padding: 0.2vmin 0.8vmin; border-radius: 0.6vmin; white-space: nowrap; }
-  .wcard .wtoday { margin-left: auto; font-size: 1.5vmin; color: var(--green); font-weight: 600; white-space: nowrap; }
+  .wcard .whead { display: flex; align-items: baseline; gap: 0.9vmin; }
+  .wcard .wname { font-size: 1.6vmin; font-weight: 700; }
+  .wcard .wcat { font-size: 1vmin; padding: 0.15vmin 0.7vmin; border-radius: 0.5vmin; white-space: nowrap; }
+  .wcard .wtoday { margin-left: auto; font-size: 1.35vmin; color: var(--green); font-weight: 600; white-space: nowrap; }
   .wcard .wtoday.rest { color: var(--ink-faint); font-weight: 400; }
-  .wcard .wmeta { font-size: 1.3vmin; color: var(--ink-faint); margin-top: 0.7vmin; }
-  .wcard .spark { display: flex; align-items: flex-end; gap: 2px; height: 2.2vmin; margin-top: 0.9vmin; }
+  .wcard .wmeta { font-size: 1.15vmin; color: var(--ink-faint); margin-top: 0.5vmin; }
+  .wcard .spark { display: flex; align-items: flex-end; gap: 2px; height: 1.8vmin; margin-top: 0.7vmin; }
   .wcard .spark i { width: 4px; min-height: 2px; background: var(--green); opacity: 0.75; border-radius: 1px 1px 0 0; }
   .wcard .spark i.today { opacity: 1; box-shadow: 0 0 0.6vmin var(--green); }
+
   .empty-board {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: var(--ink-faint); font-size: 2vmin; text-align: center; gap: 1.6vmin; line-height: 1.8;
+    color: var(--ink-faint); font-size: 1.8vmin; text-align: center; gap: 1.4vmin; line-height: 1.8;
   }
-  .empty-board .big { font-size: 6vmin; }
-  .overflow-note { font-size: 1.4vmin; color: var(--ink-faint); margin-top: 1.2vmin; text-align: right; }
+  .empty-board .big { font-size: 5vmin; }
+  .overflow-note { font-size: 1.25vmin; color: var(--ink-faint); margin-top: 1vmin; text-align: right; flex: 0 0 auto; }
+
+  /* ---------- 总结 + 灵感（v0.5 挪到右栏底部）---------- */
+  .summary { flex: 0 0 auto; margin-top: 1.8vmin; border-top: 1px dashed var(--card-edge); padding-top: 1.5vmin; }
+  .summary .label { font-size: 1.3vmin; color: var(--ink-faint); letter-spacing: 0.3em; margin-bottom: 0.9vmin; }
+  .summary .quote { position: relative; padding-left: 2.2vmin; }
+  .summary .quote::before {
+    content: "“"; position: absolute; top: -1.6vmin; left: 0.2vmin;
+    font-size: 5vmin; color: var(--green); opacity: 0.5; font-family: Georgia, serif;
+  }
+  .summary .oneline { font-size: 2vmin; font-weight: 700; line-height: 1.5; }
+  .summary .src { margin-top: 0.6vmin; font-size: 1.2vmin; color: var(--ink-faint); }
+  .ideas { margin-top: 1.2vmin; display: flex; flex-direction: column; gap: 0.8vmin; }
+  .idea {
+    padding: 0.9vmin 1.2vmin; border-radius: 1vmin;
+    background: var(--amber-soft); border: 1px solid rgba(251, 191, 36, 0.25);
+    font-size: 1.45vmin; line-height: 1.5; color: #fde9c8;
+    display: flex; gap: 0.8vmin; align-items: flex-start;
+  }
+  .idea .bulb { flex: 0 0 auto; }
 </style>
 </head>
 <body>
@@ -163,11 +169,6 @@
       <div class="weekday" id="weekday"></div>
     </div>
 
-    <section class="quote">
-      <div class="oneline" id="oneline"></div>
-      <div class="src" id="src"></div>
-    </section>
-
     <div class="stats" id="stats"></div>
 
     <section class="worldband" id="worldband" hidden>
@@ -179,14 +180,22 @@
       <div class="label">今日生长 TODAY'S GROWTH</div>
       <div class="row" id="garden"></div>
     </div>
-
-    <div class="ideas" id="ideas"></div>
   </main>
 
   <aside class="board">
     <h2>任务看板<span class="en">AGENT BOARD</span></h2>
-    <div id="watchSection"></div>
-    <div id="boardBody"></div>
+    <div class="board-body">
+      <div id="watchSection"></div>
+      <div id="boardBody"></div>
+    </div>
+    <section class="summary">
+      <div class="label">今日总结 DAILY BRIEF</div>
+      <div class="quote">
+        <div class="oneline" id="oneline"></div>
+        <div class="src" id="src"></div>
+      </div>
+      <div class="ideas" id="ideas"></div>
+    </section>
   </aside>
 </div>
 
@@ -209,18 +218,13 @@
   function render(R) {
   var digest = R.digest || { totals: {}, sessions: [], topTools: [], projects: [], hours: [] };
   var sessions = digest.sessions || [];
+  // 会话一句话（LLM 生成，顺序对应 digest.sessions 前 10 条）
+  sessions.forEach(function (s, i) { s._brief = R.sessionBriefs && R.sessionBriefs[i] ? R.sessionBriefs[i] : null; });
 
   // 头部日期
   var d = (R.meta && R.meta.date) || (digest.date || '');
   document.getElementById('date').textContent = d.replace(/-/g, ' / ');
   document.getElementById('weekday').textContent = (R.meta && R.meta.weekday) || digest.weekday || '';
-
-  // 一句话
-  document.getElementById('oneline').textContent = R.oneline || '今天还没有一句话总结。';
-  var genAt = R.meta && R.meta.generatedAt ? new Date(R.meta.generatedAt) : new Date();
-  document.getElementById('src').textContent =
-    (R.source === 'claude' ? '由本地 Claude 汇总' : '由本地数据汇总') +
-    ' · ' + String(genAt.getHours()).padStart(2, '0') + ':' + String(genAt.getMinutes()).padStart(2, '0') + ' 生成';
 
   // 统计 chips
   var chips = [];
@@ -259,7 +263,7 @@
       '<span>' + esc(nextTxt) + '</span>';
   }
 
-  // 生长条：每个完成会话一株 🌿，进行中 🔆，封顶 14 株
+  // 生长条：每个完成会话一株 🌿，进行中 🔆，封顶 14 株（无世界数据时的兜底展示）
   var done = sessions.filter(function (s) { return s.status !== '进行中'; }).length;
   var doing = sessions.length - done;
   var plants = '';
@@ -269,21 +273,26 @@
   if (!plants) plants = '<span class="dim">🌱 种子还在等今天的第一场雨</span>';
   document.getElementById('garden').innerHTML = plants;
 
-  // 新思路
+  // 一句话 + 灵感（右栏底部总结区）
+  document.getElementById('oneline').textContent = R.oneline || '今天还没有一句话总结。';
+  var genAt = R.meta && R.meta.generatedAt ? new Date(R.meta.generatedAt) : new Date();
+  document.getElementById('src').textContent =
+    (R.source === 'claude' ? '由本地 Claude 汇总' : '由本地数据汇总') +
+    ' · ' + String(genAt.getHours()).padStart(2, '0') + ':' + String(genAt.getMinutes()).padStart(2, '0');
   var ideas = (R.ideas || []).slice(0, 3);
   document.getElementById('ideas').innerHTML = ideas.length
     ? ideas.map(function (x) {
         return '<div class="idea"><span class="bulb">💡</span><span>' + esc(x) + '</span></div>';
       }).join('')
-    : '<div class="idea"><span class="bulb">💡</span><span>今天没有新的思路，好好休息。</span></div>';
+    : '';
 
-  // 专案追踪（v0.5）：被 watch 文件夹的今日/累计进度
+  // 专案追踪（v0.5）：被 watch 文件夹的今日/累计进度，最多 2 张紧凑卡
   var wsec = document.getElementById('watchSection');
   var wlist = (R.watch && R.watch.active && R.watch.list) || [];
   if (wlist.length) {
     wlist = wlist.slice().sort(function (a, b) {
       return (b.today - a.today) || (b.days - a.days) || (b.totalSessions - a.totalSessions);
-    }).slice(0, 4);
+    }).slice(0, 2);
     wsec.style.display = 'flex';
     wsec.innerHTML = wlist.map(wcardHtml).join('');
   } else {
@@ -316,12 +325,12 @@
   // 看板
   var act = sessions.filter(function (s) { return s.status === '进行中'; });
   var fin = sessions.filter(function (s) { return s.status !== '进行中'; });
-  var MAX_CARDS = 6;
+  var MAX_CARDS = 4;
   var body = document.getElementById('boardBody');
   if (!sessions.length) {
     body.innerHTML =
       '<div class="empty-board"><div class="big">🌙</div>' +
-      '<div>今天森林很安静<br>没有 Claude Code 会话记录<br>明天再来一起种点新东西吧</div></div>';
+      '<div>今天森林很安静<br>还没有 AI 助手会话记录<br>明天再来一起种点新东西吧</div></div>';
   } else {
     body.innerHTML =
       '<div class="cols">' +
@@ -329,18 +338,25 @@
       colHtml('已完成', 'done', fin) +
       '</div>' +
       (sessions.length > MAX_CARDS * 2
-        ? '<div class="overflow-note">仅展示最近 ' + MAX_CARDS * 2 + ' 个会话，共 ' + sessions.length + ' 个</div>'
+        ? '<div class="overflow-note">仅展示最近 ' + MAX_CARDS * 2 + ' 个会话，共 ' + sessions.length + ' 个 · 更多见命令行 CLI 报告</div>'
         : '');
   }
 
   function colHtml(label, cls, list) {
-    var cards = list.slice(0, MAX_CARDS).map(function (s) {
+    // 只展示有内容的卡片，给发言最积极的一侧更多名额
+    function perColumnCap(l) {
+      return Math.max(2, Math.min(MAX_CARDS, MAX_CARDS * 2 - Math.min(MAX_CARDS, list === act ? fin.length : act.length)));
+    }
+    var cards = list.slice(0, perColumnCap()).map(function (s) {
       var tools = (s.topTools || []).map(function (x) { return x.name; }).join(' / ');
       var meta = [s.durationMin + ' 分钟', s.toolCalls + ' 次工具', tools].filter(Boolean).join(' · ');
       var cat = s.category ? '<span class="cattag" style="' + catStyle(s.category) + '">' + esc(s.category) + '</span>' : '';
+      var title = s._brief || s.title; // 优先 LLM 的"干了什么"
+      var rawLine = s._brief ? '<div class="raw">' + esc(s.title) + '</div>' : '';
+      var hover = esc(s.project + ' · ' + s.title);
       return (
-        '<div class="card"><span class="proj">' + esc(s.project) + '</span>' + cat +
-        '<div class="title">' + esc(s.title) + '</div>' +
+        '<div class="card" title="' + hover + '"><span class="proj">' + esc(s.project) + '</span>' + cat +
+        '<div class="title">' + esc(title) + '</div>' + rawLine +
         '<div class="meta">' + esc(meta) + '</div></div>'
       );
     }).join('');

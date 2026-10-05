@@ -36,8 +36,9 @@ function buildPrompt(digest) {
     '请输出：',
     '1) oneline：今日一句话总结，≤40 个汉字。要具体（带上项目名/做了什么/卡在哪），口语化，禁止"今天很努力"式空话。',
     '2) ideas：3 条"明天值得尝试的新思路"，每条 ≤30 字，必须可从数据里真实出现的内容延伸（例如反复手工做的事可以脚本化/交给 agent 的新玩法）。',
-    '3) 若数据很少（会话数 ≤1），oneline 如实表达今天较安静，ideas 给明日规划或休息类建议。',
-    '严格只输出 JSON，形如 {"oneline":"...","ideas":["...","...","..."]}，不要 markdown 代码块、不要任何解释。',
+    '3) sessionBriefs：按"会话"数组的顺序，为每条会话写 ≤22 字的"干了什么"，让不在这条会话里的人一眼看懂（动词开头，例"修复托盘菜单溢出问题""续写论文实验章节"）。数组长度必须是 min(会话数, 10)，顺序一一对应；实在看不出内容就写"项目里零散探索"。',
+    '4) 若数据很少（会话数 ≤1），oneline 如实表达今天较安静，ideas 给明日规划或休息类建议。',
+    '严格只输出 JSON，形如 {"oneline":"...","ideas":["...","...","..."],"sessionBriefs":["...","..."]}，不要 markdown 代码块、不要任何解释。',
     '',
     '数据：',
     JSON.stringify(compact),
@@ -137,9 +138,13 @@ async function summarize(digest, options = {}) {
     const raw = await runClaudeHeadless(buildPrompt(digest), options.timeoutMs);
     const obj = extractJson(raw);
     if (obj && typeof obj.oneline === 'string' && Array.isArray(obj.ideas)) {
+      const sessionBriefs = Array.isArray(obj.sessionBriefs)
+        ? obj.sessionBriefs.filter((x) => typeof x === 'string' && x.trim()).map((x) => trimSentence(x, 26)).slice(0, 10)
+        : null;
       return {
         oneline: trimSentence(obj.oneline),
         ideas: obj.ideas.filter((x) => typeof x === 'string').slice(0, 3),
+        sessionBriefs: sessionBriefs && sessionBriefs.length ? sessionBriefs : undefined,
         source: 'claude',
         raw,
       };

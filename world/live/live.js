@@ -38,6 +38,9 @@ function saveCfg(patch) {
 function isOpen() {
   return !!(win && !win.isDestroyed());
 }
+function hasSavedCfg() {
+  return fs.existsSync(CFG_FILE);
+}
 function isLiveClickable() {
   if (!isOpen()) return false;
   return !loadCfg().clickThrough;
@@ -76,6 +79,7 @@ async function buildLiveReport(outDir, digest) {
     world: withSvg(worldForReuse(outDir)),
     oneline: latest.oneline || '今天的一句话还没生成，点一次「生成今日早报壁纸」。',
     ideas: latest.ideas || [],
+    sessionBriefs: latest.sessionBriefs, // 会话一句话沿用日报（顺序已对上新 digest 前 10 条，未必覆盖新会话）
     source: latest.source || 'fallback',
   };
 }
@@ -184,4 +188,4 @@ function toggleClickThrough() {
   return { clickThrough: next };
 }
 
-module.exports = { open, close, toggle, toggleClickThrough, isOpen, isLiveClickable, loadCfg, saveCfg, buildLiveReport, refresh };
+module.exports = { open, close, toggle, toggleClickThrough, isOpen, isLiveClickable, hasSavedCfg, loadCfg, saveCfg, buildLiveReport, refresh };

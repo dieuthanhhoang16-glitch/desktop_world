@@ -73,6 +73,7 @@ async function runDaily({ outDir, setWallpaper = true, noLlm = false, reuseRepor
       watch: watch.active ? watch : undefined,
       oneline: summary.oneline,
       ideas: summary.ideas,
+      sessionBriefs: summary.sessionBriefs, // 每条会话的"干了什么"（顺序对应 digest.sessions 前 10 条）
       source: summary.source,
     };
     // 生长世界：把今日成果结算进持久世界（同日重复运行幂等，不重复加分）

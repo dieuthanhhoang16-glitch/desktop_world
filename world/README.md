@@ -138,7 +138,8 @@ npm run world:watch -- --remove 桌面世界
 烘焙壁纸是把早报"截图贴上去"，会裁剪、会糊；动态桌面是另一个思路——
 透明无框、点击穿透的常驻窗口，直接渲染早报模板本身（原生清晰度），数据每 15 分钟自动热刷：
 
-- 托盘菜单「🖥️ 开启动态桌面」：右下角浮出早报卡片；「↔️ 解锁拖动」可挪位置，拖完「🔒 锁定」回穿透。
+- 首次启动 App 会自动开启一次（通知告知）；之后托盘菜单「🖥️ 开/关动态桌面」随用随切，
+  「↔️ 解锁拖动」可挪位置，拖完「🔒 锁定」回穿透。
 - 配置存 `~/.desktop-world/live.json`（`WORLD_LIVE_FILE` 覆盖）：`{enabled, clickThrough, refreshMin, w, h, x, y}`；
   `enabled:true` 时 App 启动自动恢复窗口。
 - 同日刷新 = 轻刷：只更新统计/世界/专案数据（只读世界状态，绝不重复结算），一句话沿用最新日报、不调 LLM；
@@ -154,7 +155,7 @@ Windows WorkerW 重父级）列入 v0.6 调研项；烘焙壁纸仍然保留，�
 |---|---|
 | `collector.js` | 采集当日会话 → digest（项目/标题/时长/工具分布/活跃直方图/看板状态） |
 | `summarizer.js` | digest → `{oneline, ideas[3]}`（`claude -p`，失败降级模板） |
-| `template/daily-card.html` | 早报卡片模板（数据经 `window.__REPORT__` 注入） |
+| `template/daily-card.html` | 早报卡片模板（左：日期/统计/世界景观；右：专案+看板列在上，一句话+灵感钉底；`window.__worldRender` 热刷） |
 | `bake.js` | 隐藏窗口渲染 → `capturePage` → PNG → 设壁纸（macOS/Windows/Linux） |
 | `pipeline.js` | 串联 collect → summarize → 世界结算 → 落盘 → bake，CLI 与 App 共用 |
 | `cli.js` | 独立 Electron 命令行入口 |
