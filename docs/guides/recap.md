@@ -9,6 +9,12 @@ Footprints is a companion-style review, not a time tracker or productivity score
 - **This month**: a normal Monday-first calendar
 - **This year**: 12 rows with up to 31 day cells
 
+## Daily reflection
+
+The same Settings page has a separate, handwritten **Today's thread** card. Record the main task, a confirmed result, the next step, and one learning point or open question. Add up to eight checks and mark each as verified; open checks from the previous six days can also be marked complete. Yesterday's next step appears above today's fields, and the previous six days appear below for a short weekly review. Nothing is generated from prompts or agent output, and no reminder interrupts an active session.
+
+Reflections are saved only when **Save reflection** is pressed. They live as per-day files under `~/.clawd/reflections-v1/`, separate from the minimized `recap-v1` activity history. Clearing Footprints does not remove reflections; **Clear reflections** deletes them after confirmation and leaves Footprints intact. Reflection text is never used by the wallpaper, sharing, notifications, or the Footprints activity projection. Avoid entering secrets. The daily card is available even when Footprints recording is off.
+
 Hover or focus an agent row to highlight only that agent. Click the row, or press Enter/Space, to lock the highlight; press Escape to unlock it. Hover an activity bar or cell to see each agent's share of that period. The timeline is one keyboard stop: use the arrow keys, Home, and End to inspect periods without tabbing through hundreds of marks.
 
 While Footprints is open, newly accepted activity refreshes the visible range automatically. Short hook bursts are coalesced so the page updates promptly without rebuilding for every individual signal.

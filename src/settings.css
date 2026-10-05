@@ -300,6 +300,31 @@ html, body {
   border-radius: 14px;
   background: var(--panel-bg);
 }
+.reflection-card { display: grid; gap: 12px; }
+.reflection-card > .soft-btn { justify-self: start; }
+.reflection-card h3 { margin: 8px 0 0; font-size: 13px; }
+.reflection-field { display: grid; gap: 5px; font-size: 12px; font-weight: 600; }
+.reflection-field textarea,
+.reflection-add input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-primary);
+  font: inherit;
+  padding: 8px;
+}
+.reflection-field textarea { resize: vertical; }
+.reflection-check-list { display: grid; gap: 6px; }
+.reflection-check { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.reflection-check span { flex: 1; overflow-wrap: anywhere; }
+.reflection-add { display: flex; gap: 8px; }
+.reflection-week { display: grid; gap: 8px; font-size: 12px; }
+.reflection-week > div { border-top: 1px solid var(--border); padding-top: 8px; }
+.reflection-week p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reflection-resume { padding: 10px; border-radius: 8px; background: var(--bg); font-size: 12px; }
+.reflection-resume p { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .recap-state-card {
   min-height: 170px;
   display: flex;

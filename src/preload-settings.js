@@ -132,6 +132,9 @@ contextBridge.exposeInMainWorld("settingsAPI", {
   getSnapshot: () => ipcRenderer.invoke("settings:get-snapshot"),
   queryRecap: (period) => ipcRenderer.invoke("settings:recap-query", period),
   clearRecap: () => ipcRenderer.invoke("settings:recap-clear"),
+  queryReflections: () => ipcRenderer.invoke("settings:reflection-query"),
+  saveReflection: (date, record) => ipcRenderer.invoke("settings:reflection-save", date, record),
+  clearReflections: () => ipcRenderer.invoke("settings:reflection-clear"),
   consumeRequestedTab: () => {
     const tab = pendingRequestedTab;
     pendingRequestedTab = null;

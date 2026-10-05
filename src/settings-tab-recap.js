@@ -28,7 +28,262 @@
     hoverRowKey: null,
     lockedRowKey: null,
     gridIndex: 0,
+    reflections: null,
+    reflectionStatus: "idle",
+    reflectionDraft: null,
+    reflectionSaving: false,
+    carriedSaving: false,
   };
+
+  function loadReflections() {
+    if (view.reflectionStatus !== "idle") return;
+    view.reflectionStatus = "loading";
+    Promise.resolve().then(() => window.settingsAPI.queryReflections()).then((result) => {
+      if (!result || result.status !== "ok") throw new Error("reflection query failed");
+      view.reflections = result;
+      view.reflectionDraft = { ...result.days[0], checks: result.days[0].checks.map((item) => ({ ...item })) };
+      view.reflectionStatus = "ready";
+      if (coreState.activeTab === "recap") ops.requestRender({ content: true, preserveScroll: true });
+    }).catch(() => {
+      view.reflectionStatus = "error";
+      if (coreState.activeTab === "recap") ops.requestRender({ content: true, preserveScroll: true });
+    });
+  }
+
+  function buildReflectionCard() {
+    const card = document.createElement("section");
+    card.className = "recap-card reflection-card";
+    const title = document.createElement("h2");
+    title.textContent = t("reflectionTitle");
+    card.appendChild(title);
+    const note = document.createElement("p");
+    note.className = "row-desc";
+    note.textContent = t("reflectionPrivacy");
+    card.appendChild(note);
+    if (view.reflectionStatus === "idle") loadReflections();
+    if (view.reflectionStatus !== "ready") {
+      const status = document.createElement("p");
+      status.textContent = t(view.reflectionStatus === "error" ? "reflectionLoadFailed" : "recapLoading");
+      card.appendChild(status);
+      if (view.reflectionStatus === "error") {
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "soft-btn";
+        retry.textContent = t("recapRetry");
+        retry.addEventListener("click", () => {
+          view.reflectionStatus = "idle";
+          ops.requestRender({ content: true, preserveScroll: true });
+        });
+        card.appendChild(retry);
+      }
+      return card;
+    }
+    const draft = view.reflectionDraft;
+    const yesterday = view.reflections.days[1];
+    if (yesterday && yesterday.next) {
+      const resume = document.createElement("div");
+      resume.className = "reflection-resume";
+      const heading = document.createElement("strong");
+      heading.textContent = t("reflectionResume");
+      const content = document.createElement("p");
+      content.textContent = yesterday.next;
+      resume.appendChild(heading);
+      resume.appendChild(content);
+      card.appendChild(resume);
+    }
+    const fields = [
+      ["main", "reflectionMain"], ["result", "reflectionResult"],
+      ["next", "reflectionNext"], ["learning", "reflectionLearning"],
+    ];
+    for (const [key, labelKey] of fields) {
+      const label = document.createElement("label");
+      label.className = "reflection-field";
+      const caption = document.createElement("span");
+      caption.textContent = t(labelKey);
+      const input = document.createElement("textarea");
+      input.maxLength = 500;
+      input.rows = 2;
+      input.value = draft[key];
+      input.setAttribute("data-settings-focus-key", `reflection-${key}`);
+      input.addEventListener("input", () => { draft[key] = input.value; });
+      label.appendChild(caption);
+      label.appendChild(input);
+      card.appendChild(label);
+    }
+    const checksTitle = document.createElement("h3");
+    checksTitle.textContent = t("reflectionChecks");
+    card.appendChild(checksTitle);
+    const checkList = document.createElement("div");
+    checkList.className = "reflection-check-list";
+    const drawChecks = () => {
+      checkList.replaceChildren();
+      draft.checks.forEach((item, index) => {
+        const row = document.createElement("label");
+        row.className = "reflection-check";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = item.done;
+        checkbox.addEventListener("change", () => { item.done = checkbox.checked; });
+        const content = document.createElement("span");
+        content.textContent = item.text;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "soft-btn";
+        remove.textContent = t("reflectionRemove");
+        remove.setAttribute("aria-label", `${t("reflectionRemove")}: ${item.text}`);
+        remove.addEventListener("click", () => { draft.checks.splice(index, 1); drawChecks(); });
+        row.appendChild(checkbox);
+        row.appendChild(content);
+        row.appendChild(remove);
+        checkList.appendChild(row);
+      });
+    };
+    drawChecks();
+    card.appendChild(checkList);
+    const addRow = document.createElement("div");
+    addRow.className = "reflection-add";
+    const newCheck = document.createElement("input");
+    newCheck.type = "text";
+    newCheck.maxLength = 500;
+    newCheck.placeholder = t("reflectionCheckPlaceholder");
+    newCheck.setAttribute("aria-label", t("reflectionCheckPlaceholder"));
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "soft-btn";
+    addButton.textContent = t("reflectionAdd");
+    const addCheck = () => {
+      const value = newCheck.value.trim();
+      if (!value || draft.checks.length >= 8) return;
+      draft.checks.push({ text: value, done: false });
+      newCheck.value = "";
+      drawChecks();
+    };
+    addButton.addEventListener("click", addCheck);
+    newCheck.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); addCheck(); }
+    });
+    addRow.appendChild(newCheck);
+    addRow.appendChild(addButton);
+    card.appendChild(addRow);
+    const carried = view.reflections.days.slice(1).flatMap((day) =>
+      day.checks.map((item, index) => ({ day, item, index })).filter(({ item }) => !item.done));
+    if (carried.length) {
+      const heading = document.createElement("h3");
+      heading.textContent = t("reflectionCarriedChecks");
+      card.appendChild(heading);
+      const list = document.createElement("div");
+      list.className = "reflection-check-list";
+      for (const { day, item, index } of carried) {
+        const row = document.createElement("label");
+        row.className = "reflection-check";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.addEventListener("change", async () => {
+          if (view.carriedSaving) { checkbox.checked = false; return; }
+          view.carriedSaving = true;
+          checkbox.disabled = true;
+          const updated = { ...day, checks: day.checks.map((check, checkIndex) =>
+            checkIndex === index ? { ...check, done: true } : check) };
+          try {
+            const result = await window.settingsAPI.saveReflection(day.date, updated);
+            if (!result || result.status !== "ok") throw new Error("save failed");
+            Object.assign(day, result.record);
+            ops.requestRender({ content: true, preserveScroll: true });
+          } catch {
+            checkbox.checked = false;
+            checkbox.disabled = false;
+            ops.showToast(t("reflectionSaveFailed"), { error: true });
+          } finally {
+            view.carriedSaving = false;
+          }
+        });
+        const text = document.createElement("span");
+        text.textContent = `${formatDate(day.date, { month: "short", day: "numeric" })} · ${item.text}`;
+        row.appendChild(checkbox);
+        row.appendChild(text);
+        list.appendChild(row);
+      }
+      card.appendChild(list);
+    }
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "soft-btn";
+    saveButton.textContent = t("reflectionSave");
+    saveButton.disabled = view.reflectionSaving;
+    saveButton.addEventListener("click", async () => {
+      if (view.reflectionSaving) return;
+      view.reflectionSaving = true;
+      saveButton.disabled = true;
+      try {
+        const result = await window.settingsAPI.saveReflection(view.reflections.today, draft);
+        if (!result || result.status !== "ok") throw new Error("save failed");
+        view.reflections.days[0] = result.record;
+        ops.showToast(t("reflectionSaved"));
+        ops.requestRender({ content: true, preserveScroll: true });
+      } catch {
+        ops.showToast(t("reflectionSaveFailed"), { error: true });
+      } finally {
+        view.reflectionSaving = false;
+        saveButton.disabled = false;
+      }
+    });
+    card.appendChild(saveButton);
+    const clearButton = document.createElement("button");
+    clearButton.type = "button";
+    clearButton.className = "soft-btn danger";
+    clearButton.textContent = t("reflectionClear");
+    clearButton.addEventListener("click", async () => {
+      const answer = await helpers.showSettingsConfirmModal({
+        title: t("reflectionClearConfirm"),
+        detail: t("reflectionClearDetail"),
+        actions: [
+          { id: "cancel", label: t("recapCancel"), tone: "neutral", defaultFocus: true },
+          { id: "confirm", label: t("reflectionClear"), tone: "danger" },
+        ],
+      });
+      if (answer !== "confirm") return;
+      try {
+        const result = await window.settingsAPI.clearReflections();
+        if (!result || result.status !== "ok") throw new Error("clear failed");
+        view.reflectionStatus = "idle";
+        view.reflections = null;
+        view.reflectionDraft = null;
+        ops.requestRender({ content: true, preserveScroll: true });
+      } catch {
+        ops.showToast(t("reflectionClearFailed"), { error: true });
+      }
+    });
+    card.appendChild(clearButton);
+    const weekTitle = document.createElement("h3");
+    weekTitle.textContent = t("reflectionWeek");
+    card.appendChild(weekTitle);
+    const week = document.createElement("div");
+    week.className = "reflection-week";
+    for (const day of view.reflections.days.slice(1)) {
+      if (!day.main && !day.result && !day.learning && !day.next && !day.checks.length) continue;
+      const entry = document.createElement("div");
+      const date = document.createElement("strong");
+      date.textContent = formatDate(day.date, { month: "short", day: "numeric" });
+      entry.appendChild(date);
+      for (const [key, labelKey] of fields) {
+        const value = day[key];
+        if (!value) continue;
+        const line = document.createElement("p");
+        line.textContent = `${t(labelKey)} ${value}`;
+        entry.appendChild(line);
+      }
+      const pending = day.checks.filter((item) => !item.done).length;
+      if (pending) {
+        const line = document.createElement("p");
+        line.textContent = replace(t("reflectionPending"), { count: pending });
+        entry.appendChild(line);
+      }
+      week.appendChild(entry);
+    }
+    if (!week.children.length) week.textContent = t("reflectionWeekEmpty");
+    card.appendChild(week);
+    return card;
+  }
 
   function t(key) {
     return helpers.t(key);
@@ -1213,6 +1468,7 @@
       error.appendChild(retry);
       parent.appendChild(error);
     }
+    parent.appendChild(buildReflectionCard());
     parent.appendChild(buildRecordingControls());
   }
 

@@ -219,6 +219,7 @@ function createHarness(overrides = {}) {
     path: overrides.path || path,
     settingsController,
     recapRuntime: overrides.recapRuntime,
+    reflectionStore: overrides.reflectionStore,
     themeLoader,
     codexPetMain,
     officialThemeMain: overrides.officialThemeMain,
@@ -390,6 +391,21 @@ test("recap IPC exposes only bounded queries and explicit clear to the trusted S
     message: "untrusted settings sender",
   });
   assert.equal(calls.length, 2);
+});
+
+test("reflection IPC accepts only the Settings window and keeps clearing separate", async () => {
+  const calls = [];
+  const harness = createHarness({ reflectionStore: {
+    query: () => ({ today: "2026-10-05", days: [] }),
+    save: (date, record) => { calls.push(["save", date, record.main]); return { date, ...record }; },
+    clear: () => { calls.push(["clear"]); return 1; },
+  } });
+  const record = { main: "Main", result: "", next: "", learning: "", checks: [] };
+  assert.equal((await harness.ipcMain.invoke("settings:reflection-query")).today, "2026-10-05");
+  assert.equal((await harness.ipcMain.invoke("settings:reflection-save", "2026-10-05", record)).status, "ok");
+  harness.ipcMain.invokeEvent = { sender: {}, senderFrame: null };
+  assert.equal((await harness.ipcMain.invoke("settings:reflection-clear")).status, "error");
+  assert.equal(calls.length, 1);
 });
 
 test("settings IPC reads, selects, and clears the shared roam fence", async () => {

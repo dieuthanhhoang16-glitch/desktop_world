@@ -5,6 +5,7 @@ const defaultPath = require("path");
 const { pathToFileURL } = require("url");
 const { detectAgentInstallations: defaultDetectAgentInstallations } = require("./agent-installation-detector");
 const { DEFAULT_INTEGRATION_INSTALLED_IDS } = require("./prefs");
+const { createReflectionStore } = require("./reflection-store");
 const settingsThemeImporter = require("./settings-theme-importer");
 const {
   listPetTintOptions,
@@ -302,6 +303,7 @@ function registerSettingsIpc(options = {}) {
     message: "Tutorial is unavailable",
   }));
   const now = options.now || (() => Date.now());
+  const reflectionStore = options.reflectionStore || createReflectionStore();
   const aboutHeroSvgPath = options.aboutHeroSvgPath
     || path.join(__dirname, "..", "assets", "svg", "clawd-about-hero.svg");
   const disposers = [];
@@ -432,6 +434,24 @@ function registerSettingsIpc(options = {}) {
     } catch {
       return { status: "error", reason: "clear-failed" };
     }
+  });
+  handle("settings:reflection-query", (event) => {
+    const rejected = rejectUntrustedSettingsEvent(event);
+    if (rejected) return rejected;
+    try { return { status: "ok", ...reflectionStore.query() }; }
+    catch { return { status: "error", reason: "reflection-query-failed" }; }
+  });
+  handle("settings:reflection-save", (event, date, record) => {
+    const rejected = rejectUntrustedSettingsEvent(event);
+    if (rejected) return rejected;
+    try { return { status: "ok", record: reflectionStore.save(date, record) }; }
+    catch { return { status: "error", reason: "reflection-save-failed" }; }
+  });
+  handle("settings:reflection-clear", (event) => {
+    const rejected = rejectUntrustedSettingsEvent(event);
+    if (rejected) return rejected;
+    try { return { status: "ok", count: reflectionStore.clear() }; }
+    catch { return { status: "error", reason: "reflection-clear-failed" }; }
   });
   // Distinct quota-reporting sources (this machine + WSL / SSH remotes). The
   // General tab uses it to hide the "merge across machines" switch when it is
