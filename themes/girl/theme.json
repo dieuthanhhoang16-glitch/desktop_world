@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "name": "Girl 蓝双马尾",
+  "author": "liuruixin",
+  "version": "1.0.0",
+  "description": "蓝发双马尾桌宠，坐在笔记本前；AI 生成视频切片转 APNG（world/creature/convert-girl.sh）",
+  "customization": {
+    "petTint": false
+  },
+  "viewBox": {
+    "x": 0,
+    "y": 0,
+    "width": 200,
+    "height": 200
+  },
+  "layout": {
+    "contentBox": {
+      "x": 8,
+      "y": 33,
+      "width": 183,
+      "height": 160
+    },
+    "centerX": 100,
+    "baselineY": 192,
+    "visibleHeightRatio": 0.9,
+    "baselineBottomRatio": 0.03
+  },
+  "eyeTracking": {
+    "enabled": false,
+    "states": []
+  },
+  "roamFlipAssets": true,
+  "states": {
+    "idle": [
+      "girl-idle.apng",
+      "girl-idle-static.png"
+    ],
+    "roam": [
+      "girl-idle.apng"
+    ],
+    "yawning": [
+      "girl-sleeping.apng"
+    ],
+    "dozing": [
+      "girl-sleeping.apng"
+    ],
+    "collapsing": [
+      "girl-sleeping.apng"
+    ],
+    "thinking": [
+      "girl-thinking.apng"
+    ],
+    "working": [
+      "girl-working-typing.apng"
+    ],
+    "juggling": [
+      "girl-juggling.apng"
+    ],
+    "sweeping": [
+      "girl-working-building.apng"
+    ],
+    "error": [
+      "girl-juggling.apng"
+    ],
+    "attention": [
+      "girl-attention.apng"
+    ],
+    "notification": [
+      "girl-notification.apng"
+    ],
+    "carrying": [
+      "girl-working-building.apng"
+    ],
+    "sleeping": [
+      "girl-sleeping.apng"
+    ],
+    "waking": [
+      "girl-attention.apng"
+    ]
+  },
+  "workingTiers": [
+    {
+      "minSessions": 3,
+      "file": "girl-working-building.apng"
+    },
+    {
+      "minSessions": 2,
+      "file": "girl-juggling.apng"
+    },
+    {
+      "minSessions": 1,
+      "file": "girl-working-typing.apng"
+    }
+  ],
+  "jugglingTiers": [
+    {
+      "minSessions": 2,
+      "file": "girl-working-conducting.apng"
+    },
+    {
+      "minSessions": 1,
+      "file": "girl-juggling.apng"
+    }
+  ],
+  "idleAnimations": [
+    {
+      "file": "girl-idle.apng",
+      "duration": 4200
+    },
+    {
+      "file": "girl-juggling.apng",
+      "duration": 2400
+    }
+  ],
+  "displayHintMap": {
+    "clawd-working-building.svg": "girl-working-building.apng",
+    "clawd-working-typing.svg": "girl-working-typing.apng",
+    "clawd-headphones-groove.svg": "girl-juggling.apng",
+    "clawd-working-juggling.svg": "girl-juggling.apng",
+    "clawd-working-conducting.svg": "girl-working-conducting.apng",
+    "clawd-working-thinking.svg": "girl-thinking.apng"
+  },
+  "timings": {
+    "minDisplay": {
+      "attention": 3000,
+      "error": 3000,
+      "sweeping": 5500,
+      "notification": 4200,
+      "carrying": 3000,
+      "working": 1000,
+      "thinking": 1000
+    },
+    "autoReturn": {
+      "attention": 3200,
+      "error": 3200,
+      "sweeping": 300000,
+      "notification": 4400,
+      "carrying": 3000
+    },
+    "dndSkipYawn": true,
+    "collapseDuration": 4200,
+    "yawnDuration": 6000,
+    "wakeDuration": 3200,
+    "deepSleepTimeout": 600000,
+    "mouseIdleTimeout": 20000,
+    "mouseSleepTimeout": 60000
+  },
+  "hitBoxes": {
+    "default": {
+      "x": 33,
+      "y": 33,
+      "w": 133,
+      "h": 154
+    },
+    "sleeping": {
+      "x": 25,
+      "y": 75,
+      "w": 150,
+      "h": 112
+    },
+    "wide": {
+      "x": 13,
+      "y": 13,
+      "w": 173,
+      "h": 173
+    }
+  },
+  "wideHitboxFiles": [
+    "girl-attention.apng",
+    "girl-notification.apng",
+    "girl-working-conducting.apng"
+  ],
+  "sleepingHitboxFiles": [
+    "girl-sleeping.apng"
+  ],
+  "reactions": {
+    "drag": {
+      "file": "girl-juggling.apng"
+    },
+    "clickLeft": {
+      "file": "girl-attention.apng",
+      "duration": 2500
+    },
+    "clickRight": {
+      "file": "girl-attention.apng",
+      "duration": 2500
+    }
+  },
+  "sleepSequence": {
+    "mode": "full"
+  },
+  "miniMode": {
+    "supported": false
+  },
+  "objectScale": {
+    "default": 1,
+    "working": 1,
+    "sleeping": 1
+  }
+}
