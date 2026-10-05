@@ -216,11 +216,14 @@
   }
   .card:hover .del { opacity: 1; }
   .card .del:hover { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
-  body.live .col .cards { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; padding-right: 0.4vmin; }
-  body.live .col .cards::-webkit-scrollbar { width: 4px; }
+  /* 滚动条：默认完全隐藏，悬停列时浮现 4px 细条，轨道透明（用户反馈 2026-10-05） */
+  body.live .col .cards { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-right: 0.4vmin; }
+  body.live .col .cards:hover { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.22) transparent; }
+  body.live .col .cards::-webkit-scrollbar { width: 0; background: transparent; }
+  body.live .col .cards:hover::-webkit-scrollbar { width: 4px; }
   body.live .col .cards::-webkit-scrollbar-track { background: transparent; }
-  body.live .col .cards::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 2px; }
-  body.live .col .cards::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.34); }
+  body.live .col .cards::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.22); border-radius: 2px; }
+  body.live .col .cards::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.36); }
   .hidden-note { font-size: 1.25vmin; color: var(--ink-faint); margin-top: 0.8vmin; text-align: right; flex: 0 0 auto; }
   .hidden-note .restore-hidden { color: var(--blue); cursor: pointer; text-decoration: underline; }
 
