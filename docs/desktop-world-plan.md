@@ -45,7 +45,7 @@ clawd 引擎（src/，不改动）          world/ 模块（fork 新增）
   - **动态桌面**（`world/live/`）：透明无框、点击穿透的常驻 Electron 窗口，直接渲染早报模板（原生清晰度，无截图裁剪）；15 分钟热刷（同日轻刷只更新数据、不调 LLM、世界状态只读；跨零点自动升级完整流水线——世界结算+新一句话+重烘焙衬底壁纸）；菜单解锁拖动/锁定穿透；`~/.desktop-world/live.json` 记忆开关与位置，App 启动自动恢复。模板重构为 `render(R)` + `window.__worldRender` 热刷入口，烘焙注入路径不变。
   - **专案追踪**（`world/watch/`）：文件夹登记为专案（学习/工作/生活/开源/其他分类，cwd 最长前缀匹配、子目录可单独登记）；按天结算天数/连击/14 天柱图，同日幂等 + 「同日升级」（凌晨 0 会话先结算、当天开工仍补记）；日报卡片专案区+会话分类角标、分享文案「📌 今日专案」、统计 chips 出分类计数；无配置时全链路静默。
   - **版式二修**：总结+灵感挪到右栏底部（看板在上总结钉底），会话卡片改用 LLM 产的 sessionBriefs「干了什么」做主标题（原首条输入降为副行）；修复看板列 `#boardBody` 未受 flex 约束溢压住总结区（DOM 级 scrollHeight 检查守门）；动态桌面首次启动自动开启一次。
-- **v0.6**（下一步候选）：桌宠形态随世界等级进化、tidy 联动（桌面乱 → 壁纸长杂草）、真·图标下方壁纸层调研（macOS 私有桌面 API / Windows WorkerW）、AI 美术管线出正式芽芽素材、其他 agent 采集（Gemini/Kimi 复用 codex 模式）。
+- **v0.6**（方向已定，读码清单见 [docs/v0.6-research.md](v0.6-research.md)）：真·图标下方壁纸层（mac 读 Plash、Windows 读 Lively，各取一招）；widget 面板化（短期看 Übersicht + Rainmeter 的 measure/meter 分层，把早报拆 tile）；芽芽 v2 素材（Shimeji-ee 的动作拆法 + Calico 实测分档：常驻 41 帧/反应 ~30/过场 ~20，单文件 ≤800KB，最近邻引擎已保）；另有桌宠形态随世界等级进化、tidy 联动长杂草、其他 agent 采集（Gemini/Kimi 复用 codex 模式）。
 
 ## 开发备忘
 
