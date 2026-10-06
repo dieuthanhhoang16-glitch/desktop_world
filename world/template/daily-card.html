@@ -268,6 +268,8 @@
   .card .del:hover { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
   /* 滚动条：默认完全隐藏，悬停列时浮现 4px 细条，轨道透明（用户反馈 2026-10-05） */
   body.live .col .cards { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-right: 0.4vmin; }
+  /* 选择器展开把左栏撑高时，压景观带的天空、保住地面与桌宠（bake 形态一像素不动） */
+  body.live .worldband { display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; overflow: hidden; }
   body.live .col .cards:hover { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.22) transparent; }
   body.live .col .cards::-webkit-scrollbar { width: 0; background: transparent; }
   body.live .col .cards:hover::-webkit-scrollbar { width: 4px; }
@@ -389,6 +391,14 @@
   function todayKey() {
     var n = new Date();
     return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+  }
+
+  // HTML 转义（renderPomo 与 render 共用；v0.6.3.3 之前它嵌在 render 里，
+  // 点击「▶ 开始」开任务选择器时抛 esc is not defined，选择器只展开了一条空虚线）
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   // ---------- 番茄钟（UI 只是主进程状态的镜子；时钟与写盘全在主进程）----------
@@ -764,11 +774,6 @@
     );
   }
 
-  function esc(v) {
-    return String(v == null ? '' : v)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
   } // render 到此为止
 
   // 看板交互：隐藏/恢复（事件委托挂在常驻容器上；render 每次重绘内部不会被解绑）
