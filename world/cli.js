@@ -1,8 +1,7 @@
 // world/cli.js · desktop-world 每日流水线命令行入口（独立于桌宠主程序运行）。
 //
 // 用法：
-//   npx electron world/cli.js                 # 采集 → 总结 → 生成壁纸并设置
-//   npx electron world/cli.js --no-set        # 只产出 PNG，不动壁纸（调试用）
+//   npx electron world/cli.js                 # 采集 → 总结 → 世界结算 → 产出早报 PNG（绝不设系统壁纸）
 //   npx electron world/cli.js --no-llm        # 跳过 claude 调用，用模板总结
 //   npx electron world/cli.js --reuse         # 用最近一次报告直接重烘焙（调模板用）
 //   npx electron world/cli.js --share         # 烘焙后顺手分享到全部已配置渠道
@@ -21,7 +20,6 @@ app.whenReady().then(async () => {
   try {
     const { report, pngPath } = await runDaily({
       outDir: OUT_DIR,
-      setWallpaper: !args.includes('--no-set'),
       noLlm: args.includes('--no-llm'),
       reuseReport: args.includes('--reuse'),
       onStep: (msg) => console.log(`[world] ${msg}`),

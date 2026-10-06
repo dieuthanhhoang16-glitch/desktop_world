@@ -69,15 +69,15 @@ function writeDayNotes(outDir, report) {
 /**
  * @param {object} opts
  * @param {string} opts.outDir
- * @param {boolean} [opts.setWallpaper=true]
  * @param {boolean} [opts.noLlm]        跳过 claude 调用，用模板总结
  * @param {boolean} [opts.reuseReport]  用最近一次已生成的报告直接烘焙（调模板样式用）
  * @param {(msg:string)=>void} [opts.onStep]
  * @returns {Promise<{report:object, pngPath:string, reportFile:string}>}
  */
-async function runDaily({ outDir, setWallpaper = true, noLlm = false, reuseReport = false, onStep = () => {} }) {
-  // bake 依赖 Electron，这里惰性 require 让 collector/summarizer 可在纯 Node 单测
-  const { bakeWallpaper } = require('./bake');
+async function runDaily({ outDir, noLlm = false, reuseReport = false, onStep = () => {} }) {
+  // bake 依赖 Electron，这里惰性 require 让 collector/summarizer 可在纯 Node 单测。
+  // 产物只有 PNG（分享底稿）；本仓库没有任何代码路径会设置系统桌面壁纸。
+  const { bakePng } = require('./bake');
 
   let report = null;
   if (reuseReport) {
@@ -121,9 +121,9 @@ async function runDaily({ outDir, setWallpaper = true, noLlm = false, reuseRepor
   const mdFiles = writeDayNotes(outDir, report);
   if (mdFiles.length) onStep(`随笔 md：${mdFiles.map((f) => path.basename(f)).join('、')}`);
 
-  onStep('渲染壁纸…');
-  const pngPath = await bakeWallpaper({ report, outDir, setWallpaper });
-  onStep(setWallpaper ? `壁纸已设置：${pngPath}` : `壁纸 PNG 已生成（未设置）：${pngPath}`);
+  onStep('渲染早报 PNG…');
+  const pngPath = await bakePng({ report, outDir });
+  onStep(`早报 PNG 已生成（不设壁纸）：${pngPath}`);
   return { report, pngPath, reportFile };
 }
 

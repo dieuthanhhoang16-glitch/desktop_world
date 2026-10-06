@@ -3,8 +3,8 @@
 // 直接渲染早报模板的"活体"——数据每 15 分钟热刷新（不截图、无裁剪、原生清晰度）。
 // v0.6.1 形态变化（用户定调）：
 // - 无卡片化 widget 风：组件直接"印"在桌面上，文字投影保可读，不再是一张实体卡片。
-// - 组件永不碰系统壁纸（跨日跑完整流水线也只结算数据，setWallpaper=false）；
-//   壁纸烘焙只保留手动入口（托盘「生成今日早报壁纸」/ CLI world:daily），产物仍是 IM 分享底稿。
+// - v0.6.4 起「壁纸」设计整体取消：任何路径（含跨日完整流水线、CLI、托盘）都不写
+//   系统桌面壁纸；日报 PNG 只作 IM 分享底稿。
 // - 默认可交互：随手记可编辑、窗口可拖动；点击穿透改为菜单里手动锁（toggleClickThrough 语义不变）。
 // - 左侧像素景观有桌宠入住（world/live/pet.js 挑动画），右侧新增「随手记」（world/live/notes.js）。
 //
@@ -145,7 +145,7 @@ async function buildLiveReport(outDir, digest) {
     watch: watch && watch.active ? watch : undefined,
     world: withSvg(worldForReuse(outDir)),
     pet,
-    oneline: latest.oneline || '今天的一句话还没生成，点一次「生成今日早报壁纸」。',
+    oneline: latest.oneline || '今天的一句话还没生成——跑 npm run world:daily，或等跨日自动结算。',
     ideas: latest.ideas || [],
     sessionBriefs: latest.sessionBriefs, // 会话一句话沿用日报（顺序已对上新 digest 前 10 条，未必覆盖新会话）
     blockers: latest.blockers, // 今日卡点 / 技术总结：跟日报走，轻刷不重算
@@ -172,8 +172,7 @@ function pushReport(report) {
 /**
  * 刷新策略：
  * - 同一天：只更新统计/世界/专案（一句话沿用最新日报，不调 LLM）。
- * - 跨到新的一天：升级跑完整流水线 runDaily（世界结算 + 新一句话）——
- *   但永不替换系统壁纸（setWallpaper:false，用户要的「组件永不碰壁纸」）。
+ * - 跨到新的一天：升级跑完整流水线 runDaily（世界结算 + 新一句话 + 分享底稿 PNG）。
  */
 async function refresh(outDir, onFullDay) {
   const { loadLatestReport } = require('../pipeline');
@@ -182,9 +181,9 @@ async function refresh(outDir, onFullDay) {
   const latest = loadLatestReport(outDir);
   const newDay = !latest || latest.meta.date !== digest.date;
   if (newDay) {
-    console.log('[live] 发现新的一天，升级跑完整流水线（不触碰系统壁纸）…');
+    console.log('[live] 发现新的一天，升级跑完整流水线（结算 + 新一句话 + PNG，绝无壁纸改动）…');
     const { runDaily } = require('../pipeline');
-    await runDaily({ outDir, setWallpaper: false, onStep: (m) => console.log(`[live] ${m}`) });
+    await runDaily({ outDir, onStep: (m) => console.log(`[live] ${m}`) });
     if (typeof onFullDay === 'function') onFullDay();
     const fresh = loadLatestReport(outDir);
     pushReport(await buildLiveReport(outDir).catch(() => fresh));

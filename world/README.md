@@ -1,4 +1,4 @@
-# world/ — Desktop World 每日早报模块（v0.5）
+# world/ — Desktop World 每日早报模块（v0.6.4）
 
 > 本项目 fork 自 clawd-on-desk（AGPL-3.0）。本目录是 fork 后的差异化模块，
 > 与上游 `src/` 引擎保持解耦：只新增、不改动（唯一接线点见下方「App 内集成」）。
@@ -6,7 +6,13 @@
 ## 功能
 
 每天把本机 AI 助手（Claude Code + Codex）的活动汇总成**一句话总结 + 3 条新思路 + 任务看板**，
-再结算进一个**跨天生长的像素小世界**，渲染成一张"今日早报"壁纸并设为桌面壁纸。
+再结算进一个**跨天生长的像素小世界**，以**动态桌面组件**（透明热刷新 widget）与
+**早报 PNG**（IM 分享底稿）两种形态呈现。
+
+> **v0.6.4：「壁纸」设计整体取消**——本模块不存在任何会设置系统桌面壁纸的代码路径
+> （原 macOS osascript / Windows SystemParametersInfo / Linux gsettings 三个设壁纸分支、
+> 托盘「生成今日早报壁纸」菜单项、CLI `--no-set` 开关全部移除）。
+> 用户的桌面壁纸由系统/用户全权管理，本模块永远只读不写。
 
 数据全程不出本机：采集只读 `~/.claude/projects/*.jsonl` 与 `~/.codex/sessions/**/*.jsonl` 转录；
 总结走本机 `claude -p` 无头模式（复用本机登录，无需 API key）。
@@ -14,11 +20,10 @@
 ## 用法
 
 ```bash
-npm run world:daily          # 采集 → 总结 → 生成并设置壁纸
-npx electron world/cli.js --no-set   # 只产出 PNG，不动壁纸（调试）
+npm run world:daily          # 采集 → 总结 → 世界结算 → 产出早报 PNG（绝不设壁纸）
 npx electron world/cli.js --no-llm   # 跳过 LLM，用模板兜底总结
-npx electron world/cli.js --reuse    # 用最近一次报告重烘焙（调模板样式用）
-npx electron world/cli.js --share    # 烘焙后顺手分享到全部已配置渠道
+npx electron world/cli.js --reuse    # 用最近一次报告重渲染 PNG（调模板样式用）
+npx electron world/cli.js --share    # 出 PNG 后顺手分享到全部已配置渠道
 ```
 
 ## 分享（v0.2）
@@ -50,7 +55,7 @@ npx electron world/share/send.js --to wework,dingtalk --no-image   # 指定渠�
 
 ## 生长世界（v0.4）
 
-壁纸左下角是一条**跨天持久的像素景观带**：每天第一次烘焙把当日成果结算成 xp，
+动态桌面与早报 PNG 的左下角是一条**跨天持久的像素景观带**：每天第一次结算把当日成果兑现成 xp，
 世界随天数与投入逐步解锁形态 —— 🫘种子 → 🌱新芽(100xp) → 🌿树苗(300) → 🌸开花树(600) → 🌳果林(1000) → 🏰空中花园(1500)。
 
 - 结算规则：出勤 30xp + 会话 ×10（封顶 20）+ 工具 ×0.25（封顶 400）；**同日重跑幂等不重复加分**
@@ -103,7 +108,7 @@ npm run world:tidy -- --no-llm   # 不用 claude 给"其他"桶细分类
 ⚠️ 若你开着 macOS「iCloud 桌面与文稿」同步，归档移动会同步上传，属正常行为。
 
 输出位置：`world/out/`（CLI 模式）或 `<userData>/world/`（App 内）。
-产物：`daily-YYYY-MM-DD.json`（报告）、`wallpaper-YYYY-MM-DD.png`（壁纸）。
+产物：`daily-YYYY-MM-DD.json`（报告）、`daily-YYYY-MM-DD.png`（早报分享底稿；不会设为壁纸）。
 
 环境变量：
 - `WORLD_OUT_DIR` — 自定义输出目录
@@ -135,21 +140,21 @@ npm run world:watch -- --remove 桌面世界
 
 ## 动态桌面（v0.6.1 重做形态，v0.6.2 看板增强，v0.6.3 番茄钟 × 任务）
 
-烘焙壁纸是把早报"截图贴上去"，会裁剪、会糊；动态桌面是另一个思路——
+烘焙 PNG 是把早报"截图"用于 IM 分享，有裁剪、会糊；动态桌面是另一个思路——
 透明无框、常驻的桌面组件，直接渲染早报模板本身（原生清晰度），数据每 15 分钟自动热刷。
 v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget（用户定调）：
 
-- **无卡片化**：没有底板和边框，内容直接"印"在桌面上；文字带投影保证任何壁纸上可读，
-  暗色半透明小片承接芯片/卡片分组。（烘焙壁纸走 `body.bake`，形态与 v0.5 一个像素不动。）
+- **无卡片化**：没有底板和边框，内容直接"印"在桌面上；文字带投影保证任何系统壁纸上可读，
+  暗色半透明小片承接芯片/卡片分组。（烘焙 PNG 走 `body.bake`，排版与 v0.5 一个像素不动。）
 - **默认可交互**：随手记点击即可输入；窗口按住左栏/空白处可拖动（`app-region:drag`，看板区 no-drag）；
   想回到「完全不影响操作」就菜单里「🔒 锁定动态桌面（点击穿透）」。老配置里 v0.5 默认存的
   `clickThrough:true` 有一次性迁移刷成可交互。
 - **桌宠入住景观**：左侧像素世界带里有当前主题桌宠（默认 girl，可 `WORLD_PET_THEME` 换）的
   APNG 动画——有进行中会话按引擎 workingTiers 语义分级（1 敲键盘 / 2 三颗星 / 3 搬砖），
   深夜（23–7 点）无活动时睡觉；纯数据驱动（`world/live/pet.js`），App 侧可用
-  `live.setPetState()` 注入引擎真状态覆盖。烘焙壁纸保持纯静态世界，不含桌宠。
+  `live.setPetState()` 注入引擎真状态覆盖。烘焙 PNG 保持纯静态世界，不含桌宠。
 - **随手记**：右栏底部可编辑便签区，按天存 `<outDir>/notes.json`（0600，仅本机；
-  不进烘焙壁纸、不进分享图）。防抖 400ms 落盘，换日自动切换当日条目（`world/live/notes.js`）。
+  不进烘焙 PNG、不进分享图）。防抖 400ms 落盘，换日自动切换当日条目（`world/live/notes.js`）。
 - **已完成列清理（v0.6.2）**：每张已完成卡片悬停出现「×」**隐藏该条**——只把卡片从今天
   的看板拿掉（按天存 `<outDir>/dismissed.json`，0600），不动原始会话记录；footer 出现
   「已隐藏 N 条 · 全部恢复」一键撤销。已完成列不再封顶 4 张，全量展示 + 细滚动条。
@@ -158,7 +163,7 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
   受阻，≤4 条）与**技术总结 tips**（可复用经验，≤4 条）；流水线把它们写成
   `<outDir>/blockers-YYYY-MM-DD.md`、`tips-YYYY-MM-DD.md`。动态桌面右栏出现
   「🚧 今日卡点」「💡 技术总结」两个 chip（悬停看全文），点击**用系统默认程序打开当日 md**；
-  当天没产出就静默不出现。烘焙壁纸不含这两个 chip。
+  当天没产出就静默不出现。烘焙 PNG 不含这两个 chip。
 - **番茄钟 × 任务（v0.6.3）**：左栏统计之下、像素景观之上一条单行横条（用户定调形态）。
   标准 25 分钟专注 + 5 分钟休息循环：▶ 开始（可选关联看板里某张进行中会话卡，或自由输入任务名）/⏸ 暂停/⏭ 跳过；
   专注满钟自动进休息，休息结束回 idle（不强推下一个）。
@@ -172,9 +177,9 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
   "信息即动作"）：专注期间桌宠头顶浮出 `🍅 任务名` 标签，且角色动作按任务类型映射
   （`pomodoro.taskActionFor`：读/研究→thinking，整理/归档→sweeping，搬运/同步→carrying，
   会议/沟通→attention，其余→working 顶档）；引擎 `setPetState()` 显式覆盖仍最高优先。
-  整条横条、头顶标签、🍅 角标都只在 live 组件出现，烘焙壁纸一律不含。
-- **组件永不碰系统壁纸**：跨零点升级完整流水线只做世界结算 + 新一句话（`setWallpaper:false`）；
-  壁纸烘焙只保留手动入口（托盘「🌅 生成今日早报壁纸」/ CLI `world:daily`），产物仍是 IM 分享底稿。
+  整条横条、头顶标签、🍅 角标都只在 live 组件出现，烘焙 PNG 一律不含。
+- **组件永不碰系统壁纸（v0.6.4 起代码层根除）**：跨零点升级完整流水线只做世界结算 + 新一句话 + 分享 PNG，
+  没有任何设置系统壁纸的调用；CLI `world:daily` 亦然——PNG 纯作 IM 分享底稿。
 - 配置存 `~/.desktop-world/live.json`（`WORLD_LIVE_FILE` 覆盖）：`{enabled, clickThrough, refreshMin, w, h, x, y}`；
   `enabled:true` 时 App 启动自动恢复窗口。
 - 开发预览：`npm run world:live`（独立进程，行为与正式窗口一致）。
@@ -189,7 +194,7 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
 | `collector.js` | 采集当日会话 → digest（项目/标题/时长/工具分布/活跃直方图/看板状态） |
 | `summarizer.js` | digest → `{oneline, ideas[3], blockers[≤4], techTips[≤4]}`（`claude -p`，失败降级模板，降级时卡点/tips 为空） |
 | `template/daily-card.html` | 早报卡片模板（左：日期/统计/世界景观；右：专案+看板列在上，一句话+灵感钉底；`window.__worldRender` 热刷） |
-| `bake.js` | 隐藏窗口渲染 → `capturePage` → PNG → 设壁纸（macOS/Windows/Linux） |
+| `bake.js` | 隐藏窗口渲染 → `capturePage` → 早报 PNG（仅 IM 分享底稿；v0.6.4 起不设系统壁纸） |
 | `pipeline.js` | 串联 collect → summarize → 世界结算 → 落盘（含当日卡点/tips md）→ bake，CLI 与 App 共用 |
 | `cli.js` | 独立 Electron 命令行入口 |
 | `app-integration.js` | 桌宠 App 内入口（托盘菜单调用、系统通知反馈、防抖） |
@@ -201,7 +206,7 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
 
 ## App 内集成
 
-托盘菜单 →「🌅 生成今日早报壁纸」「📮 分享今日早报」「🧹 整理桌面文件」「🖥️ 动态桌面」「↔️ 解锁拖动」（`src/menu.js`，click 内懒 require `world/app-integration.js`）。
+托盘菜单 →「📮 分享今日早报」「🧹 整理桌面文件」「🖥️ 动态桌面」「↔️ 解锁拖动」（`src/menu.js`，click 内懒 require `world/app-integration.js`）。「🌅 生成今日早报壁纸」菜单项已随 v0.6.4 取消壁纸一并移除；跑完整流水线请用 CLI `npm run world:daily`。
 
 ## 已知取舍
 
@@ -212,6 +217,4 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
 - 动态桌面窗口浮在桌面图标上方；图标下面的真·壁纸层 PoC 验证通过（`world/live/poc/`），
   Electron 映射（N-API / sidecar）待做；Windows WorkerW 时序笔记待补。
 - 皮肤素材为程序化占位像素，生效需要 App 里手动切主题一次；AI 美术替换后升级为正式皮肤。
-- 设壁纸的 Linux 分支只覆盖 GNOME（gsettings）；KDE 等需后续补。
 - 打包（electron-builder）时需确认 `world/`、`themes/sprout/` 未被 `files` 规则排除——发版前核对。
-- macOS 首次设置壁纸会弹「自动化/System Events」授权框，授权一次即可。

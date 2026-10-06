@@ -28,7 +28,7 @@ app.whenReady().then(async () => {
     const targets = toArg ? toArg.slice(5).split(',').map((s) => s.trim()).filter(Boolean) : null;
     const imagePath = args.includes('--no-image')
       ? null
-      : path.join(OUT_DIR, `wallpaper-${report.meta.date}.png`);
+      : path.join(OUT_DIR, `daily-${report.meta.date}.png`);
 
     const { ok, results, hint } = await share({
       report,

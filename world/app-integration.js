@@ -1,11 +1,12 @@
 // world/app-integration.js
 // desktop-world · 桌宠 App 内的接入口（托盘/右键菜单调用）。
 // 与独立 CLI 的区别：输出目录用 userData，用系统通知反馈进度。
+// v0.6.4 起：「早报壁纸」设计整体取消——任何代码路径都不允许碰系统桌面壁纸
+// （日报 PNG 仍生成，仅作 IM 分享底稿；当日日报由动态桌面跨日自动结算或 CLI world:daily 产出）。
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const { runDaily } = require('./pipeline');
 
 let running = false;
 
@@ -17,34 +18,6 @@ function notify(title, body) {
     /* 通知不可用时静默降级，日志仍在 */
   }
   console.log(`[world] ${title}${body ? ' — ' + body : ''}`);
-}
-
-// 托盘菜单入口：生成今日早报壁纸。重复点击做防抖（只跑一条流水线）。
-async function runDailyWallpaper() {
-  if (running) {
-    notify('早报生成中…', '上一条流水线还没跑完，稍等一下');
-    return;
-  }
-  running = true;
-  const startedAt = Date.now();
-  try {
-    const { app } = require('electron');
-    const outDir = path.join(app.getPath('userData'), 'world');
-    notify('早报生成中…', '采集今日 Claude Code 活动');
-    const { report, pngPath } = await runDaily({
-      outDir,
-      setWallpaper: true,
-      onStep: (msg) => console.log(`[world] ${msg}`),
-    });
-    const secs = Math.round((Date.now() - startedAt) / 1000);
-    notify('今日早报已贴上桌面 🌅', `${report.oneline}（${secs}s）`);
-    console.log(`[world] 壁纸文件：${pngPath}`);
-  } catch (err) {
-    console.error('[world] 生成失败：', err);
-    notify('早报生成失败 ❌', err.message || String(err));
-  } finally {
-    running = false;
-  }
 }
 
 // 托盘菜单入口：把最近一份日报分享到已配置渠道（不重跑流水线）。
@@ -60,13 +33,13 @@ async function shareDaily() {
     const { loadLatestReport } = require('./pipeline');
     const report = loadLatestReport(outDir);
     if (!report) {
-      notify('还没有可分享的日报', '先点一次「生成今日早报壁纸」');
+      notify('还没有可分享的日报', '先跑一次 npm run world:daily（或等动态桌面跨日自动结算）');
       return;
     }
     const { share } = require('./share');
     const { ok, results, hint } = await share({
       report,
-      imagePath: path.join(outDir, `wallpaper-${report.meta.date}.png`),
+      imagePath: path.join(outDir, `daily-${report.meta.date}.png`),
       log: (m) => console.log(`[share] ${m}`),
     });
     if (hint) {
@@ -228,4 +201,4 @@ function ensureLiveAutostart() {
   }
 }
 
-module.exports = { runDailyWallpaper, shareDaily, tidyDesktop, toggleLiveDesktop, toggleLiveDrag, isLiveOpen, isLiveDraggable, ensureLiveAutostart };
+module.exports = { shareDaily, tidyDesktop, toggleLiveDesktop, toggleLiveDrag, isLiveOpen, isLiveDraggable, ensureLiveAutostart };

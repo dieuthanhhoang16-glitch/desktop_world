@@ -15,7 +15,7 @@ const CHANNEL_IDS = Object.keys(channels);
 /**
  * @param {object} opts
  * @param {object} opts.report  每日报告（daily-*.json 内容）
- * @param {string} [opts.imagePath] 壁纸 PNG 路径（缺省则只发文字）
+ * @param {string} [opts.imagePath] 早报 PNG 路径（缺省则只发文字）
  * @param {string[]} [opts.targets] 指定渠道 id 列表；缺省 = 全部已配置渠道
  * @param {(msg:string)=>void} [opts.log]
  * @returns {Promise<{ok:boolean, results:Array<{channel:string, ok:boolean, degraded?:boolean, detail:string}>}>}
