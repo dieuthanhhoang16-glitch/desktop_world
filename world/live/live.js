@@ -306,8 +306,14 @@ async function open(outDir) {
   const area = screen.getPrimaryDisplay().workAreaSize;
   const w = Math.min(cfg.w, area.width - 40);
   const h = Math.min(cfg.h, area.height - 40);
-  const x = cfg.x != null ? cfg.x : Math.round(area.width - w - 32);
-  const y = cfg.y != null ? cfg.y : Math.round(area.height - h - 24);
+  // 位置校验：保存的坐标必须在当前某块屏上露出足够面积，否则回退默认位。
+  //（多屏下 macOS 可能把 frameless 窗"搬"进活跃 Space 所在的屏，或被断连的屏带走，
+  //  上次保存的坐标会让窗口完整落在别的窗口后面/看不见——表现为"重启后看不见"。）
+  const displays = screen.getAllDisplays().map((d) => d.bounds);
+  const cfgOK = require('./pos').rectVisibleOn({ x: cfg.x, y: cfg.y, w, h }, displays);
+  const x = cfg.x != null && cfgOK ? cfg.x : Math.round(area.width - w - 32);
+  const y = cfg.y != null && cfgOK ? cfg.y : Math.round(area.height - h - 24);
+  if (cfg.x != null && !cfgOK) saveCfg({ x, y }); // 把坏坐标就地修掉
 
   win = new BrowserWindow({
     width: w,
@@ -338,6 +344,12 @@ async function open(outDir) {
   });
 
   await win.loadFile(TEMPLATE);
+  // macOS 兜底：setVisibleOnAllWorkspaces/Space 切换可能让系统把窗口改摆到别的屏；
+  // loadFile 完成后核对一次，不在目标位就拉回来（'moved' 事件随之把正确坐标存回去）。
+  try {
+    const [bx, by] = win.getPosition();
+    if (bx !== x || by !== y) win.setPosition(x, y);
+  } catch { /* 窗口状态异常时首刷照常进行 */ }
   await refresh(outDir).catch((err) => console.error('[live] 首次刷新失败：', err.message));
   timer = setInterval(() => {
     refresh(outDir).catch((err) => console.error('[live] 定时刷新失败：', err.message));
