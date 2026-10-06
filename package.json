@@ -10,6 +10,7 @@
     "world:tidy": "node world/tidy/tidy.js",
     "world:theme": "node world/creature/generate.js --validate",
     "world:watch": "node world/watch/watch.js",
+    "world:techstack": "node world/techstack/techstack.js",
     "world:live": "electron world/live/preview.js",
     "start": "node launch.js",
     "build": "electron-builder --win",

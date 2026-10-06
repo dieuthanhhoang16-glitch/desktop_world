@@ -1,4 +1,4 @@
-# world/ — Desktop World 每日早报模块（v0.6.4）
+# world/ — Desktop World 每日早报模块（v0.6.5）
 
 > 本项目 fork 自 clawd-on-desk（AGPL-3.0）。本目录是 fork 后的差异化模块，
 > 与上游 `src/` 引擎保持解耦：只新增、不改动（唯一接线点见下方「App 内集成」）。
@@ -187,6 +187,34 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
 边界：窗口浮在桌面图标**上方**（与桌宠同一层）。图标下方的真·壁纸层 PoC 已验证可用
 （`world/live/poc/`，Plash 招式在 macOS 26 全部生效），接回 Electron（N-API 小桥或 sidecar 宿主）是 v0.6 后续段。
 
+## 定向学习（v0.6.5）：技术总结从"被动总结"变"用户定向"
+
+配置想深入的技术方向，每天的 💡 技术总结就从"泛泛经验"升级为**贴着当日真实材料的八股考点**。
+全链路只在配置层与提示词层插桩，现有流水线只读契约不动；没配目标时旧行为一个字符不变。
+
+**配置渠道（CLI，`world/techstack/`，范式同 world:watch）：**
+
+```bash
+npm run world:techstack                              # 列出目标
+npm run world:techstack -- --add 状态管理             # 出候选关键词（不写盘）——agent 收敛对话的素材
+npm run world:techstack -- --add 状态管理 \
+  --keywords "zustand persist 持久化,Redux/zustand 选型取舍"   # 收敛后才落盘
+npm run world:techstack -- --remove 状态管理
+```
+
+- **关键词收敛对话（核心）**：`--add` 不带 `--keywords` 时只出候选——CLI 聚合「项目记忆」
+  （watch.json 专案 + 近 7 天日报的项目/标题/工具分布 + 历史 tips/blockers），
+  给 4–8 个具体候选（LLM 结合记忆出题，挂了静默退确定性词典）。agent 拿到候选后在对话里
+  向用户确认（多选/自定义，每次最多一问），收敛定了带 `--keywords` 重跑才写
+  `~/.desktop-world/techstack.json`（0600，`WORLD_TECHSTACK_FILE` 可覆盖）。
+  关键词白名单校验（中英文/数字/常见技术符号，≤30 字，每目标 ≤8 个）。
+- **动态桌面里也能配**：右栏「🎯 定向学习」区输入方向回车 → IPC 出候选 → 点选 → 落盘
+  （contenteditable + `__worldTech` 最小桥，照随手记模式；记忆聚合与写盘全在主进程）。
+- **八股化 techTips**：summarizer 提示词注入目标关键词，产出 `{topic, project, answer, hook,
+  action}` 结构（【考点】+ 标准答案 2-4 句 + 记忆钩子 1 句 + 今天就能做的一步）；材料对不上
+  的目标静默跳过。tips md 按行段排版，动态桌面 💡 chip 悬停展示全文；**烘焙 PNG/分享文案不变**。
+- 降级：文件读坏回空、LLM 失败回确定性词典/模板总结，流水线永不被本功能打断。
+
 ## 模块
 
 | 文件 | 职责 |
@@ -201,6 +229,7 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
 | `collector-codex.js` | Codex 会话采集（宽进严出解析，可 `options.codex:false` 关闭） |
 | `watch/` | 专案追踪：`config.js`（文件夹登记/分类/最长前缀匹配）、`state.js`（按天结算同日幂等/视图）、`watch.js`（CLI） |
 | `live/` | 动态桌面：`live.js`（widget 窗口 + 15 分钟热刷新 + 随手记/看板隐藏/开 md/番茄钟 IPC）、`notes.js`（按天便签存储）、`board.js`（按天隐藏清单 + 稳定会话键）、`pet.js`（景观桌宠动画挑选）、`pomodoro.js`（番茄钟状态机：主进程时钟 + 按天存储 + 任务类型→动作映射）、`preload.js`（最小 contextBridge）、`preview.js`（开发预览入口）、`poc/`（桌面层 PoC：Swift 桌面层窗口 + 层级验证器） |
+| `techstack/` | 定向学习：`config.js`（目标读写/关键词白名单 0600）、`memory.js`（项目记忆聚合：专案+近7天日报）、`propose.js`（候选关键词：LLM 结合记忆 + 确定性词典兜底）、`techstack.js`（CLI） |
 | `garden/` | 生长世界：`state.js`（持久状态/结算/阶段表）、`scene.js`（确定性像素 SVG）、`index.js`（门面） |
 | `creature/` | 桌宠皮肤「芽芽」：`sprites.js`（23 状态像素精灵库）、`generate.js`（themes/sprout 生成器） |
 

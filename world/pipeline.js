@@ -49,10 +49,25 @@ function writeDayNotes(outDir, report) {
   const files = [];
   for (const [key, title, list, foot] of sections) {
     if (!Array.isArray(list) || !list.length) continue;
+    // v0.6.5 定向学习：tips 可能是结构化考点对象 {topic, project, answer, hook, action}，
+    // 也可能是旧字符串（或无目标时的普通 tips）——两种排版都支持
+    const items = list.map((x) =>
+      x && typeof x === 'object'
+        ? [
+            `### 【考点】${x.topic}${x.project ? `（来自项目：${x.project}）` : ''}`,
+            x.answer ? `- **标准答案**：${x.answer}` : null,
+            x.hook ? `- **记忆钩子**：${x.hook}` : null,
+            x.action ? `- **可操作方法**：${x.action}` : null,
+            '',
+          ]
+            .filter((l) => l !== null)
+            .join('\n')
+        : `- ${x}`,
+    );
     const body = [
       `# ${date} ${title}`,
       '',
-      ...list.map((x) => `- ${x}`),
+      ...items,
       '',
       '---',
       `_由 Desktop World 日报生成（${report.source === 'claude' ? '本地 Claude' : '本地模板'}，${hour}:${minute}）。${foot}_`,
@@ -96,8 +111,13 @@ async function runDaily({ outDir, noLlm = false, reuseReport = false, onStep = (
       const todayWatched = watch.list.filter((w) => w.today > 0);
       if (todayWatched.length) onStep(`专案：${todayWatched.map((w) => `${w.name}×${w.today}`).join(' · ')}`);
     }
+    // 定向学习：配了 techstack 目标就把关键词带进提示词（techTips 升级为八股考点；
+    // 没配则提示词与旧版一致，功能整链静默）
+    const { loadTechstack } = require('./techstack/config');
+    const techstack = loadTechstack();
+    if (techstack.goals.length) onStep(`定向学习：${techstack.goals.length} 个目标进 techTips 提示词`);
     onStep('调用本地 claude 生成一句话总结…');
-    const summary = await summarize(digest, { noLlm });
+    const summary = await summarize(digest, { noLlm, techstack });
     report = {
       meta: { date: digest.date, weekday: digest.weekday, generatedAt: digest.generatedAt, source: digest.source },
       digest,

@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
 const SUMMARY_TIMEOUT_MS = 240000;
 
-function buildPrompt(digest) {
+function buildPrompt(digest, opts = {}) {
   // 给模型的输入要尽量小且稳定：只带总结所需字段，不带原始 prompt 大段文本。
   const compact = {
     日期: digest.date,
@@ -31,20 +31,40 @@ function buildPrompt(digest) {
       工具调用: s.toolCalls,
     })),
   };
-  return [
+
+  // 定向学习（v0.6.5）：配了 techstack 目标时，techTips 从"被动总结"升级为
+  // 「当日真实踩点 → 八股考点」映射；没配目标时提示词与旧版一个字符不变（功能静默）。
+  const goals = opts.techstack && Array.isArray(opts.techstack.goals) ? opts.techstack.goals : [];
+  const guided = goals.length > 0;
+  const tipsSpec = guided
+    ? '5) techTips：把今天的会话材料映射到我的"学习目标"上，产出八股化技术总结。规则：(a) 只输出与今日材料真实相关的条目——材料对不上的目标静默跳过，宁缺毋滥，禁止硬编；(b) 每条是对象：{"topic":"考点名（≤14字）","project":"来自哪个项目/方向","answer":"标准答案（2-4句，面试可背）","hook":"记忆钩子（1句口诀式）","action":"今天就能做的一步（≤30字）"}；(c) 最多 4 条，每个学习目标至多 1 条；(d) 全部目标都没有材料对应就给空数组 []。'
+    : '5) techTips：今日技术总结——从今天做的事里沉淀的可复用经验/技巧（工具用法、调参结论、避坑），最多 4 条，每条 ≤26 字，要具体可操作；没有可沉淀的就给空数组。';
+  const jsonShape = guided
+    ? '严格只输出 JSON，形如 {"oneline":"...","ideas":["..."],"sessionBriefs":["..."],"blockers":["..."],"techTips":[{"topic":"...","project":"...","answer":"...","hook":"...","action":"..."}]}，不要 markdown 代码块、不要任何解释。'
+    : '严格只输出 JSON，形如 {"oneline":"...","ideas":["..."],"sessionBriefs":["..."],"blockers":["..."],"techTips":["..."]}，不要 markdown 代码块、不要任何解释。';
+
+  const lines = [
     '你是我的个人工作日报助手。下面这份 JSON 是我今天使用 AI 编程助手（Claude Code、Codex 等）在本机的活动统计。',
     '请输出：',
     '1) oneline：今日一句话总结，≤40 个汉字。要具体（带上项目名/做了什么/卡在哪），口语化，禁止"今天很努力"式空话。',
     '2) ideas：3 条"明天值得尝试的新思路"，每条 ≤30 字，必须可从数据里真实出现的内容延伸（例如反复手工做的事可以脚本化/交给 agent 的新玩法）。',
     '3) sessionBriefs：按"会话"数组的顺序，为每条会话写 ≤22 字的"干了什么"，让不在这条会话里的人一眼看懂（动词开头，例"修复托盘菜单溢出问题""续写论文实验章节"）。数组长度必须是 min(会话数, 10)，顺序一一对应；实在看不出内容就写"项目里零散探索"。',
     '4) blockers：今日卡点——从会话标题/首个输入里能看出的卡住、返工、报错、权限受阻的痕迹，最多 4 条，每条 ≤22 字，写明卡点和（若可推断）它影响的事；看不出卡点就给空数组，禁止硬编。',
-    '5) techTips：今日技术总结——从今天做的事里沉淀的可复用经验/技巧（工具用法、调参结论、避坑），最多 4 条，每条 ≤26 字，要具体可操作；没有可沉淀的就给空数组。',
+    tipsSpec,
     '6) 若数据很少（会话数 ≤1），oneline 如实表达今天较安静，ideas 给明日规划或休息类建议。',
-    '严格只输出 JSON，形如 {"oneline":"...","ideas":["..."],"sessionBriefs":["..."],"blockers":["..."],"techTips":["..."]}，不要 markdown 代码块、不要任何解释。',
+    jsonShape,
     '',
     '数据：',
     JSON.stringify(compact),
-  ].join('\n');
+  ];
+  if (guided) {
+    lines.push(
+      '',
+      '学习目标（我的定向技术方向 + 收敛后的关键词；第 5 条的映射对象）：',
+      JSON.stringify(goals.map((g) => ({ 方向: g.direction, 关键词: g.keywords }))),
+    );
+  }
+  return lines.join('\n');
 }
 
 // 清掉 Claude Code 注入的会话环境变量，避免嵌套会话保护误伤。
@@ -132,13 +152,40 @@ function fallbackSummary(digest) {
 }
 
 /**
+ * techTips 归一化：LLM 在"定向学习"模式下输出结构化考点对象，旧模式输出字符串；
+ * 两种都容忍（LLM 偶尔两边混着来），脏字段截断封顶，空对象丢弃。
+ * 返回 undefined 表示没有可沉淀的（UI 静默）。
+ */
+function normalizeTechTips(v) {
+  if (!Array.isArray(v)) return undefined;
+  const out = [];
+  for (const x of v) {
+    if (typeof x === 'string' && x.trim()) {
+      out.push(trimSentence(x, 30));
+    } else if (x && typeof x === 'object' && typeof x.topic === 'string' && x.topic.trim()) {
+      out.push({
+        topic: trimSentence(x.topic, 40),
+        project: typeof x.project === 'string' && x.project.trim() ? trimSentence(x.project, 30) : undefined,
+        answer: typeof x.answer === 'string' && x.answer.trim() ? trimSentence(x.answer, 140) : undefined,
+        hook: typeof x.hook === 'string' && x.hook.trim() ? trimSentence(x.hook, 50) : undefined,
+        action: typeof x.action === 'string' && x.action.trim() ? trimSentence(x.action, 60) : undefined,
+      });
+    }
+    if (out.length >= 4) break;
+  }
+  return out.length ? out : undefined;
+}
+
+/**
  * @param {object} digest collector.collect() 的输出
+ * @param {object} [options] { noLlm, timeoutMs, techstack } —— techstack 是 loadTechstack() 的
+ *   结果；有目标时 techTips 走「当日踩点 → 八股考点」结构化模式，没目标时与旧版行为完全一致。
  * @returns {Promise<{oneline:string, ideas:string[], source:string, raw?:string}>}
  */
 async function summarize(digest, options = {}) {
   if (options.noLlm || process.env.WORLD_NO_LLM === '1') return fallbackSummary(digest);
   try {
-    const raw = await runClaudeHeadless(buildPrompt(digest), options.timeoutMs);
+    const raw = await runClaudeHeadless(buildPrompt(digest, { techstack: options.techstack }), options.timeoutMs);
     const obj = extractJson(raw);
     if (obj && typeof obj.oneline === 'string' && Array.isArray(obj.ideas)) {
       const sessionBriefs = Array.isArray(obj.sessionBriefs)
@@ -154,7 +201,7 @@ async function summarize(digest, options = {}) {
         ideas: obj.ideas.filter((x) => typeof x === 'string').slice(0, 3),
         sessionBriefs: sessionBriefs && sessionBriefs.length ? sessionBriefs : undefined,
         blockers: pickList(obj.blockers, 26, 4), // 今日卡点（看不出就交给 UI 静默）
-        techTips: pickList(obj.techTips, 30, 4), // 技术总结
+        techTips: normalizeTechTips(obj.techTips), // 技术总结（字符串或结构化考点对象，混着来也收）
         source: 'claude',
         raw,
       };
@@ -177,4 +224,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { summarize, buildPrompt, extractJson, fallbackSummary, runClaudeHeadless };
+module.exports = { summarize, buildPrompt, extractJson, fallbackSummary, runClaudeHeadless, normalizeTechTips, trimSentence };

@@ -190,6 +190,26 @@
   .notes-body:focus { border-color: rgba(125, 211, 252, 0.45); }
   .notes-body:empty::before { content: '随手写点什么，只存在你自己电脑上…'; color: var(--ink-faint); }
 
+  /* ---------- 定向学习（v0.6.5，仅 live 显示；bake 形态始终 hidden）---------- */
+  .tech { flex: 0 0 auto; margin-top: 1.2vmin; border-top: 1px dashed var(--card-edge); padding-top: 1vmin; }
+  .tech .label { font-size: 1.3vmin; color: var(--ink-faint); letter-spacing: 0.3em; }
+  .tech .label .hint { letter-spacing: 0.08em; opacity: 0.75; }
+  .tech-goals { display: flex; flex-wrap: wrap; gap: 0.6vmin; margin-top: 0.7vmin; }
+  .tech-goal { font-size: 1.35vmin; color: var(--blue); border: 1px dashed rgba(125, 211, 252, 0.4); border-radius: 999px; padding: 0.25vmin 0.9vmin; }
+  .tech-input {
+    margin-top: 0.7vmin; border: 1px solid var(--card-edge); border-radius: 1vmin;
+    padding: 0.6vmin 0.9vmin; font-size: 1.5vmin; color: var(--ink); outline: none;
+    background: rgba(7, 11, 26, 0.45); white-space: nowrap; overflow: hidden;
+  }
+  .tech-input:focus { border-color: rgba(125, 211, 252, 0.45); }
+  .tech-input:empty::before { content: '想学深一点的方向，回车出候选关键词…'; color: var(--ink-faint); }
+  .tech-pick { margin-top: 0.6vmin; display: flex; flex-wrap: wrap; gap: 0.5vmin; align-items: center; }
+  .tech-pick .cand { font-size: 1.35vmin; padding: 0.3vmin 0.8vmin; border-radius: 999px; border: 1px solid var(--card-edge); color: var(--ink-dim); cursor: pointer; }
+  .tech-pick .cand:hover { color: var(--ink); }
+  .tech-pick .cand.on { color: var(--green); border-color: rgba(74, 222, 128, 0.55); }
+  .tech-pick .save { font-size: 1.4vmin; color: var(--green); border: 1px solid rgba(74, 222, 128, 0.45); background: none; border-radius: 999px; padding: 0.3vmin 1vmin; cursor: pointer; }
+  .tech-pick .thint { font-size: 1.2vmin; color: var(--ink-faint); width: 100%; }
+
   /* ---------- 番茄钟（v0.7，仅 live 组件；烘焙壁纸完全不含此板块）---------- */
   body.bake .pomo { display: none !important; }
   .pomo { display: none; } /* bake/非 live 一律不出；live 下由 body.live 选择器打开 */
@@ -360,6 +380,12 @@
       <div class="label">随手记 NOTES <span class="hint">点这里直接写</span></div>
       <div class="notes-body" id="notesBody" contenteditable="plaintext-only" spellcheck="false"></div>
     </section>
+    <section class="tech" id="techSection" hidden>
+      <div class="label">🎯 定向学习 FOCUS <span class="hint">输方向回车出候选关键词</span></div>
+      <div class="tech-goals" id="techGoals"></div>
+      <div class="tech-input" id="techInput" contenteditable="plaintext-only" spellcheck="false"></div>
+      <div class="tech-pick" id="techPick" hidden></div>
+    </section>
   </aside>
 </div>
 
@@ -416,6 +442,68 @@
   function fmtMin(ms) {
     var m = Math.round(ms / 60000);
     return m >= 60 ? (m / 60).toFixed(1) + 'h' : m + ' 分钟';
+  }
+
+  // techTips 可能是旧字符串，也可能是 v0.6.5 结构化考点对象——hover 全文排版统一在这做
+  function fmtTip(t) {
+    if (typeof t === 'string') return t;
+    if (!t || typeof t !== 'object') return '';
+    var lines = ['【考点】' + t.topic + (t.project ? '（来自项目：' + t.project + '）' : '')];
+    if (t.answer) lines.push('标准答案：' + t.answer);
+    if (t.hook) lines.push('记忆钩子：' + t.hook);
+    if (t.action) lines.push('可操作方法：' + t.action);
+    return lines.join('\n');
+  }
+
+  // ---------- 定向学习（v0.6.5；主进程聚合记忆与写盘，渲染层只做输入/选择/展示）----------
+  var techGoalEls = document.getElementById('techGoals');
+  var techInputEl = document.getElementById('techInput');
+  var techPickEl = document.getElementById('techPick');
+  var techInit = false; // render 每次热刷都会来，list 只拉一次（写盘后手动刷新）
+  var techBusy = false; // propose 在途拦截连击
+  var techDirection = ''; // 本轮收敛的方向（选定关键词随它一起落盘）
+  var techSelected = {}; // 候选点选态：keyword -> true
+
+  function refreshTechGoals() {
+    if (!window.__worldTech) return;
+    window.__worldTech.list().then(function (res) {
+      var goals = (res && res.goals) || [];
+      techGoalEls.innerHTML = goals
+        .map(function (g) {
+          return (
+            '<span class="tech-goal" title="' + esc(g.keywords.join('\n')) + '">' +
+            esc(g.direction) + ' <b>×' + g.keywords.length + '</b></span>'
+          );
+        })
+        .join('');
+    });
+  }
+
+  function submitTechDirection() {
+    if (!window.__worldTech || techBusy) return;
+    var dir = (techInputEl.textContent || '').trim();
+    if (!dir) return;
+    techDirection = dir.slice(0, 40);
+    techSelected = {};
+    techBusy = true;
+    techPickEl.hidden = false;
+    techPickEl.innerHTML = '<span class="thint">结合最近 7 天项目回想候选中…</span>';
+    window.__worldTech.propose(techDirection).then(function (res) {
+      techBusy = false;
+      var kws = (res && res.keywords) || [];
+      if (!kws.length) {
+        techPickEl.innerHTML = '<span class="thint">没想出候选词，换个更具体的说法再回车试试？</span>';
+        return;
+      }
+      techPickEl.innerHTML =
+        kws
+          .map(function (kw) {
+            return '<span class="cand" data-kw="' + esc(kw) + '">' + esc(kw) + '</span>';
+          })
+          .join('') +
+        '<button class="save" type="button">✔ 确认这些方向</button>' +
+        '<span class="thint">可多选；没选中的词不会收录；想换词改上面方向再回车</span>';
+    });
   }
 
   function renderPomo(v) {
@@ -600,7 +688,7 @@
   }
 
   // 随手记（仅 live 组件 + preload 桥存在）：换日/换报时重读当日便签，
-  // 正在编辑（有焦点）时绝不覆盖，免得光标乱跳
+  // 正在编辑（有焦点）时绝不覆盖，免得正在输入的人被热刷新顶掉
   if (LIVE && window.__worldNotes) {
     var nd = (R.meta && R.meta.date) || '';
     document.getElementById('notesSection').hidden = false;
@@ -609,6 +697,15 @@
       window.__worldNotes.load(nd).then(function (t) {
         if (nd === notesDate && document.activeElement !== notesBodyEl) notesBodyEl.textContent = t || '';
       });
+    }
+  }
+
+  // 定向学习区：整区仅 live 显示（bake 永远 hidden）；list 只在首个 render 拉一次
+  if (LIVE && window.__worldTech) {
+    document.getElementById('techSection').hidden = false;
+    if (!techInit) {
+      techInit = true;
+      refreshTechGoals();
     }
   }
 
@@ -687,7 +784,7 @@
     }
     if (techTips.length) {
       chipT.querySelector('.cnt').textContent = '×' + techTips.length;
-      chipT.title = techTips.join('\n');
+      chipT.title = techTips.map(fmtTip).join('\n\n');
     }
   } else {
     tipsRow.hidden = true;
@@ -819,6 +916,54 @@
       notesSaveTimer = setTimeout(function () {
         window.__worldNotes.save(notesDate || todayKey(), notesBodyEl.innerText || '');
       }, 400);
+    });
+  }
+
+  // 定向学习交互：方向回车出候选 → 点选关键词 → ✔ 落盘（可多轮改方向重出候选）
+  if (LIVE && window.__worldTech && techInputEl) {
+    techInputEl.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        submitTechDirection();
+      }
+    });
+    techPickEl.addEventListener('click', function (ev) {
+      var t = ev.target;
+      var cand = t.closest && t.closest('.cand');
+      if (cand) {
+        var kw = cand.getAttribute('data-kw');
+        if (techSelected[kw]) {
+          delete techSelected[kw];
+          cand.classList.remove('on');
+        } else {
+          techSelected[kw] = true;
+          cand.classList.add('on');
+        }
+        return;
+      }
+      var save = t.closest && t.closest('.save');
+      if (save) {
+        var selected = Object.keys(techSelected);
+        var hint = techPickEl.querySelector('.thint');
+        if (!selected.length) {
+          if (hint) hint.textContent = '先点选 ≥1 个关键词再确认';
+          return;
+        }
+        save.disabled = true;
+        if (hint) hint.textContent = '落盘中…';
+        window.__worldTech.add(techDirection, selected).then(function (res) {
+          save.disabled = false;
+          if (res && res.ok) {
+            techPickEl.hidden = true;
+            techPickEl.innerHTML = '';
+            techInputEl.textContent = '';
+            techSelected = {};
+            refreshTechGoals();
+          } else if (hint) {
+            hint.textContent = (res && res.error) || '保存失败';
+          }
+        });
+      }
     });
   }
 

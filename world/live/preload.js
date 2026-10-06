@@ -1,7 +1,8 @@
 // world/live/preload.js
 // 动态桌面窗口的 preload（sandbox:true 下可用 contextBridge + ipcRenderer）。
-// 暴露四个最小面：随手记读写、看板隐藏/恢复、打开当日随笔 md、番茄钟（渲染层只展示，
-// 时钟与落盘全在主进程——poll 拉取 view，动作只发指令）。其他通道一律不开。
+// 暴露五个最小面：随手记读写、看板隐藏/恢复、打开当日随笔 md、番茄钟（渲染层只展示，
+// 时钟与落盘全在主进程——poll 拉取 view，动作只发指令）、定向学习（出候选/落目标）。
+// 其他通道一律不开。
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -27,4 +28,11 @@ contextBridge.exposeInMainWorld('__worldPomo', {
   resume: (date) => ipcRenderer.invoke('world:pomo:resume', date),
   skip: (date) => ipcRenderer.invoke('world:pomo:skip', date),
   completeTask: (date, sid) => ipcRenderer.invoke('world:pomo:complete-task', date, sid),
+});
+
+// 定向学习（v0.6.5）：渲染层只发"模糊方向 / 选中的关键词"，记忆聚合与写盘全在主进程
+contextBridge.exposeInMainWorld('__worldTech', {
+  list: () => ipcRenderer.invoke('world:tech:list'),
+  propose: (direction) => ipcRenderer.invoke('world:tech:propose', direction),
+  add: (direction, keywords) => ipcRenderer.invoke('world:tech:add', direction, keywords),
 });

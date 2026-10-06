@@ -233,6 +233,42 @@ function ensureNotesIpc() {
       return [];
     }
   });
+  // 定向学习（v0.6.5）：渲染层只发模糊方向/选中关键词，记忆聚合与写盘全在主进程。
+  // propose 永不抛错（LLM 挂了静默退确定性词典）；add 的校验在 techstack/config 层把关。
+  const { loadTechstack, addGoal, MAX_DIRECTION_LEN } = require('../techstack/config');
+  ipcMain.handle('world:tech:list', (e) => {
+    if (!ok(e)) return { goals: [] };
+    try {
+      return { goals: loadTechstack().goals.map((g) => ({ id: g.id, direction: g.direction, keywords: g.keywords })) };
+    } catch {
+      return { goals: [] };
+    }
+  });
+  ipcMain.handle('world:tech:propose', async (e, direction) => {
+    if (!ok(e)) return { keywords: [] };
+    const dir = String(direction || '').trim().slice(0, MAX_DIRECTION_LEN);
+    if (!dir) return { keywords: [] };
+    try {
+      const { buildMemory } = require('../techstack/memory');
+      const { proposeKeywords } = require('../techstack/propose');
+      const memory = buildMemory({ outDir: liveOutDirRef, days: 7 });
+      const res = await proposeKeywords(dir, memory, { timeoutMs: 60000 });
+      return { direction: dir, keywords: (res && res.keywords) || [], source: (res && res.source) || 'static' };
+    } catch (err) {
+      console.error('[live] 定向学习候选失败（返回空，不打断组件）：', err.message);
+      return { direction: dir, keywords: [] };
+    }
+  });
+  ipcMain.handle('world:tech:add', (e, direction, keywords) => {
+    if (!ok(e)) return { ok: false };
+    try {
+      const { goal, updated } = addGoal({ direction, keywords });
+      return { ok: true, updated: !!updated, goal: { id: goal.id, direction: goal.direction, keywords: goal.keywords } };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   // 打开当日随笔 md：只允许 outDir 下的 blockers|tips-YYYY-MM-DD.md，白名单式拼路径
   ipcMain.handle('world:open:md', async (e, kind, date) => {
     if (!ok(e) || !liveOutDirRef) return false;

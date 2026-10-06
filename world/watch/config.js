@@ -24,9 +24,9 @@ function inferCategory(name) {
   return LEARN_HINT.test(name || '') ? '学习' : '工作';
 }
 
-function loadWatch() {
+function loadWatch(file = WATCH_FILE) {
   try {
-    const raw = JSON.parse(fs.readFileSync(WATCH_FILE, 'utf8'));
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
     const folders = Array.isArray(raw.folders) ? raw.folders : [];
     return {
       folders: folders
