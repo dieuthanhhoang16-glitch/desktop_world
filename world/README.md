@@ -133,7 +133,7 @@ npm run world:watch -- --remove 桌面世界
   特例同日升级：凌晨 0 会话先结算过、当天之后才开工，仍会按新的一天补记。
 - 没配置任何文件夹时，整个功能在模板和分享文案里完全静默（不显示）。
 
-## 动态桌面（v0.6.1 重做形态，v0.6.2 看板增强）
+## 动态桌面（v0.6.1 重做形态，v0.6.2 看板增强，v0.6.3 番茄钟 × 任务）
 
 烘焙壁纸是把早报"截图贴上去"，会裁剪、会糊；动态桌面是另一个思路——
 透明无框、常驻的桌面组件，直接渲染早报模板本身（原生清晰度），数据每 15 分钟自动热刷。
@@ -159,6 +159,20 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
   `<outDir>/blockers-YYYY-MM-DD.md`、`tips-YYYY-MM-DD.md`。动态桌面右栏出现
   「🚧 今日卡点」「💡 技术总结」两个 chip（悬停看全文），点击**用系统默认程序打开当日 md**；
   当天没产出就静默不出现。烘焙壁纸不含这两个 chip。
+- **番茄钟 × 任务（v0.6.3）**：左栏统计之下、像素景观之上一条单行横条（用户定调形态）。
+  标准 25 分钟专注 + 5 分钟休息循环：▶ 开始（可选关联看板里某张进行中会话卡，或自由输入任务名）/⏸ 暂停/⏭ 跳过；
+  专注满钟自动进休息，休息结束回 idle（不强推下一个）。
+  **主进程是唯一时钟源**——状态存 deadline 时间戳（endAt）而非"已过时长"，渲染层 1Hz 轮询
+  `world:pomo:poll`（内含幂等 tick 推进/结算），窗口重载、App 重启、睡眠唤醒都不丢时间。
+  数据按天存 `<outDir>/pomodoro.json`（0600，留最近 30 天）：完成番茄数、当日累计专注、
+  各任务累计毫秒（会话卡键 `sid:<稳定会话键>` 与自由任务键 `text:<标题>` 分开记账）、
+  手动完成的会话清单。跳过/被挤掉的专注段按已花时长记账但不计满钟番茄。
+  **看板联动**：进行中卡片带「✓」手动完成（卡片挪进已完成列，当日幂等）；专注时段的任务累计
+  时长以 🍅 角标显示在对应卡片上。**像素世界联动**（抄 [munder-difflin](https://github.com/HarnessMD/munder-difflin) 的设计，不抄代码——
+  "信息即动作"）：专注期间桌宠头顶浮出 `🍅 任务名` 标签，且角色动作按任务类型映射
+  （`pomodoro.taskActionFor`：读/研究→thinking，整理/归档→sweeping，搬运/同步→carrying，
+  会议/沟通→attention，其余→working 顶档）；引擎 `setPetState()` 显式覆盖仍最高优先。
+  整条横条、头顶标签、🍅 角标都只在 live 组件出现，烘焙壁纸一律不含。
 - **组件永不碰系统壁纸**：跨零点升级完整流水线只做世界结算 + 新一句话（`setWallpaper:false`）；
   壁纸烘焙只保留手动入口（托盘「🌅 生成今日早报壁纸」/ CLI `world:daily`），产物仍是 IM 分享底稿。
 - 配置存 `~/.desktop-world/live.json`（`WORLD_LIVE_FILE` 覆盖）：`{enabled, clickThrough, refreshMin, w, h, x, y}`；
@@ -181,7 +195,7 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
 | `app-integration.js` | 桌宠 App 内入口（托盘菜单调用、系统通知反馈、防抖） |
 | `collector-codex.js` | Codex 会话采集（宽进严出解析，可 `options.codex:false` 关闭） |
 | `watch/` | 专案追踪：`config.js`（文件夹登记/分类/最长前缀匹配）、`state.js`（按天结算同日幂等/视图）、`watch.js`（CLI） |
-| `live/` | 动态桌面：`live.js`（widget 窗口 + 15 分钟热刷新 + 随手记/看板隐藏/开 md IPC）、`notes.js`（按天便签存储）、`board.js`（按天隐藏清单 + 稳定会话键）、`pet.js`（景观桌宠动画挑选）、`preload.js`（最小 contextBridge）、`preview.js`（开发预览入口）、`poc/`（桌面层 PoC：Swift 桌面层窗口 + 层级验证器） |
+| `live/` | 动态桌面：`live.js`（widget 窗口 + 15 分钟热刷新 + 随手记/看板隐藏/开 md/番茄钟 IPC）、`notes.js`（按天便签存储）、`board.js`（按天隐藏清单 + 稳定会话键）、`pet.js`（景观桌宠动画挑选）、`pomodoro.js`（番茄钟状态机：主进程时钟 + 按天存储 + 任务类型→动作映射）、`preload.js`（最小 contextBridge）、`preview.js`（开发预览入口）、`poc/`（桌面层 PoC：Swift 桌面层窗口 + 层级验证器） |
 | `garden/` | 生长世界：`state.js`（持久状态/结算/阶段表）、`scene.js`（确定性像素 SVG）、`index.js`（门面） |
 | `creature/` | 桌宠皮肤「芽芽」：`sprites.js`（23 状态像素精灵库）、`generate.js`（themes/sprout 生成器） |
 

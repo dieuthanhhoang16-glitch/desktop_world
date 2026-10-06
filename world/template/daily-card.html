@@ -166,6 +166,16 @@
     filter: drop-shadow(0 0.4vmin 0.8vmin rgba(0, 0, 0, 0.35));
   }
   #petImg[hidden] { display: none; }
+  /* 番茄专注时角色头顶的任务名标签（仅 live；角色行为可视化的第一层） */
+  #petTaskTag {
+    position: absolute; right: 0.8vmin; bottom: 20vmin; max-width: 60%;
+    padding: 0.4vmin 0.9vmin; border-radius: 1vmin 1vmin 0.2vmin 1vmin;
+    background: var(--card); border: 1px solid var(--card-edge);
+    font-size: 1.25vmin; color: var(--ink-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    pointer-events: none;
+  }
+  #petTaskTag[hidden] { display: none; }
 
   /* ---------- 随手记（v0.6.1，仅 live 组件；不进烘焙壁纸）---------- */
   .notes { flex: 0 0 auto; margin-top: 1.4vmin; border-top: 1px dashed var(--card-edge); padding-top: 1.2vmin; }
@@ -179,6 +189,45 @@
   }
   .notes-body:focus { border-color: rgba(125, 211, 252, 0.45); }
   .notes-body:empty::before { content: '随手写点什么，只存在你自己电脑上…'; color: var(--ink-faint); }
+
+  /* ---------- 番茄钟（v0.7，仅 live 组件；烘焙壁纸完全不含此板块）---------- */
+  body.bake .pomo { display: none !important; }
+  .pomo { display: none; } /* bake/非 live 一律不出；live 下由 body.live 选择器打开 */
+  body.live .pomo {
+    display: block; margin-top: 1.8vmin;
+    background: var(--card); border: 1px solid var(--card-edge); border-radius: 1.2vmin;
+    padding: 0.9vmin 1.2vmin 1vmin;
+  }
+  .pomo .p-line1 { display: flex; align-items: baseline; gap: 1vmin; min-height: 2.6vmin; }
+  .pomo .p-icon { font-size: 1.9vmin; flex: 0 0 auto; }
+  .pomo .p-clock { font-size: 2.2vmin; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+  .pomo .p-clock.paused { opacity: 0.55; }
+  .pomo .p-task { font-size: 1.5vmin; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
+  .pomo .p-count { font-size: 1.4vmin; color: var(--ink-faint); flex: 0 0 auto; }
+  .pomo .p-btns { flex: 0 0 auto; display: flex; gap: 0.5vmin; }
+  .pomo .p-btn {
+    border: none; background: transparent; color: var(--ink-dim); cursor: pointer;
+    font-size: 1.6vmin; font-family: inherit; padding: 0.2vmin 0.5vmin; border-radius: 0.5vmin;
+  }
+  .pomo .p-btn:hover { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
+  .pomo .p-btn.primary { color: var(--green); font-weight: 700; }
+  .pomo .p-bar { margin-top: 0.7vmin; height: 0.32vmin; border-radius: 0.2vmin; background: rgba(255, 255, 255, 0.10); overflow: hidden; }
+  .pomo .p-bar i { display: block; height: 100%; background: var(--green); border-radius: 0.2vmin; transition: width 0.9s linear; }
+  .pomo.rest .p-bar i { background: var(--blue); }
+  .pomo .p-picker { margin-top: 0.8vmin; border-top: 1px dashed var(--card-edge); padding-top: 0.7vmin; }
+  .pomo .p-opt {
+    display: flex; gap: 0.8vmin; align-items: baseline; padding: 0.45vmin 0.6vmin;
+    border-radius: 0.6vmin; font-size: 1.45vmin; color: var(--ink-dim); cursor: pointer;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pomo .p-opt:hover { background: rgba(255, 255, 255, 0.08); color: var(--ink); }
+  .pomo .p-opt b { color: var(--ink); font-weight: 600; }
+  .pomo .p-free {
+    width: 100%; margin-top: 0.3vmin; background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 0.6vmin; outline: none;
+    color: var(--ink); font-size: 1.45vmin; font-family: inherit; padding: 0.5vmin 0.8vmin;
+  }
+  .pomo .p-free:focus { border-color: rgba(74, 222, 128, 0.5); }
 
   /* ================= 模式拆分 =================
      body.bake：烘焙壁纸（默认样式，保持今天的样子一个像素不动）
@@ -226,6 +275,10 @@
   body.live .col .cards::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.36); }
   .hidden-note { font-size: 1.25vmin; color: var(--ink-faint); margin-top: 0.8vmin; text-align: right; flex: 0 0 auto; }
   .hidden-note .restore-hidden { color: var(--blue); cursor: pointer; text-decoration: underline; }
+  /* 番茄联动小件：时长角标 + 进行中卡片的「✓ 完成」 */
+  .pomo-badge { font-size: 1.2vmin; color: var(--green); font-weight: 600; white-space: nowrap; }
+  .card .done-toggle { left: 0.6vmin; right: auto; }
+  .card .done-toggle:hover { color: var(--green); }
 
   /* ---------- 今日卡点 / 技术总结 chips（v0.6.2，仅 live）---------- */
   .tips-row { flex: 0 0 auto; display: flex; gap: 1vmin; margin-top: 1.3vmin; }
@@ -255,9 +308,22 @@
 
     <div class="stats" id="stats"></div>
 
+    <section class="pomo" id="pomoSection">
+      <div class="p-line1">
+        <span class="p-icon" id="pomoIcon">🍅</span>
+        <span class="p-clock" id="pomoClock"></span>
+        <span class="p-task" id="pomoTask"></span>
+        <span class="p-count" id="pomoCount"></span>
+        <span class="p-btns" id="pomoBtns"></span>
+      </div>
+      <div class="p-bar" id="pomoBarWrap" hidden><i id="pomoBar" style="width:0%"></i></div>
+      <div class="p-picker" id="pomoPicker" hidden></div>
+    </section>
+
     <section class="worldband" id="worldband" hidden>
       <div class="scenewrap">
         <div class="scene" id="worldScene"></div>
+        <div id="petTaskTag" hidden></div>
         <img id="petImg" alt="" hidden>
       </div>
       <div class="world-meta" id="worldMeta"></div>
@@ -324,6 +390,131 @@
     return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
   }
 
+  // ---------- 番茄钟（UI 只是主进程状态的镜子；时钟与写盘全在主进程）----------
+  var pomoView = null; // 最近一次主进程快照（render(R.pomo) 与 1Hz 轮询共用）
+  var pomoPickOpen = false; // 任务选择器展开态（热刷新不打断正在选的人）
+
+  function pomoDoneSids() {
+    return (pomoView && pomoView.doneSids) || [];
+  }
+
+  function fmtMMSS(ms) {
+    var s = Math.max(0, Math.round(ms / 1000));
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+  function fmtMin(ms) {
+    var m = Math.round(ms / 60000);
+    return m >= 60 ? (m / 60).toFixed(1) + 'h' : m + ' 分钟';
+  }
+
+  function renderPomo(v) {
+    pomoView = v || { phase: 'idle', remainMs: 0, totalMs: 0, task: null, cycles: 0, focusMs: 0, tasks: {}, doneSids: [] };
+    var sec = document.getElementById('pomoSection');
+    if (!sec) return;
+    sec.style.display = '';
+    var clock = document.getElementById('pomoClock');
+    var task = document.getElementById('pomoTask');
+    var count = document.getElementById('pomoCount');
+    var btns = document.getElementById('pomoBtns');
+    var barWrap = document.getElementById('pomoBarWrap');
+    var bar = document.getElementById('pomoBar');
+    var ph = pomoView.phase;
+    var running = ph === 'focus' || ph === 'break';
+    var paused = ph === 'focus-paused' || ph === 'break-paused';
+
+    sec.classList.toggle('rest', ph.indexOf('break') === 0);
+    clock.classList.toggle('paused', paused);
+    clock.textContent = running || paused ? fmtMMSS(pomoView.remainMs) : '';
+    task.textContent = running || paused
+      ? (ph.indexOf('break') === 0 ? '休息一下 ☕' : ('· ' + (pomoView.task ? pomoView.task.title : '自由专注')))
+      : '开始一个番茄';
+    count.textContent = pomoView.cycles ? '×' + pomoView.cycles : '';
+
+    var b = [];
+    if (ph === 'idle') {
+      b.push('<button class="p-btn primary" data-act="pick" type="button">▶ 开始</button>');
+    } else if (paused) {
+      b.push('<button class="p-btn primary" data-act="resume" type="button">▶ 继续</button>');
+      b.push('<button class="p-btn" data-act="skip" type="button">⏭ 跳过</button>');
+    } else {
+      b.push('<button class="p-btn" data-act="pause" type="button">⏸ 暂停</button>');
+      b.push('<button class="p-btn" data-act="skip" type="button">⏭ 跳过</button>');
+    }
+    btns.innerHTML = b.join('');
+
+    if (running || paused) {
+      barWrap.hidden = false;
+      var frac = pomoView.totalMs > 0 ? 1 - pomoView.remainMs / pomoView.totalMs : 0;
+      bar.style.width = (Math.max(0, Math.min(1, frac)) * 100).toFixed(1) + '%';
+    } else {
+      barWrap.hidden = true;
+    }
+
+    // 任务选择器（idle 点「开始」后展开）：进行中会话卡 + 自由任务 + 不关联
+    var picker = document.getElementById('pomoPicker');
+    if (pomoPickOpen && ph === 'idle') {
+      picker.hidden = false;
+      var ses = ((lastR && lastR.digest && lastR.digest.sessions) || []).filter(function (s) {
+        return s.status === '进行中' && !s.hidden && s._sid;
+      });
+      var html = ses.map(function (s, i) {
+        return '<div class="p-opt" data-pick-sid="' + esc(s._sid) + '">' +
+          '<b>' + esc(s.project) + '</b>' + esc((s._brief || s.title || '').slice(0, 26)) + '</div>';
+      }).join('');
+      picker.innerHTML = html +
+        '<input class="p-free" id="pomoFree" maxlength="60" placeholder="自由任务：打个名字回车就开始（或留空不关联）">';
+    } else {
+      picker.hidden = true;
+    }
+  }
+
+  function pomoTaskMs(sid) {
+    return (pomoView && pomoView.tasks && pomoView.tasks['sid:' + sid]) || 0;
+  }
+
+  // 面板按钮（事件委托；委托挂在常驻 section 上，轮询重绘内部不掉）
+  document.getElementById('pomoSection').addEventListener('click', function (ev) {
+    if (!LIVE || !window.__worldPomo) return;
+    var t = ev.target;
+    var d = (curRenderDate || todayKey());
+    var actBtn = t.closest && t.closest('[data-act]');
+    if (actBtn) {
+      var act = actBtn.getAttribute('data-act');
+      var send = { pick: null, pause: 'pause', resume: 'resume', skip: 'skip' }[act];
+      if (act === 'pick') { pomoPickOpen = !pomoPickOpen; renderPomo(pomoView); return; }
+      if (send) window.__worldPomo[send](d).then(renderPomo);
+      return;
+    }
+    var opt = t.closest && t.closest('[data-pick-sid]');
+    if (opt) {
+      var sid = opt.getAttribute('data-pick-sid');
+      var ses = ((lastR && lastR.digest && lastR.digest.sessions) || []).find(function (s) { return s._sid === sid; });
+      pomoPickOpen = false;
+      window.__worldPomo.start(d, { sid: sid, title: ses ? (ses._brief || ses.title || ses.project) : '' }).then(renderPomo);
+    }
+  });
+  document.getElementById('pomoSection').addEventListener('keydown', function (ev) {
+    if (!LIVE || !window.__worldPomo) return;
+    if (ev.key !== 'Enter' || !ev.target.classList || !ev.target.classList.contains('p-free')) return;
+    var d = (curRenderDate || todayKey());
+    pomoPickOpen = false;
+    var text = ev.target.value.trim();
+    window.__worldPomo.start(d, text ? { text: text } : null).then(renderPomo);
+  });
+
+  // 1Hz 轮询主进程（含幂等 tick 结算）——窗口只是镜子，重载/重启不丢时间
+  if (LIVE && window.__worldPomo) {
+    setInterval(function () {
+      if (document.hidden) return; // 切走的时侯省一点，回来下一轮就追上
+      window.__worldPomo.poll(curRenderDate || todayKey()).then(function (v) {
+        var wasIdle = !pomoView || pomoView.phase === 'idle';
+        renderPomo(v);
+        // 阶段变化（尤其番茄结算）会影响看板角标/进行中列，联动整体重绘
+        if (lastR && (wasIdle !== (v.phase === 'idle'))) render(lastR);
+      });
+    }, 1000);
+  }
+
   function render(R) {
   lastR = R;
   curRenderDate = (R.meta && R.meta.date) || curRenderDate || todayKey();
@@ -376,6 +567,7 @@
 
   // 桌宠入住景观（仅 live 组件；烘焙壁纸保持纯静态世界）
   var petEl = document.getElementById('petImg');
+  var petPetTask = (R.pet && R.pet.taskTitle) || null;
   if (petEl) {
     if (LIVE && world && world.svg && R.pet && R.pet.src) {
       if (petEl.getAttribute('src') !== R.pet.src) petEl.src = R.pet.src;
@@ -383,6 +575,16 @@
       petEl.hidden = false;
     } else {
       petEl.hidden = true;
+    }
+  }
+  // 角色头顶任务标签：专注进行中且有任务名才出现（番茄 × 场景联动第一层）
+  var tagEl = document.getElementById('petTaskTag');
+  if (tagEl) {
+    if (LIVE && petPetTask && petEl && !petEl.hidden) {
+      tagEl.textContent = '🍅 ' + petPetTask;
+      tagEl.hidden = false;
+    } else {
+      tagEl.hidden = true;
     }
   }
 
@@ -480,9 +682,19 @@
     tipsRow.hidden = true;
   }
 
+  // 番茄钟面板（仅 live；R.pomo 是主进程快照，时钟不归渲染层管）
+  var pomoSec = document.getElementById('pomoSection');
+  if (LIVE && window.__worldPomo) {
+    renderPomo(R.pomo || null);
+  } else if (pomoSec) {
+    pomoSec.style.display = 'none';
+  }
+
   // 看板
-  var act = sessions.filter(function (s) { return s.status === '进行中'; });
-  var finAll = sessions.filter(function (s) { return s.status !== '进行中'; });
+  var act = sessions.filter(function (s) { return s.status === '进行中' && !(s._sid && pomoDoneSids().indexOf(s._sid) >= 0); });
+  var manualDone = sessions.filter(function (s) { return s.status === '进行中' && s._sid && pomoDoneSids().indexOf(s._sid) >= 0; });
+  manualDone.forEach(function (s) { s._manualDone = true; });
+  var finAll = sessions.filter(function (s) { return s.status !== '进行中'; }).concat(manualDone);
   var fin = finAll.filter(function (s) { return !s.hidden; }); // 「隐藏这条」从看板拿掉（原记录不受影响）
   var hiddenCount = finAll.length - fin.length;
   var MAX_CARDS = 4;
@@ -532,9 +744,15 @@
       var delBtn = LIVE && cls === 'done' && s._sid
         ? '<button class="del" type="button" data-sid="' + esc(s._sid) + '" title="从今天看板隐藏这条">×</button>'
         : '';
+      // 番茄联动：本会话累计的番茄专注时长角标；进行中卡片给「✓ 完成」，点了挪到已完成
+      var pomoMs = LIVE && s._sid ? pomoTaskMs(s._sid) : 0;
+      var pomoBadge = pomoMs ? ' <span class="pomo-badge" title="今日番茄累计">🍅 ' + esc(fmtMin(pomoMs)) + '</span>' : '';
+      var doneBtn = LIVE && cls === 'active' && s._sid
+        ? '<button class="del done-toggle" type="button" data-done-sid="' + esc(s._sid) + '" title="手动标记完成">✓</button>'
+        : '';
       return (
-        '<div class="card" title="' + hover + '">' + delBtn + '<span class="proj">' + esc(s.project) + '</span>' + cat +
-        '<div class="title">' + esc(title) + '</div>' + rawLine +
+        '<div class="card" title="' + hover + '">' + delBtn + doneBtn + '<span class="proj">' + esc(s.project) + '</span>' + cat +
+        '<div class="title">' + esc(title) + pomoBadge + '</div>' + rawLine +
         '<div class="meta">' + esc(meta) + '</div></div>'
       );
     }).join('');
@@ -556,12 +774,19 @@
   document.getElementById('boardBody').addEventListener('click', function (ev) {
     if (!LIVE || !window.__worldBoard || !lastR) return;
     var t = ev.target;
-    if (t.classList && t.classList.contains('del')) {
+    if (t.classList && t.classList.contains('del') && !t.classList.contains('done-toggle')) {
       var sid = t.getAttribute('data-sid');
       if (!sid) return;
       window.__worldBoard.hide(curRenderDate || todayKey(), sid);
       (lastR.digest.sessions || []).forEach(function (s) { if (s._sid === sid) s.hidden = true; });
       render(lastR); // 本地即时重绘；下次热刷新时主进程也会按 dismissed.json 标注
+    } else if (t.classList && t.classList.contains('done-toggle')) {
+      var dsid = t.getAttribute('data-done-sid');
+      if (!dsid || !window.__worldPomo) return;
+      window.__worldPomo.completeTask(curRenderDate || todayKey(), dsid).then(function (v) {
+        renderPomo(v);
+        render(lastR);
+      });
     } else if (t.classList && t.classList.contains('restore-hidden')) {
       window.__worldBoard.unhideAll(curRenderDate || todayKey());
       (lastR.digest.sessions || []).forEach(function (s) { s.hidden = false; });

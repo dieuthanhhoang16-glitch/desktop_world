@@ -50,7 +50,7 @@ clawd 引擎（src/，不改动）          world/ 模块（fork 新增）
   - **mac 桌面层 PoC ✅（2026-10-05，adf604b0）**：`world/live/poc/` —— Plash 源码实读（官方闭源→fork 快照）+ Swift 最小复现，公开 API 复验窗口 layer == kCGDesktopWindowLevel（-2147483623）比图标层低 20 级；下一段 = Electron 映射评估（N-API 薄桥 setLevel/collectionBehavior vs Swift sidecar 宿主）。
   - **v0.6.1 动态桌面 widget 化（2026-10-05，用户定调）**：无卡片化（透明 widget 风、文字投影、body.live/body.bake 双形态，烘焙壁纸一像素不动）；**组件永不碰系统壁纸**（跨日流水线 setWallpaper:false，壁纸只留手动入口）；默认可交互可拖动（app-region，老配置 clickThrough:true 一次性迁移）；**桌宠入住景观**（girl APNG 进像素世界带，workingTiers 分级/深夜睡觉/引擎可 `setPetState` 覆盖）；右栏**随手记**（按天 notes.json 0600，仅本机不进烘焙）。
   - **v0.6.2 看板增强（2026-10-05，用户点菜）**：已完成列卡片**隐藏该条**（悬停「×」，按天存 dismissed.json，可「全部恢复」，不动原始会话记录；补采集层 `id` 透传做稳定键，无 id 退内容哈希）+ 列**全量滚动**（不再封顶 4 张，细滚动条）；日报新增**今日卡点/技术总结 tips**（LLM 增量产出 → report 字段 → `writeDayNotes` 落 `<outDir>/blockers|tips-YYYY-MM-DD.md`），动态桌面右栏双 chip **点击系统默认程序打开当日 md**（主进程白名单校验 kind+日期后才 shell.openPath）；烘焙形态不含新元素。37 条单测全绿。
-
+  - **v0.6.3 番茄钟 × 任务（2026-10-06，用户点菜）**：左栏单行横条（统计之下景观之上），25+5 标准循环、开始/暂停/跳过；**主进程唯一时钟源**（存 endAt deadline + 幂等 tick，渲染层 1Hz 轮询 poll，重载/重启/睡眠不丢）；按天存 pomodoro.json（0600，30 天，sid/text 分开记账，跳过按已花时长记账不计满钟）。看板联动：可选关联进行中会话卡、🍅 时长角标、✓ 手动完成挪列。像素世界联动（抄 munder-difflin 设计不抄代码，「信息即动作」）：专注期角色头顶 🍅 任务名标签 + 任务类型→动作映射（research→thinking/整理→sweeping/搬运→carrying/会议→attention/余者→working 顶档），引擎 override 仍最高优先。IPC 六通道走 __worldPomo 最小桥；烘焙壁纸零新元素；10 条 node:test 全绿。
 ## 开发备忘
 
 - 新代码放 `world/`，CommonJS、只用 Node/Electron 内置能力（与上游约束一致）。

@@ -28,6 +28,7 @@ let win = null;
 let timer = null;
 let notesFile = null; // open() 时确定为 <outDir>/notes.json
 let dismissedFile = null; // open() 时确定为 <outDir>/dismissed.json
+let pomoFile = null; // open() 时确定为 <outDir>/pomodoro.json（番茄钟：主进程时钟 + 落盘）
 let liveOutDirRef = null; // open() 时记下 outDir（打开当日 md 用）
 let petOverride = null; // app 侧引擎状态注入（见 setPetState），缺省时走数据推导
 
@@ -97,18 +98,36 @@ async function buildLiveReport(outDir, digest) {
     }
   }
 
-  // 桌宠入住景观：挑当前主题的动画文件（数据驱动分级 + 引擎覆盖优先）
+  // 番茄钟视图快照（主进程幂等 tick 一次，顺便让热刷新也吃到最新阶段）
+  let pomoView;
+  try {
+    const pomo = require('./pomodoro');
+    if (outDir) pomoView = pomo.tick(path.join(outDir, 'pomodoro.json'), digest.date);
+  } catch (e) {
+    console.error('[live] 番茄钟视图读取失败（忽略）：', e.message);
+  }
+  const pomoFocusing = pomoView && pomoView.phase === 'focus';
+
+  // 桌宠入住景观：挑当前主题的动画文件（数据驱动分级 + 引擎覆盖优先）。
+  // 番茄专注期间按任务类型映射角色动作（任务名关键词 → thinking/sweeping/carrying/…，
+  // munder-difflin 式"行为即状态"），未关联任务时通用 working；
+  // 引擎 setPetState 的显式 override 仍然最高优先
   let pet;
   try {
     const petlib = require('./pet');
+    const pomo = require('./pomodoro');
     const themeDir = petlib.resolveThemeDir();
     if (themeDir) {
       const sessions = digest.sessions || [];
       pet = petlib.buildPetEntry(themeDir, {
-        activeCount: sessions.filter((s) => s.status === '进行中').length,
-        totalSessions: (digest.totals && digest.totals.sessions) || sessions.length || 0,
-        override: petOverride,
+        activeCount: sessions.filter((s) => s.status === '进行中').length + (pomoFocusing ? 1 : 0),
+        totalSessions: Math.max(
+          ((digest.totals && digest.totals.sessions) || sessions.length || 0),
+          pomoFocusing ? 99 : 0 // 顶格 workingTiers，focus 期间给最拼的动画
+        ),
+        override: petOverride || (pomoFocusing ? pomo.taskActionFor(pomoView.task) : null),
       }) || undefined;
+      if (pomoFocusing && pomoView.task) pet = pet ? { ...pet, taskTitle: pomoView.task.title } : pet;
     }
   } catch (e) {
     console.error('[live] 桌宠解析失败（忽略，不影响卡片）：', e.message);
@@ -131,6 +150,7 @@ async function buildLiveReport(outDir, digest) {
     sessionBriefs: latest.sessionBriefs, // 会话一句话沿用日报（顺序已对上新 digest 前 10 条，未必覆盖新会话）
     blockers: latest.blockers, // 今日卡点 / 技术总结：跟日报走，轻刷不重算
     techTips: latest.techTips,
+    pomo: pomoView, // 番茄钟快照：面板渲染 + 看板任务累计时长角标（模板据此标 s._pomoMs）
     source: latest.source || 'fallback',
   };
 }
@@ -225,6 +245,54 @@ function ensureNotesIpc() {
     if (err) console.error('[live] 打开 md 失败：', err);
     return !err;
   });
+  // 番茄钟：主进程是唯一时钟源。渲染层 1Hz 轮询 poll（内含幂等 tick 推进/结算）；
+  // 动作只发指令，日期键白名单校验，任务引用由 pomodoro.normTask 规范化
+  const pomo = require('./pomodoro');
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const badView = { phase: 'idle', remainMs: 0, totalMs: 0, task: null, cycles: 0, focusMs: 0, tasks: {}, doneSids: [] };
+  const pomoGuard = (e, date) => (ok(e) && pomoFile && DATE_RE.test(String(date || '')));
+  ipcMain.handle('world:pomo:poll', (e, date) => {
+    if (!pomoGuard(e, date)) return badView;
+    try {
+      return pomo.tick(pomoFile, String(date));
+    } catch (err) {
+      console.error('[live] 番茄钟 poll 失败：', err.message);
+      return badView;
+    }
+  });
+  ipcMain.handle('world:pomo:start', (e, date, task) => {
+    if (!pomoGuard(e, date)) return badView;
+    try {
+      return pomo.start(pomoFile, String(date), task && typeof task === 'object' ? task : null);
+    } catch (err) {
+      console.error('[live] 番茄开始失败：', err.message);
+      return badView;
+    }
+  });
+  for (const [ch, fn] of [
+    ['world:pomo:pause', pomo.pause],
+    ['world:pomo:resume', pomo.resume],
+    ['world:pomo:skip', pomo.skip],
+  ]) {
+    ipcMain.handle(ch, (e, date) => {
+      if (!pomoGuard(e, date)) return badView;
+      try {
+        return fn(pomoFile, String(date));
+      } catch (err) {
+        console.error(`[live] 番茄 ${ch} 失败：`, err.message);
+        return badView;
+      }
+    });
+  }
+  ipcMain.handle('world:pomo:complete-task', (e, date, sid) => {
+    if (!pomoGuard(e, date)) return badView;
+    try {
+      return pomo.completeTask(pomoFile, String(date), String(sid || ''));
+    } catch (err) {
+      console.error('[live] 手动完成任务失败：', err.message);
+      return badView;
+    }
+  });
 }
 
 async function open(outDir) {
@@ -232,6 +300,7 @@ async function open(outDir) {
   const cfg = loadCfg();
   notesFile = path.join(outDir, 'notes.json');
   dismissedFile = path.join(outDir, 'dismissed.json');
+  pomoFile = path.join(outDir, 'pomodoro.json');
   liveOutDirRef = outDir;
   ensureNotesIpc();
   const area = screen.getPrimaryDisplay().workAreaSize;
