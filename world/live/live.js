@@ -41,6 +41,8 @@ let dismissedFile = null; // open() 时确定为 <outDir>/dismissed.json
 let pomoFile = null; // open() 时确定为 <outDir>/pomodoro.json（番茄钟：主进程时钟 + 落盘）
 let liveOutDirRef = null; // open() 时记下 outDir（打开当日 md 用）
 let petOverride = null; // app 侧引擎状态注入（见 setPetState），缺省时走数据推导
+let sessionSnapshot = null; // app 侧引擎真实 session snapshot 注入（见 setSessionSnapshot）
+let activeTabRef = 'daily'; // 当前 tab：'daily' 早报 | 'orch' 工单看板
 
 // ---- 三态生命周期的模块态（窗口存在期间的显式形态；state() 的出口）----
 let visMode = 'open'; // 窗口活着时的形态：'open' | 'hidden'（closed = 没有窗口，不占这里）
@@ -154,6 +156,17 @@ async function buildLiveReport(outDir, digest) {
     console.error('[live] 桌宠解析失败（忽略，不影响卡片）：', e.message);
   }
 
+  // 编排（工单看板，v0.7）：只读聚合，不写盘。没建过工单时 active:false，模板整段静默。
+  // sessionSnapshot 优先用引擎注入的真实快照（setSessionSnapshot），拿不到就退回
+  // 本模块已采集的 digest 会话（同样的 agent 维度），保证场景永远有工位可画。
+  let orch;
+  try {
+    const { buildOrchView } = require('../orch');
+    orch = buildOrchView({ snapshot: sessionSnapshot || digestAsSnapshot(digest) });
+  } catch (e) {
+    console.error('[live] 编排视图读取失败（忽略，不影响卡片）：', e.message);
+  }
+
   return {
     meta: {
       date: digest.date,
@@ -172,8 +185,51 @@ async function buildLiveReport(outDir, digest) {
     blockers: latest.blockers, // 今日卡点 / 技术总结：跟日报走，轻刷不重算
     techTips: latest.techTips,
     pomo: pomoView, // 番茄钟快照：面板渲染 + 看板任务累计时长角标（模板据此标 s._pomoMs）
+    orch, // 编排工单看板（v0.7）：工位场景 + 工单列 + 收件箱概览 + 黑板事实
     source: latest.source || 'fallback',
   };
+}
+
+/**
+ * 把已采集的 digest 会话折成 session snapshot 的最小形状。
+ * 只为编排工位提供 agent/state/cwd 三件事，**不冒充引擎快照**：字段名对齐
+ * src/state-session-snapshot.js，但语义是"日报采集看到的会话"，不是引擎实时状态。
+ * 引擎真状态注入（setSessionSnapshot）优先级高于它。
+ */
+function digestAsSnapshot(digest) {
+  const sessions = (digest && digest.sessions) || [];
+  return {
+    sessions: sessions.map((s) => ({
+      id: s.id,
+      agentId: s.agent || 'claude-code',
+      agentName: s.agent || 'claude-code',
+      // '进行中' 是 digest 的中文状态；编排场景只关心"是不是在干活"
+      state: s.status === '进行中' ? 'working' : 'idle',
+      badge: s.status === '进行中' ? 'running' : 'idle',
+      cwd: s.project || '',
+      displayTitle: s.title || '',
+    })),
+  };
+}
+
+/** app 侧把引擎真实 session snapshot 接进来（工位状态优先于 digest 推导）。 */
+function setSessionSnapshot(snapshot) {
+  sessionSnapshot = snapshot && Array.isArray(snapshot.sessions) ? snapshot : null;
+}
+
+/** 当前激活的 tab（'daily' | 'orch'）。托盘「工单看板」用来切到编排视图。 */
+function activeTab() {
+  return activeTabRef;
+}
+function setActiveTab(tab) {
+  const next = tab === 'orch' ? 'orch' : 'daily';
+  activeTabRef = next;
+  if (isOpen()) {
+    win.webContents
+      .executeJavaScript(`window.__worldSetTab && window.__worldSetTab(${JSON.stringify(next)}); 0`)
+      .catch((err) => console.error('[live]切 tab 失败：', err.message));
+  }
+  return next;
 }
 
 /** app 侧把引擎真实状态接进来（working/sleeping/idle/…）；null 恢复数据推导。 */
@@ -313,6 +369,44 @@ function ensureNotesIpc() {
     } catch (err) {
       return { ok: false, error: err.message };
     }
+  });
+
+  // 学习卡片（v0.7）：列卡片 / 打开卡片 md。
+  // 路径白名单与 open:md 同规格——只放行 STUDY_DIR 之下、且确实是已登记卡片或index.md
+  // 的路径，渲染层传进来的字符串一律当不可信输入处理（不做 path.join 拼接后直接open）。
+  const studyMod = require('../study');
+  const studyRoot = studyMod.STUDY_DIR;
+  const studyBad = { cards: [], indexFile: null };
+  const studyInside = (p) => {
+    const abs = path.resolve(String(p || ''));
+    const base = path.resolve(studyRoot);
+    return abs === base || abs.startsWith(base + path.sep);
+  };
+  ipcMain.handle('world:study:list', (e) => {
+    if (!ok(e)) return studyBad;
+    try {
+      const cards = studyMod.listCards();
+      return { cards, indexFile: path.join(studyRoot, studyMod.INDEX_FILE) };
+    } catch (err) {
+      console.error('[live] 学习卡片列表失败：', err.message);
+      return studyBad;
+    }
+  });
+  ipcMain.handle('world:study:open', async (e, file) => {
+    if (!ok(e)) return false;
+    const abs = path.resolve(String(file || ''));
+    if (!studyInside(abs) || !fs.existsSync(abs)) return false;
+    const err = await shell.openPath(abs);
+    if (err) console.error('[live] 打开学习卡片失败：', err);
+    return !err;
+  });
+  ipcMain.handle('world:study:open-index', async (e) => {
+    if (!ok(e)) return false;
+    const abs = path.join(studyRoot, studyMod.INDEX_FILE);
+    if (!fs.existsSync(abs)) return false;
+    const err = await shell.openPath(abs);
+    if (err) console.error('[live] 打开学习卡片总览失败：', err);
+    return !err;
   });
 
   // 打开当日随笔 md：只允许 outDir 下的 blockers|tips-YYYY-MM-DD.md，白名单式拼路径
@@ -565,4 +659,7 @@ module.exports = {
   buildLiveReport,
   refresh,
   setPetState,
+  setSessionSnapshot,
+  activeTab,
+  setActiveTab,
 };

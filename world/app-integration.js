@@ -292,6 +292,90 @@ function ensureLiveAutostart() {
   }
 }
 
+// ---------- v0.7 · 多智能体编排（工单看板；窗口长在动态桌面里，不新增窗口） ----------
+
+/**
+ * 编排概览（菜单文案与状态读数用）。
+ *
+ * 刻意**不缓存**：每次 buildTrayMenu 都现读 tickets.json + 会话快照，
+ * 菜单文案因此永远等于当前真实状态（和 liveState() 同一纪律）。缓存布尔
+ * 会让"刚派了单菜单还写着没有工单"这种不一致长期存在。
+ */
+function orchState(sessionSnapshot) {
+  try {
+    const { buildOrchView } = require('./orch');
+    const view = buildOrchView({ snapshot: sessionSnapshot });
+    return {
+      active: view.active,
+      total: view.summary.total,
+      pending: view.summary.pending,
+      activeCount: view.summary.active,
+      stations: view.scene.stations.length,
+      inbox: view.inbox.reduce((a, b) => a + b.unread, 0),
+      cycles: view.cycles.length,
+    };
+  } catch (err) {
+    console.error('[orch] 状态读取失败：', err.message);
+    return { active: false, total: 0, pending: 0, activeCount: 0, stations: 0, inbox: 0, cycles: 0 };
+  }
+}
+
+/**
+ * 托盘「工单看板」：切到动态桌面的工单 tab。
+ *
+ * 这一步**不开新窗口**（Stage A 刚把窗口数量问题解决掉）：编排视图长在现有
+ * 动态桌面组件的第二个 tab 里。动态桌面没开时不开它——用户没要求第二个窗口。
+ */
+function showOrchBoard() {
+  try {
+    const live = require('./live/live');
+    if (live.state() === 'closed') {
+      notify('动态桌面还没开', '工单看板是动态桌面里的第二个 tab；先点「启动动态桌面」');
+      return { ok: false, reason: 'live-closed' };
+    }
+    live.setActiveTab('orch');
+    if (live.state() === 'hidden') live.show();
+    notify('工单看板 🎫', '逐条确认与派发仍走 CLI：npm run world:orch -- list');
+    return { ok: true };
+  } catch (err) {
+    console.error('[orch] 工单看板失败：', err.message);
+    notify('工单看板失败 ❌', err.message);
+    return { ok: false, reason: err.message };
+  }
+}
+
+/**
+ * 派单可行性自检的托盘入口：只报告，不派。
+ * 存在的意义是让"为什么派不出去"在菜单里就能看见，而不是逼用户去猜。
+ */
+function orchPreflight() {
+  try {
+    const store = require('./orch/store');
+    const dispatch = require('./orch/dispatch');
+    const { loadPrefs } = require('./orch/prefs-source');
+    const { ticketsFile } = require('./orch/paths');
+    const ledger = store.load(ticketsFile());
+    const prefs = loadPrefs();
+    const batch = dispatch.checkBatch(ledger.tickets, {
+      prefs: prefs.ok ? prefs.snapshot : null,
+    });
+    if (batch.ok) {
+      notify('派单自检通过 ✅', `${batch.checked} 张工单当前都可派`);
+      return batch;
+    }
+    const head = batch.problems[0];
+    notify(
+      `派单自检未通过 ❌（${batch.problems.length} 项）`,
+      `${head.reason}${head.fix ? ` → ${head.fix}` : ''}`,
+    );
+    return batch;
+  } catch (err) {
+    console.error('[orch] 自检失败：', err.message);
+    notify('派单自检失败 ❌', err.message);
+    return { ok: false, problems: [] };
+  }
+}
+
 module.exports = {
   shareDaily,
   tidyDesktop,
@@ -304,5 +388,8 @@ module.exports = {
   setupLiveHooks,
   ensureLiveShortcut,
   ensureLiveAutostart,
+  orchState,
+  showOrchBoard,
+  orchPreflight,
   DEFAULT_LIVE_ACCEL,
 };

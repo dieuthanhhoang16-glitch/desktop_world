@@ -38,6 +38,29 @@
   }
   .page { position: absolute; inset: 0; padding: 4.5vmin 5vmin; display: flex; gap: 4vmin; }
 
+  /* ---------- tab 壳（v0.7）----------
+     .tabpanel 用 display:contents：面板本身不生成盒子，.left / .board 仍然是
+     .page 的直接 flex 项 —— 早报两栏的排版一个像素都不动，只是被包了一层语义。
+     tab 栏与编排面板走绝对定位，同样不参与 flex 流。 */
+  .tabpanel { display: contents; }
+  .tabbar {
+    position: absolute; top: 1.4vmin; right: 5vmin; z-index: 6;
+    display: flex; gap: 0.6vmin; -webkit-app-region: no-drag;
+  }
+  .tabbar .tab {
+    font: inherit; font-size: 1.3vmin; cursor: pointer;
+    padding: 0.5vmin 1.2vmin; border-radius: 999px;
+    background: rgba(7, 11, 26, 0.42); border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--ink-dim);
+  }
+  .tabbar .tab:hover { color: var(--ink); border-color: rgba(125, 211, 252, 0.4); }
+  .tabbar .tab.on { color: var(--ink); border-color: rgba(125, 211, 252, 0.55); background: rgba(125, 211, 252, 0.14); }
+  .tabbar .tab .badge {
+    display: inline-block; margin-left: 0.5vmin; padding: 0 0.5vmin;
+    border-radius: 999px; background: rgba(251, 191, 36, 0.85); color: #221a06;
+    font-size: 1.1vmin; font-weight: 700; vertical-align: middle;
+  }
+
   /* ---------- 左栏：日期 + 统计 + 生长世界 ---------- */
   .left { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
   .brand { font-size: 1.5vmin; letter-spacing: 0.45em; color: var(--ink-faint); font-weight: 600; }
@@ -210,6 +233,140 @@
   .tech-pick .save { font-size: 1.4vmin; color: var(--green); border: 1px solid rgba(74, 222, 128, 0.45); background: none; border-radius: 999px; padding: 0.3vmin 1vmin; cursor: pointer; }
   .tech-pick .thint { font-size: 1.2vmin; color: var(--ink-faint); width: 100%; }
 
+  /* ---------- 学习卡片（v0.7，仅 live 显示；bake 形态始终 hidden）---------- */
+  /* 与「定向学习」区的关系：那边管"配什么关键词"，这边管"关键词学到了什么"。
+     卡片文件由 world/study 写盘，这里只列卡片 + 点开 md。 */
+  body.bake .study { display: none !important; }
+  .study { display: none; }
+  body.live .study {
+    display: block; margin-top: 1vmin;
+    border-top: 1px dashed var(--card-edge); padding-top: 0.9vmin;
+  }
+  .study .label { font-size: 1.3vmin; color: var(--ink-faint); letter-spacing: 0.3em; }
+  .study .label .hint { letter-spacing: 0.08em; opacity: 0.75; }
+  .study-list { display: flex; flex-wrap: wrap; gap: 0.5vmin; margin-top: 0.6vmin; }
+  .study-card {
+    font-size: 1.3vmin; padding: 0.3vmin 0.8vmin; border-radius: 0.8vmin; cursor: pointer;
+    border: 1px solid var(--card-edge); color: var(--ink-dim);
+    display: inline-flex; align-items: baseline; gap: 0.5vmin; max-width: 100%;
+  }
+  .study-card:hover { color: var(--ink); border-color: rgba(125, 211, 252, 0.45); }
+  .study-card .st { flex: 0 0 auto; }
+  .study-card .kw { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .study-card .days { flex: 0 0 auto; color: var(--ink-faint); font-size: 1.15vmin; }
+  /* 状态色：待补料（灰蓝）→ 学习中（绿）→ 已沉淀（金）。与 index.md 的图标语义一致。 */
+  .study-card[data-st="pending"] .st { opacity: 0.75; }
+  .study-card[data-st="learning"] .st { color: var(--green); }
+  .study-card[data-st="settled"] .st { color: #f0b429; }
+  .study .nohit { font-size: 1.2vmin; color: var(--ink-faint); margin-top: 0.5vmin; }
+
+  /* ---------- 工单看板（v0.7，仅 live；bake 形态整个 tab 不存在）----------
+     形态取舍：这个 tab 走"有底板"而不是动态桌面的无卡片化 widget —— 它是**工作面**
+     （工位图 + 看板列 + 收件箱 + 黑板），信息密度高、需要明确的区块分隔；
+     早报那侧继续保持无卡片化。两者的取舍依据不同，不是同一套规则。 */
+  body.bake .tabbar,
+  body.bake #panelOrch { display: none !important; }
+  body.bake .tabpanel { display: contents; }
+  .orch {
+    display: none; /* 由下面 body.live 规则打开；bake/非 live 一律不出 */
+    position: absolute; inset: 6.5vmin 5vmin 4.5vmin; z-index: 4;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-app-region: no-drag;
+  }
+  body.live .tabpanel.orch:not([hidden]) { display: block; }
+  body.live .tabpanel.orch { display: none; }
+  /* tab 切换：非激活的 daily 面板整块隐藏（display:contents 无法隐藏，所以走 .page 的类） */
+  body.live.tab-orch #panelDaily { display: none; }
+
+  .orch-head { display: flex; align-items: baseline; justify-content: space-between; gap: 2vmin; }
+  .orch-title { font-size: 1.6vmin; letter-spacing: 0.22em; color: var(--ink); font-weight: 600; }
+  .orch-sum { font-size: 1.25vmin; color: var(--ink-faint); display: flex; gap: 1.2vmin; flex-wrap: wrap; }
+  .orch-sum b { color: var(--ink-dim); font-weight: 700; }
+
+  /* 工位场景：SVG 由主进程确定性渲染，这里只做定尺 + 信封飞行的定位容器 */
+  .orch-scene {
+    position: relative; margin-top: 1.2vmin;
+    background: rgba(7, 11, 26, 0.42); border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 1.2vmin; padding: 0.8vmin; overflow: hidden;
+  }
+  .orch-scene-svg svg { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  .orch-scene .noscene { font-size: 1.25vmin; color: var(--ink-faint); padding: 2.4vmin 0; text-align: center; }
+
+  /* 飞行信封：位置/时长由 CSS 变量给出，动画全部走 transform（合成器友好） */
+  .orch-env { position: absolute; inset: 0; pointer-events: none; }
+  .orch-env i {
+    position: absolute; left: 0; top: 0; width: 1.1vmin; height: 0.8vmin;
+    background: #f5e6c8; border-radius: 0.15vmin;
+    box-shadow: 0 0 0.4vmin rgba(245, 230, 200, 0.45);
+    opacity: 0;
+    transform: translate3d(var(--x0), var(--y0), 0);
+    animation: envFly var(--dur, 4.2s) linear var(--delay, 0s) infinite;
+  }
+  @keyframes envFly {
+    0%   { opacity: 0; transform: translate3d(var(--x0), var(--y0), 0); }
+    12%  { opacity: 1; }
+    50%  { opacity: 1; transform: translate3d(var(--xm), calc(var(--y0) - var(--lift)), 0); }
+    88%  { opacity: 1; }
+    100% { opacity: 0; transform: translate3d(var(--x1), var(--y1), 0); }
+  }
+  /* 尊重系统"减少动态效果"：信封静止在起点，不做位移动画 */
+  @media (prefers-reduced-motion: reduce) {
+    .orch-env i { animation: none; opacity: 0.85; transform: translate3d(var(--x1), var(--y1), 0); }
+  }
+
+  .orch-warn {
+    margin-top: 1vmin; padding: 0.7vmin 1vmin; border-radius: 0.9vmin;
+    background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.4);
+    color: #fecaca; font-size: 1.25vmin;
+  }
+
+  /* 工单列：横向排布，空列也占位（列宽稳定，拖动/热刷新时不跳） */
+  .orch-cols { display: flex; gap: 1vmin; margin-top: 1.2vmin; align-items: flex-start; }
+  .orch-col {
+    flex: 1 1 0; min-width: 0;
+    background: rgba(7, 11, 26, 0.34); border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1vmin; padding: 0.7vmin;
+  }
+  .orch-col > .label { font-size: 1.2vmin; color: var(--ink-faint); letter-spacing: 0.14em; }
+  .orch-col > .label .n { color: var(--ink-dim); font-weight: 700; }
+  .orch-col .cards { display: flex; flex-direction: column; gap: 0.5vmin; margin-top: 0.6vmin; }
+  .orch-col .empty { font-size: 1.1vmin; color: var(--ink-faint); opacity: 0.55; }
+  .orch-card {
+    border-radius: 0.8vmin; padding: 0.55vmin 0.7vmin;
+    background: rgba(255, 255, 255, 0.045); border-left: 0.28vmin solid var(--c, #64748b);
+  }
+  .orch-card .oid { font-size: 1.1vmin; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .orch-card .otitle { font-size: 1.25vmin; color: var(--ink); line-height: 1.4; word-break: break-word; }
+  .orch-card .ometa { font-size: 1.1vmin; color: var(--ink-faint); margin-top: 0.25vmin; word-break: break-all; }
+  .orch-card .odeps { font-size: 1.05vmin; color: #f0b429; opacity: 0.85; margin-top: 0.2vmin; }
+  .orch-card ol { margin: 0.3vmin 0 0; padding-left: 1.6vmin; }
+  .orch-card li { font-size: 1.05vmin; color: var(--ink-dim); line-height: 1.4; }
+
+  .orch-lower { display: flex; gap: 1vmin; margin-top: 1.2vmin; align-items: flex-start; }
+  .orch-lower > section {
+    flex: 1 1 0; min-width: 0;
+    background: rgba(7, 11, 26, 0.34); border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1vmin; padding: 0.8vmin;
+  }
+  .orch-lower .label { font-size: 1.2vmin; color: var(--ink-faint); letter-spacing: 0.14em; }
+  .orch-lower .label .hint { letter-spacing: 0.06em; opacity: 0.7; margin-left: 0.6vmin; }
+  .orch-inbox-list, .orch-fact-list { margin-top: 0.6vmin; max-height: 16vmin; overflow-y: auto; }
+  .orch-inbox-row { font-size: 1.2vmin; color: var(--ink-dim); padding: 0.25vmin 0; }
+  .orch-inbox-row .sid { color: var(--blue); }
+  .orch-inbox-row .n { color: #f0b429; font-weight: 700; }
+  .orch-fact {
+    font-size: 1.15vmin; color: var(--ink-dim); line-height: 1.5;
+    padding: 0.3vmin 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+  }
+  .orch-fact .fk { color: var(--ink-faint); font-size: 1.05vmin; }
+  .orch-fact .ft { color: #f0b429; }
+  .orch-lower .none { font-size: 1.1vmin; color: var(--ink-faint); opacity: 0.6; margin-top: 0.4vmin; }
+  .orch-hint { margin-top: 1.2vmin; font-size: 1.1vmin; color: var(--ink-faint); }
+  .orch-hint code {
+    color: var(--ink-dim); background: rgba(255, 255, 255, 0.06);
+    border-radius: 0.3vmin; padding: 0.1vmin 0.4vmin;
+  }
+
   /* ---------- 番茄钟（v0.7，仅 live 组件；烘焙壁纸完全不含此板块）---------- */
   body.bake .pomo { display: none !important; }
   .pomo { display: none; } /* bake/非 live 一律不出；live 下由 body.live 选择器打开 */
@@ -317,6 +474,7 @@
   .tipchip .open { margin-left: auto; font-size: 1.1vmin; color: var(--ink-faint); font-weight: 400; }
   .tipchip:hover { background: rgba(255, 255, 255, 0.09); }
   body.live .tipchip:hover { background: rgba(7, 11, 26, 0.72); }
+
   /* ---------- 三态生命周期（v0.6.6，仅 live；bake 形态绝不含 pill 与控制组）---------- */
   /* 右上角控制组：收起 / 穿透锁 / 打开 Settings（展开态才有；在 body 层，不受 .page 拖区影响） */
   body.live .lifecycle {
@@ -357,6 +515,14 @@
 <body>
 <div class="stars" id="stars"></div>
 <div class="page">
+  <!-- tab 栏（v0.7；仅 live 组件有，bake 形态整个不渲染） -->
+  <div class="tabbar" id="tabBar" hidden>
+    <button class="tab on" id="tabDaily" type="button" data-tab="daily">🌅 今日早报</button>
+    <button class="tab" id="tabOrch" type="button" data-tab="orch">🎫 工单看板<span class="badge" id="orchBadge" hidden></span></button>
+  </div>
+
+  <!-- tab:daily —— 原有早报两栏（内容一字未动，只被这个 panel 包住） -->
+  <div class="tabpanel" id="panelDaily">
   <main class="left">
     <div class="brand">DESKTOP WORLD · 今日早报</div>
     <div class="date-row">
@@ -421,7 +587,38 @@
       <div class="tech-input" id="techInput" contenteditable="plaintext-only" spellcheck="false"></div>
       <div class="tech-pick" id="techPick" hidden></div>
     </section>
+    <section class="study" id="studySection" hidden>
+      <div class="label">📚 学习卡片 CARDS <span class="hint" id="studyHint">点开看沉淀</span></div>
+      <div class="study-list" id="studyList"></div>
+    </section>
   </aside>
+  </div><!-- /tabpanel:daily -->
+
+  <!-- tab:orch —— 工单看板（v0.7）。工位场景 + 工单列 + 收件箱 + 黑板。
+       整个 panel 默认 hidden：没建过工单、或 bake 形态下永不出现。 -->
+  <div class="tabpanel orch" id="panelOrch" hidden>
+    <div class="orch-head">
+      <div class="orch-title">🎫 工单看板 TICKETS</div>
+      <div class="orch-sum" id="orchSum"></div>
+    </div>
+    <div class="orch-scene">
+      <div class="orch-scene-svg" id="orchScene"></div>
+      <div class="orch-env" id="orchEnv" aria-hidden="true"></div>
+    </div>
+    <div class="orch-warn" id="orchWarn" hidden></div>
+    <div class="orch-cols" id="orchCols"></div>
+    <div class="orch-lower">
+      <section class="orch-inbox">
+        <div class="label">✉️ 收件箱 INBOX <span class="hint">派发只投递，不代你执行</span></div>
+        <div class="orch-inbox-list" id="orchInbox"></div>
+      </section>
+      <section class="orch-facts">
+        <div class="label">🧠 共享事实 BLACKBOARD <span class="hint">只追加，不覆盖</span></div>
+        <div class="orch-fact-list" id="orchFacts"></div>
+      </section>
+    </div>
+    <div class="orch-hint">派单与逐条确认在 CLI：<code>npm run world:orch -- plan "…" --agent &lt;id&gt;</code> · <code>--list</code> · <code>--dispatch ORCH-001 --to &lt;sessionId&gt;</code></div>
+  </div><!-- /tabpanel:orch -->
 </div>
 
 <!-- 三态生命周期控制组（v0.6.6，仅 live；默认 hidden，JS 检测 __worldLive 桥才解开） -->
@@ -503,7 +700,9 @@
   var techGoalEls = document.getElementById('techGoals');
   var techInputEl = document.getElementById('techInput');
   var techPickEl = document.getElementById('techPick');
+  var studyListEl = document.getElementById('studyList'); // 学习卡片（v0.7）
   var techInit = false; // render 每次热刷都会来，list 只拉一次（写盘后手动刷新）
+  var studyInit = false; // 学习卡片同理，但独立标记（不能挂在 techInit 上，见 render 里的注释）
   var techBusy = false; // propose 在途拦截连击
   var techDirection = ''; // 本轮收敛的方向（选定关键词随它一起落盘）
   var techSelected = {}; // 候选点选态：keyword -> true
@@ -520,6 +719,57 @@
           );
         })
         .join('');
+      // 关键词变了，学习卡片列表也要跟着重拉一次（新关键词可能还没建档）
+      refreshStudyCards();
+    });
+  }
+
+  // 学习卡片（v0.7）：列出每个关键词的卡片与进度，点开用系统默认程序打开对应 md。
+  // 卡片可能还没建档（当天日报没跑过），所以 exists=false 时显示"待建档"而不是隐藏——
+  // 让"配了关键词却什么都没发生"这件事在界面上是看得见的。
+  var STUDY_ICON = { pending: '🧩', learning: '📌', settled: '🌳' };
+  function refreshStudyCards() {
+    if (!window.__worldStudy) return;
+    window.__worldStudy.list().then(function (res) {
+      var cards = (res && res.cards) || [];
+      studyListEl.innerHTML = '';
+      if (!cards.length) {
+        studyListEl.innerHTML = '<div class="nohit">还没有学习卡片。配好定向学习关键词后，日报跑一次就会自动建档。</div>';
+        return;
+      }
+      for (var i = 0; i < cards.length; i++) {
+        (function (c) {
+          var el = document.createElement('span');
+          el.className = 'study-card';
+          el.setAttribute('data-st', c.status || 'pending');
+          el.setAttribute('role', 'button');
+          el.setAttribute('tabindex', '0');
+          var days = c.dayCount ? c.dayCount + ' 天' : '还没命中';
+          var title =
+            (c.direction || '') + ' · ' + (c.status || '') + '\n' +
+            '关键词：' + c.keyword + '\n实证：' + days +
+            (c.lastHit ? '（最近 ' + c.lastHit + '）' : '');
+          el.setAttribute('title', title);
+          el.innerHTML =
+            '<span class="st">' + (STUDY_ICON[c.status] || '·') + '</span>' +
+            '<span class="kw">' + esc(c.keyword) + '</span>' +
+            '<span class="days">' + esc(days) + '</span>';
+          if (!c.file) {
+            // 还没建档：点不动，但要说清楚为什么
+            el.style.opacity = '0.55';
+            el.style.cursor = 'default';
+          } else {
+            el.addEventListener('click', function () { window.__worldStudy.open(c.file); });
+            el.addEventListener('keydown', function (ev) {
+              if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                window.__worldStudy.open(c.file);
+              }
+            });
+          }
+          studyListEl.appendChild(el);
+        })(cards[i]);
+      }
     });
   }
 
@@ -658,6 +908,152 @@
     }, 1000);
   }
 
+  // ---------- 工单看板（v0.7）：纯渲染层 ----------
+  // 数据全部来自主进程 buildOrchView（R.orch）。渲染层不读文件、不做可行性判断、
+  // 不派单 —— 派单与逐条确认是 CLI 的事（stage ③ 的硬闸门在 CLI 里）。
+  var ORCH_COLS = [
+    ['draft', '草案', '#94a3b8'],
+    ['confirmed', '已确认', '#7dd3fc'],
+    ['dispatched', '已派发', '#a78bfa'],
+    ['running', '执行中', '#4ade80'],
+    ['done', '已完成', '#f0b429'],
+    ['failed', '失败', '#f87171'],
+    ['blocked', '阻塞', '#fb923c'],
+  ];
+  var ORCH_FACT_ICON = { fact: '·', decision: '⚖️', blocker: '🚧', convergence: '🌳', correction: '✏️' };
+  var orchTab = 'daily'; // 当前 tab；托盘可通过 __worldSetTab 切进来
+
+  function setTab(next) {
+    orchTab = next === 'orch' ? 'orch' : 'daily';
+    document.body.classList.toggle('tab-orch', orchTab === 'orch');
+    var d = document.getElementById('tabDaily');
+    var o = document.getElementById('tabOrch');
+    if (d) d.classList.toggle('on', orchTab !== 'orch');
+    if (o) o.classList.toggle('on', orchTab === 'orch');
+    // 面板本身用 hidden 属性收起（.orch 的 display 由 body.live + :not([hidden]) 控制）
+    document.getElementById('panelOrch').hidden = orchTab !== 'orch';
+  }
+
+  function renderOrch(o) {
+    var bar = document.getElementById('tabBar');
+    var panel = document.getElementById('panelOrch');
+    // 没有工单 → 整个 tab 不出现（连 tab 按钮都不亮），不占界面
+    if (!o || !o.active) {
+      bar.hidden = true;
+      panel.hidden = true;
+      if (orchTab === 'orch') setTab('daily');
+      return;
+    }
+    bar.hidden = false;
+
+    var sum = o.summary || { total: 0, pending: 0, active: 0 };
+    var unread = (o.inbox || []).reduce(function (a, b) { return a + (b.unread || 0); }, 0);
+    document.getElementById('orchSum').innerHTML =
+      '共 <b>' + sum.total + '</b> 张 · 待确认 <b>' + sum.pending + '</b> · 在跑 <b>' + sum.active + '</b>' +
+      (unread ? ' · 未读信封 <b>' + unread + '</b>' : '');
+    var badge = document.getElementById('orchBadge');
+    if (badge) {
+      var n = sum.pending || 0;
+      badge.hidden = n <= 0;
+      badge.textContent = n > 0 ? String(n) : '';
+    }
+
+    // 工位场景：SVG 是主进程确定性渲染好的字符串（纯像素，无脚本）
+    var sc = document.getElementById('orchScene');
+    sc.innerHTML = (o.scene && o.scene.svg)
+      ? o.scene.svg
+      : '<div class="noscene">还没有工位——先在 CLI 拆一张工单：npm run world:orch -- plan "…" --agent claude-code</div>';
+
+    // 成环时明说，不装作正常
+    var warn = document.getElementById('orchWarn');
+    var cycles = o.cycles || [];
+    warn.hidden = cycles.length === 0;
+    if (cycles.length) {
+      warn.textContent = '⚠️ 依赖成环，派单会被拦下：' + cycles.map(function (c) { return c.join(' → '); }).join('；');
+    }
+
+    // 工单列：只渲染非空列，空列也保留一格占位避免热刷新时列宽乱跳
+    var colsEl = document.getElementById('orchCols');
+    colsEl.innerHTML = '';
+    var columns = o.columns || {};
+    var shown = ORCH_COLS.filter(function (c) { return (columns[c[0]] || []).length; });
+    var use = shown.length ? shown : ORCH_COLS.slice(0, 4);
+    use.forEach(function (c) {
+      var list = columns[c[0]] || [];
+      var col = document.createElement('div');
+      col.className = 'orch-col';
+      var cards = list.length
+        ? list.map(function (t) {
+            var deps = t.dependsOn || [];
+            return '<div class="orch-card" style="--c:' + c[2] + '">' +
+              '<div class="oid">' + esc(t.id) + '</div>' +
+              '<div class="otitle">' + esc(t.title) + '</div>' +
+              '<div class="ometa">' + esc(t.agent || '未指定 agent') + (t.sessionId ? ' · 已接会话' : '') + '</div>' +
+              (deps.length ? '<div class="odeps">依赖 ' + esc(deps.join(', ')) + '</div>' : '') +
+              ((t.acceptance && t.acceptance.length)
+                ? '<ol>' + t.acceptance.slice(0, 4).map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ol>'
+                : '') +
+              '</div>';
+          }).join('')
+        : '<div class="empty">—</div>';
+      col.innerHTML = '<div class="label">' + c[1] + ' <span class="n">' + list.length + '</span></div>' +
+        '<div class="cards">' + cards + '</div>';
+      colsEl.appendChild(col);
+    });
+
+    // 收件箱概览
+    var inbox = o.inbox || [];
+    document.getElementById('orchInbox').innerHTML = inbox.length
+      ? inbox.map(function (b) {
+          return '<div class="orch-inbox-row"><span class="sid">' + esc(b.sessionId) + '</span> · <span class="n">' + b.unread + '</span> 封未读</div>';
+        }).join('')
+      : '<div class="none">没有未读信封</div>';
+
+    // 黑板事实（只追加，所以倒序即时间序）
+    var facts = o.facts || [];
+    document.getElementById('orchFacts').innerHTML = facts.length
+      ? facts.map(function (f) {
+          return '<div class="orch-fact">' +
+            '<span class="fk">' + (ORCH_FACT_ICON[f.kind] || '·') + ' ' + esc(f.ticketIds && f.ticketIds.length ? f.ticketIds.join(', ') : '') + '</span> ' +
+            '<span class="ft">' + esc(f.text) + '</span></div>';
+        }).join('')
+      : '<div class="none">黑板还是空的</div>';
+
+    layoutEnvelopes(o);
+  }
+
+  // 飞行信封：只写 CSS 变量，动画由 @keyframes 的 transform 表达。
+  // 刻意不做逐帧 JS —— JS 只在渲染/热刷时算一次坐标。
+  function layoutEnvelopes(o) {
+    var wrap = document.getElementById('orchEnv');
+    var svg = document.querySelector('#orchScene svg');
+    var envs = (o && o.envelopes) || [];
+    wrap.innerHTML = '';
+    if (!svg || !envs.length) return;
+    // SVG viewBox 是 320x96（CELL=2 → 160x48格），按实际显示宽度换算成 px
+    var box = svg.getBoundingClientRect();
+    if (!box.width) return;
+    var VB_W = 320, VB_H = 96;
+    var k = box.width / VB_W;
+    envs.forEach(function (e, i) {
+      var i2 = document.createElement('i');
+      // 工位坐标是像素格（1格=CELL=2px），CSS 里直接给 px 偏移
+      var x0 = e.from.x * 2 * k, y0 = (96 - e.from.y * 2 - 8) * k;
+      var x1 = e.to.x * 2 * k, y1 = (96 - e.to.y * 2 - 8) * k;
+      var xm = (x0 + x1) / 2;
+      i2.style.setProperty('--x0', x0.toFixed(1) + 'px');
+      i2.style.setProperty('--y0', y0.toFixed(1) + 'px');
+      i2.style.setProperty('--xm', xm.toFixed(1) + 'px');
+      i2.style.setProperty('--y1', y1.toFixed(1) + 'px');
+      i2.style.setProperty('--x1', x1.toFixed(1) + 'px');
+      i2.style.setProperty('--lift', (e.lift * 2 * k).toFixed(1) + 'px');
+      // 错峰：低频节奏，避免所有信封同时出发
+      i2.style.setProperty('--delay', (i * 0.7).toFixed(2) + 's');
+      i2.style.setProperty('--dur', (4.2 + (i % 3) * 0.6).toFixed(2) + 's');
+      wrap.appendChild(i2);
+    });
+  }
+
   function render(R) {
   lastR = R;
   curRenderDate = (R.meta && R.meta.date) || curRenderDate || todayKey();
@@ -751,6 +1147,23 @@
       techInit = true;
       refreshTechGoals();
     }
+  }
+
+  // 学习卡片区：同上，仅 live 显示。独立 studyInit 标记——不能复用 techInit，
+  // 那个已被上面的定向学习区抢先置 true，这里就永远拉不到卡片了。
+  if (LIVE && window.__worldStudy) {
+    document.getElementById('studySection').hidden = false;
+    if (!studyInit) {
+      studyInit = true;
+      refreshStudyCards();
+    }
+  }
+
+  // 工单看板（v0.7）：仅 live 显示，且只有真有工单时才亮 tab。热刷复用上次的 tab，
+  // 不然每 15 分钟刷新会把人正在看的编排视图弹回早报。
+  if (LIVE) {
+    renderOrch(R.orch);
+    if (orchTab === 'orch' && R.orch && R.orch.active) setTab('orch');
   }
 
   // 生长条：每个完成会话一株 🌿，进行中 🔆，封顶 14 株（无世界数据时的兜底展示）
@@ -1104,6 +1517,35 @@
 
   render(window.__REPORT__ || {});
   window.__worldRender = render; // live 桌面模式的热刷新入口
+
+  // ---------- tab 交互（v0.7）----------
+  // tab 栏与工单看板只在 live 组件存在；bake 形态的 tabBar 保持 hidden。
+  var tabBar = document.getElementById('tabBar');
+  if (tabBar) {
+    tabBar.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('.tab') : null;
+      if (!btn) return;
+      setTab(btn.getAttribute('data-tab'));
+      // 切到编排面板时窗口尺寸可能需要重排：重算信封坐标（CSS 变量）
+      if (orchTab === 'orch' && lastR) layoutEnvelopes(lastR.orch);
+    });
+    // 键盘：Ctrl/Cmd + 1/2 在两个 tab 间切（桌面上没有鼠标时也够得着）
+    document.addEventListener('keydown', function (e) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key !== '1' && e.key !== '2') return;
+      e.preventDefault();
+      setTab(e.key === '2' ? 'orch' : 'daily');
+      if (orchTab === 'orch' && lastR) layoutEnvelopes(lastR.orch);
+    });
+  }
+  // 主进程（托盘「工单看板」）切 tab 的入口：与渲染层点按钮走同一个 setTab
+  window.__worldSetTab = function (tab) {
+    if (tab !== 'orch' || (lastR && lastR.orch && lastR.orch.active)) {
+      setTab(tab);
+      if (orchTab === 'orch' && lastR) layoutEnvelopes(lastR.orch);
+    }
+  };
+  setTab('daily');
 })();
 </script>
 </body>

@@ -368,6 +368,49 @@ module.exports = function initMenu(ctx) {
           },
         ];
       })(),
+      // desktop-world fork：多智能体编排（v0.7）——工单看板长在动态桌面的第二个
+      // tab 里，**不新增窗口**。文案每次 build 现读 orch 状态（不闭包缓存），
+      // 否则"刚派了单菜单还写着没有工单"这种不一致会一直存在。
+      ...(() => {
+        let orchSummary = { active: false, total: 0, pending: 0, activeCount: 0, inbox: 0, cycles: 0 };
+        let liveStateNow = "closed";
+        try {
+          const wi = require("../world/app-integration");
+          orchSummary = wi.orchState();
+          liveStateNow = wi.liveState();
+        } catch { /* world 模块不可用时照常渲染其他项 */ }
+        const items = [
+          {
+            label: orchSummary.active
+              ? `🎫 工单看板（${orchSummary.activeCount} 在跑 / ${orchSummary.pending} 待确认）`
+              : "🎫 工单看板（还没有工单）",
+            enabled: liveStateNow !== "closed",
+            click: () => {
+              try {
+                require("../world/app-integration").showOrchBoard();
+              } catch (err) {
+                console.error("[orch] 入口加载失败：", err);
+              }
+              buildTrayMenu();
+            },
+          },
+        ];
+        if (orchSummary.active) {
+          items.push({
+            label: orchSummary.cycles > 0
+              ? `⚠️ 派单自检（依赖成环 ${orchSummary.cycles} 处）`
+              : "🩺 派单自检",
+            click: () => {
+              try {
+                require("../world/app-integration").orchPreflight();
+              } catch (err) {
+                console.error("[orch] 自检入口失败：", err);
+              }
+            },
+          });
+        }
+        return items;
+      })(),
       buildPermissionAutomationMenuItem(),
     ];
 
