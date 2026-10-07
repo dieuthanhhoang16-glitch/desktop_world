@@ -13,16 +13,26 @@
 //   world/live/poc 验证（Plash 招式全可用），接回 Electron 是后续段。
 // - 跨日切换时热刷新会升级为完整流水线（世界结算 + 新一句话），
 //   平时只做只读式轻刷新，绝不重复结算（幂等由 garden/watch 保证）。
+//
+// v0.6.6 三态生命周期（closed / hidden / open）：
+// - 之前只有 open/closed 两态，「关闭」= close() 销毁窗口——番茄钟/随手记在途状态
+//   随之蒸发，重开还有 loadFile 空窗，用户报"桌面世界不能隐藏"。
+// - 现在的 hide() 只把窗口收成右上角小胶囊：绝不销毁 webContents、不重跑 loadFile、
+//   不清 15 分钟 timer；番茄钟/随手记在途状态全随 webContents 活着。
+// - state() 是三态唯一真源：托盘菜单、全局快捷键、渲染层 ui 查询都只读它，
+//   任何地方不许再各自缓存布尔值。
+// - live.json 的 state 字段做启动恢复（hidden→hidden，不会一启动炸出全尺寸窗口）；
+//   纯逻辑（胶囊边界/状态归一/迁移）在 lifecycle.js，配置读写在 cfg.js，都可单测。
 'use strict';
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { BrowserWindow, screen, ipcMain } = require('electron');
 
 const TEMPLATE = path.join(__dirname, '..', 'template', 'daily-card.html');
 const PRELOAD = path.join(__dirname, 'preload.js');
-const CFG_FILE = process.env.WORLD_LIVE_FILE || path.join(os.homedir(), '.desktop-world', 'live.json');
+const { CFG_FILE, loadCfg, saveCfg } = require('./cfg');
+const life = require('./lifecycle');
 
 let win = null;
 let timer = null;
@@ -32,33 +42,44 @@ let pomoFile = null; // open() 时确定为 <outDir>/pomodoro.json（番茄钟�
 let liveOutDirRef = null; // open() 时记下 outDir（打开当日 md 用）
 let petOverride = null; // app 侧引擎状态注入（见 setPetState），缺省时走数据推导
 
-function loadCfg() {
-  // v0.6.1 起组件默认可交互（clickThrough:false）；点击穿透是菜单里的可选锁定。
-  const dflt = { enabled: false, clickThrough: false, refreshMin: 15, w: 980, h: 620, x: null, y: null };
-  let cfg;
-  try {
-    cfg = { ...dflt, ...JSON.parse(fs.readFileSync(CFG_FILE, 'utf8')) };
-  } catch {
-    return { ...dflt };
-  }
-  // 一次性迁移：v0.5 时代默认存了 clickThrough:true，v0.6.1 起组件应是可互动的，刷掉
-  if (cfg.clickThrough === true && !cfg.v61) {
-    cfg = { ...cfg, clickThrough: false, v61: true };
-    try {
-      fs.writeFileSync(CFG_FILE, JSON.stringify(cfg, null, 2), { mode: 0o600 });
-    } catch { /* 迁移失败不挡启动 */ }
-  }
-  return cfg;
-}
-function saveCfg(patch) {
-  const cfg = { ...loadCfg(), ...patch };
-  fs.mkdirSync(path.dirname(CFG_FILE), { recursive: true });
-  fs.writeFileSync(CFG_FILE, JSON.stringify(cfg, null, 2), { mode: 0o600 });
-  return cfg;
-}
+// ---- 三态生命周期的模块态（窗口存在期间的显式形态；state() 的出口）----
+let visMode = 'open'; // 窗口活着时的形态：'open' | 'hidden'（closed = 没有窗口，不占这里）
+let fullBounds = null; // 收起前的完整边界 {x,y,width,height}，hidden→open 恢复用
+let liveHooks = { openSettings: null, onStateChange: null }; // 托盘注入（settings 打开 + 菜单重建）
 
 function isOpen() {
   return !!(win && !win.isDestroyed());
+}
+
+// 三态唯一真源。菜单/快捷键/渲染层都只读这一个；'closed' = 窗口不存在或已销毁。
+function state() {
+  if (!isOpen()) return 'closed';
+  return visMode;
+}
+
+/** 托盘注入钩子：openSettings（lifecycle 控制组的 ⚙）与 onStateChange（状态变化重建菜单）。 */
+function setHooks(hooks) {
+  liveHooks = {
+    openSettings: hooks && typeof hooks.openSettings === 'function' ? hooks.openSettings : null,
+    onStateChange: hooks && typeof hooks.onStateChange === 'function' ? hooks.onStateChange : null,
+  };
+}
+function emitState() {
+  if (liveHooks.onStateChange) {
+    try { liveHooks.onStateChange(state()); } catch { /* 菜单重建失败不挡生命周期 */ }
+  }
+}
+
+/** 把形态 + UI 态（clickThrough）推给渲染层（胶囊点击态、锁按钮、is-hidden class）。 */
+function syncRendererMode(mode) {
+  if (!isOpen()) return;
+  const clickThrough = !!loadCfg().clickThrough;
+  win.webContents
+    .executeJavaScript(
+      `window.__worldSetMode && window.__worldSetMode(${JSON.stringify(mode)});` +
+        `window.__worldSetUi && window.__worldSetUi(${JSON.stringify({ clickThrough })}); 0`
+    )
+    .catch(() => { /* 渲染层尚未就绪时，open() 的路径会再补一次 */ });
 }
 function hasSavedCfg() {
   return fs.existsSync(CFG_FILE);
@@ -202,6 +223,31 @@ function ensureNotesIpc() {
   const board = require('./board');
   const { shell } = require('electron');
   const ok = (e) => win && !win.isDestroyed() && e.sender === win.webContents;
+  // 三态生命周期（v0.6.6）：胶囊点击展开、控制组（收起/穿透锁/Settings）都走这里，
+  // new 按钮一律 preload invoke，渲染层不直接 require 主进程能力
+  ipcMain.handle('world:live:hide', (e) => {
+    if (!ok(e)) return 'closed';
+    return hide();
+  });
+  ipcMain.handle('world:live:show', (e) => {
+    if (!ok(e)) return 'closed';
+    return show();
+  });
+  ipcMain.handle('world:live:ui', (e) => {
+    if (!ok(e)) return { mode: 'closed', clickThrough: false };
+    return { mode: state(), clickThrough: !!loadCfg().clickThrough };
+  });
+  ipcMain.handle('world:live:click-through', (e) => {
+    if (!ok(e)) return { clickThrough: !!loadCfg().clickThrough };
+    return toggleClickThrough();
+  });
+  ipcMain.handle('world:live:open-settings', (e) => {
+    if (!ok(e)) return false;
+    if (liveHooks.openSettings) {
+      try { liveHooks.openSettings(); } catch { /* settings 打不开不挡组件 */ }
+    }
+    return true;
+  });
   ipcMain.handle('world:notes:load', (e, date) => {
     if (!ok(e) || !notesFile) return '';
     return notes.get(notesFile, String(date || ''));
@@ -330,7 +376,25 @@ function ensureNotesIpc() {
   });
 }
 
-async function open(outDir) {
+/**
+ * 打开位置解析（open 与 show() 的 fullBounds 兜底共用）：
+ * 保存的坐标必须在当前某块屏上露出足够面积，否则回退默认位。
+ *（多屏下 macOS 可能把 frameless 窗"搬"进活跃 Space 所在的屏，或被断连的屏带走，
+ *  上次保存的坐标会让窗口完整落在别的窗口后面/看不见——表现为"重启后看不见"。）
+ */
+function resolveOpenBounds(cfg) {
+  const area = screen.getPrimaryDisplay().workAreaSize;
+  const width = Math.min(cfg.w, area.width - 40);
+  const height = Math.min(cfg.h, area.height - 40);
+  const displays = screen.getAllDisplays().map((d) => d.bounds);
+  const cfgOK = require('./pos').rectVisibleOn({ x: cfg.x, y: cfg.y, w: width, h: height }, displays);
+  const x = cfg.x != null && cfgOK ? cfg.x : Math.round(area.width - width - 32);
+  const y = cfg.y != null && cfgOK ? cfg.y : Math.round(area.height - height - 24);
+  if (cfg.x != null && !cfgOK) saveCfg({ x, y }); // 把坏坐标就地修掉
+  return { x, y, width, height };
+}
+
+async function open(outDir, opts = {}) {
   if (isOpen()) return win;
   const cfg = loadCfg();
   notesFile = path.join(outDir, 'notes.json');
@@ -338,23 +402,18 @@ async function open(outDir) {
   pomoFile = path.join(outDir, 'pomodoro.json');
   liveOutDirRef = outDir;
   ensureNotesIpc();
-  const area = screen.getPrimaryDisplay().workAreaSize;
-  const w = Math.min(cfg.w, area.width - 40);
-  const h = Math.min(cfg.h, area.height - 40);
-  // 位置校验：保存的坐标必须在当前某块屏上露出足够面积，否则回退默认位。
-  //（多屏下 macOS 可能把 frameless 窗"搬"进活跃 Space 所在的屏，或被断连的屏带走，
-  //  上次保存的坐标会让窗口完整落在别的窗口后面/看不见——表现为"重启后看不见"。）
-  const displays = screen.getAllDisplays().map((d) => d.bounds);
-  const cfgOK = require('./pos').rectVisibleOn({ x: cfg.x, y: cfg.y, w, h }, displays);
-  const x = cfg.x != null && cfgOK ? cfg.x : Math.round(area.width - w - 32);
-  const y = cfg.y != null && cfgOK ? cfg.y : Math.round(area.height - h - 24);
-  if (cfg.x != null && !cfgOK) saveCfg({ x, y }); // 把坏坐标就地修掉
+  const bounds = resolveOpenBounds(cfg);
 
+  visMode = 'open';
+  fullBounds = null;
+  // show:false——一启动恢复 hidden 态时绝不能先炸出全尺寸窗口再缩（spec：启动恢复 hidden→hidden）；
+  // 普通开启也统一成"加载完再亮相"，行为只更稳
   win = new BrowserWindow({
-    width: w,
-    height: h,
-    x,
-    y,
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
+    show: false,
     frame: false,
     transparent: true,
     alwaysOnTop: false,
@@ -365,32 +424,88 @@ async function open(outDir) {
     resizable: false,
     webPreferences: { sandbox: true, preload: PRELOAD },
   });
+  const created = win;
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   win.setIgnoreMouseEvents(cfg.clickThrough, { forward: true });
   win.on('closed', () => {
+    // 'closed' 异步派发：若此时已经重开了新窗口（closeLive→toggle/open 紧挨着来），
+    // 晚到的旧事件绝不能清掉新窗口的引用和它的 15 分钟 timer
+    if (win !== created) return;
     win = null;
     if (timer) clearInterval(timer);
     timer = null;
+    emitState();
   });
   win.on('moved', () => {
     if (!win || win.isDestroyed()) return;
+    if (visMode !== 'open') return; // 收起/展开过程中的程序化 setBounds 不得覆盖用户位置
     const [bx, by] = win.getPosition();
     saveCfg({ x: bx, y: by });
   });
 
   await win.loadFile(TEMPLATE);
-  // macOS 兜底：setVisibleOnAllWorkspaces/Space 切换可能让系统把窗口改摆到别的屏；
-  // loadFile 完成后核对一次，不在目标位就拉回来（'moved' 事件随之把正确坐标存回去）。
-  try {
-    const [bx, by] = win.getPosition();
-    if (bx !== x || by !== y) win.setPosition(x, y);
-  } catch { /* 窗口状态异常时首刷照常进行 */ }
+  // macOS 兜底（lifecycle.snapPosition）：setVisibleOnAllWorkspaces/Space 切换可能让系统
+  // 把窗口改摆到别的屏；loadFile 完成后核对一次，不在目标位就拉回来
+  //（'moved' 事件随之把正确坐标存回去）。hidden→open 的展开复用同一个函数。
+  life.snapPosition(win, bounds.x, bounds.y);
   await refresh(outDir).catch((err) => console.error('[live] 首次刷新失败：', err.message));
   timer = setInterval(() => {
     refresh(outDir).catch((err) => console.error('[live] 定时刷新失败：', err.message));
   }, Math.max(5, cfg.refreshMin) * 60 * 1000);
-  console.log(`[live] 动态桌面已开启（${cfg.clickThrough ? '点击穿透' : '可交互可拖动'}，每 ${cfg.refreshMin} 分钟刷新）`);
+
+  if (opts.startHidden) {
+    hide(); // 全程没亮过相，直接以胶囊形态登场
+  } else {
+    win.show();
+  }
+  emitState();
+  console.log(
+    `[live] 动态桌面已开启（${opts.startHidden ? '恢复为收起胶囊' : cfg.clickThrough ? '点击穿透' : '可交互可拖动'}，每 ${cfg.refreshMin} 分钟刷新）`
+  );
   return win;
+}
+
+/**
+ * 收起：open → hidden。窗口缩成右上角胶囊（世界等级/番茄/考点摘要），
+ * 绝不销毁 webContents、不重跑 loadFile、不清 timer——番茄钟和随手记在途状态全活着。
+ * hide 态保持 setIgnoreMouseEvents(cfg.clickThrough)：锁定时胶囊穿透不可点，
+ * 只能从托盘/快捷键唤回（预期行为，胶囊 title 有说明）。
+ */
+function hide() {
+  if (!isOpen()) return 'closed';
+  if (visMode === 'hidden') return 'hidden';
+  fullBounds = life.collapseToPill(win, syncRendererMode);
+  visMode = 'hidden';
+  saveCfg({ state: 'hidden' });
+  emitState();
+  console.log('[live] 已收起到角落胶囊（webContents/timer 保持，番茄钟继续跑）');
+  return 'hidden';
+}
+
+/**
+ * 展开：hidden → open。胶囊换成完整窗：还原收起前边界 + 复用 open() 的 macOS
+ * 位置兜底（收起期间 Space/多屏可能把坐标挪走）。
+ */
+function show() {
+  if (!isOpen()) return 'closed';
+  if (visMode === 'open') return 'open';
+  // fullBounds 分内记忆优先（收起前实测）；兜底走与 open() 相同的保存位解析
+  const b = fullBounds || resolveOpenBounds(loadCfg());
+  life.expandFromPill(win, b, syncRendererMode);
+  visMode = 'open';
+  saveCfg({ state: 'open' });
+  emitState();
+  console.log('[live] 已从胶囊展开');
+  return 'open';
+}
+
+/** 真关闭：销毁窗口 + enabled:false（下一次 App 启动不再恢复）。区别于 toggle 的 open↔hidden。 */
+function closeLive() {
+  close();
+  saveCfg({ enabled: false, state: 'closed' });
+  emitState();
+  console.log('[live] 动态桌面已关闭（销毁窗口，enabled:false）');
+  return 'closed';
 }
 
 function close() {
@@ -398,25 +513,56 @@ function close() {
   timer = null;
   if (isOpen()) win.close();
   win = null;
+  fullBounds = null;
 }
 
+/**
+ * v0.6.6 toggle 语义：closed → open（启动组件）；open ↔ hidden（收起/展开互切，不销毁）。
+ * 真关闭只有 closeLive()。
+ */
 function toggle(outDir) {
-  if (isOpen()) {
-    close();
-    saveCfg({ enabled: false });
-    return { open: false };
+  const s = state();
+  if (s === 'closed') {
+    saveCfg({ enabled: true, state: 'open' });
+    open(outDir).catch((err) => console.error('[live] 开启失败：', err.message));
+    return { state: 'open' }; // 意图先行；open 完成后还会 emitState
   }
-  saveCfg({ enabled: true });
-  open(outDir).catch((err) => console.error('[live] 开启失败：', err.message));
-  return { open: true };
+  if (s === 'open') {
+    hide();
+    return { state: 'hidden' };
+  }
+  show();
+  return { state: 'open' };
 }
 
 function toggleClickThrough() {
   const cfg = loadCfg();
   const next = !cfg.clickThrough;
   saveCfg({ clickThrough: next });
-  if (isOpen()) win.setIgnoreMouseEvents(next, { forward: true });
+  if (isOpen()) {
+    win.setIgnoreMouseEvents(next, { forward: true });
+    syncRendererMode(visMode); // 胶囊 title/锁按钮跟着新状态走
+  }
   return { clickThrough: next };
 }
 
-module.exports = { open, close, toggle, toggleClickThrough, isOpen, isLiveClickable, hasSavedCfg, loadCfg, saveCfg, buildLiveReport, refresh, setPetState };
+module.exports = {
+  open,
+  close,
+  closeLive,
+  toggle,
+  toggleClickThrough,
+  hide,
+  show,
+  state,
+  setHooks,
+  isOpen,
+  isLiveClickable,
+  hasSavedCfg,
+  loadCfg,
+  saveCfg,
+  CFG_FILE,
+  buildLiveReport,
+  refresh,
+  setPetState,
+};

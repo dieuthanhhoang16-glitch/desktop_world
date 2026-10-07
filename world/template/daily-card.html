@@ -317,6 +317,41 @@
   .tipchip .open { margin-left: auto; font-size: 1.1vmin; color: var(--ink-faint); font-weight: 400; }
   .tipchip:hover { background: rgba(255, 255, 255, 0.09); }
   body.live .tipchip:hover { background: rgba(7, 11, 26, 0.72); }
+  /* ---------- 三态生命周期（v0.6.6，仅 live；bake 形态绝不含 pill 与控制组）---------- */
+  /* 右上角控制组：收起 / 穿透锁 / 打开 Settings（展开态才有；在 body 层，不受 .page 拖区影响） */
+  body.live .lifecycle {
+    position: absolute; top: 1vmin; right: 1vmin; z-index: 30;
+    display: flex; gap: 0.7vmin; -webkit-app-region: no-drag;
+  }
+  body.live .lifecycle[hidden] { display: none !important; }
+  .lifecycle button {
+    width: 3vmin; height: 3vmin; border-radius: 999px; padding: 0;
+    border: 1px solid var(--card-edge); background: var(--card);
+    color: var(--ink-dim); font-size: 1.5vmin; font-family: inherit;
+    cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .lifecycle button:hover { color: var(--ink); background: rgba(7, 11, 26, 0.78); }
+
+  /* 胶囊：body.is-hidden 时唯一可见的元素；窗口本身被主进程缩成 ~148×30，胶囊铺满 */
+  body.live .pill {
+    position: absolute; inset: 0; z-index: 40;
+    display: none; align-items: center; justify-content: center;
+    border-radius: 15px; border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(7, 11, 26, 0.72); color: var(--ink-dim);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+    padding: 0 10px; white-space: nowrap; overflow: hidden;
+    user-select: none; cursor: pointer; font-family: inherit;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38);
+  }
+  body.live .pill[hidden] { display: none !important; }
+  body.live .pill:hover { color: var(--ink); }
+  body.live.is-hidden .pill { display: flex; }
+  body.live.is-hidden .page,
+  body.live.is-hidden .lifecycle { display: none !important; }
+
+  /* bake（烘焙 PNG）双重保险：pill/控制组连 DOM 里有，也绝不能亮出来 */
+  body.bake .pill, body.bake .lifecycle { display: none !important; }
 </style>
 </head>
 <body>
@@ -388,6 +423,15 @@
     </section>
   </aside>
 </div>
+
+<!-- 三态生命周期控制组（v0.6.6，仅 live；默认 hidden，JS 检测 __worldLive 桥才解开） -->
+<div class="lifecycle" id="lifeCtl" hidden>
+  <button type="button" data-life="hide" title="收起到角落胶囊（番茄钟和随手记都继续活着）">—</button>
+  <button type="button" data-life="lock" title="">🔒</button>
+  <button type="button" data-life="settings" title="打开 Settings">⚙</button>
+</div>
+<!-- 胶囊：hidden 态唯一可见元素，点击展开；穿透锁定时点不动是预期，用托盘/快捷键唤回 -->
+<div class="pill" id="lifePill" hidden></div>
 
 <script>
 (function () {
@@ -798,6 +842,17 @@
     pomoSec.style.display = 'none';
   }
 
+  // 胶囊摘要数据源（v0.6.6）：收起态唯一可见的信息，全部取现有 live 字段，
+  // 每次热刷顺手更新——收起期间 render 照常跑，胶囊数字也会跟着新世界长
+  if (LIVE) {
+    pillData = {
+      world: R.world || null,
+      cycles: (R.pomo && R.pomo.cycles) || 0,
+      tips: (R.techTips || []).length,
+    };
+    updatePill();
+  }
+
   // 看板
   var act = sessions.filter(function (s) { return s.status === '进行中' && !(s._sid && pomoDoneSids().indexOf(s._sid) >= 0); });
   var manualDone = sessions.filter(function (s) { return s.status === '进行中' && s._sid && pomoDoneSids().indexOf(s._sid) >= 0; });
@@ -964,6 +1019,86 @@
           }
         });
       }
+    });
+  }
+
+  // ---------- 三态生命周期（v0.6.6）：胶囊形态 + 右上角控制组 ----------
+  // 主进程是形态的唯一真源（state()）：窗口边界、is-hidden class 都由主进程驱动。
+  // 渲染层只报点击、按 push 下来的 ui 态刷新文案。烘焙 PNG（bake）永远没有桥，整段静默。
+  var lifePillEl = document.getElementById('lifePill');
+  var lifeCtlEl = document.getElementById('lifeCtl');
+  var lifeMode = 'open'; // 'open' | 'hidden'（closed = 窗口没了，渲染层不会知道也不关心）
+  var lifeUi = { clickThrough: false };
+  var pillData = null; // render(R) 每次热刷顺手更新的胶囊摘要数据源
+
+  function updatePill() {
+    if (!lifePillEl) return;
+    var parts = [];
+    if (pillData && pillData.world) {
+      parts.push((pillData.world.stageIcon || '🌱') + ' Lv' + (pillData.world.level || 1));
+    }
+    if (pillData && pillData.cycles) parts.push('🍅' + pillData.cycles);
+    if (pillData && pillData.tips) parts.push('💡' + pillData.tips);
+    lifePillEl.textContent = parts.length ? parts.join(' · ') : '🌱 Desktop World';
+  }
+
+  function updateLifeUi() {
+    // 穿透锁按钮与胶囊提示跟着 clickThrough 走
+    var lockB = lifeCtlEl && lifeCtlEl.querySelector('[data-life="lock"]');
+    if (lockB) {
+      lockB.textContent = lifeUi.clickThrough ? '🔒' : '↔️';
+      lockB.title = lifeUi.clickThrough
+        ? '已锁定穿透（鼠标会用点不到组件）——点这里恢复可交互'
+        : '现在可交互可拖动——点这里锁定穿透';
+    }
+    if (lifePillEl) {
+      lifePillEl.title = lifeUi.clickThrough
+        ? '已锁定穿透（点不到我）——从托盘菜单或快捷键 Cmd/Ctrl+Shift+D 展开'
+        : '点击展开动态桌面';
+    }
+    updatePill();
+  }
+
+  function applyLifeMode() {
+    document.body.classList.toggle('is-hidden', lifeMode === 'hidden');
+    updateLifeUi();
+  }
+
+  // 主进程注入的形态/状态变化（open() 后初始同步、hide()/show()/穿透锁切换）
+  window.__worldSetMode = function (mode) {
+    lifeMode = mode === 'hidden' ? 'hidden' : 'open';
+    applyLifeMode();
+  };
+  window.__worldSetUi = function (ui) {
+    if (ui && typeof ui === 'object' && 'clickThrough' in ui) lifeUi.clickThrough = !!ui.clickThrough;
+    updateLifeUi();
+  };
+
+  if (LIVE && window.__worldLive) {
+    lifeCtlEl.hidden = false;
+    lifePillEl.hidden = false;
+    // 启动先对齐主进程真相（startHidden 恢复的胶囊一上来就是对的形态）
+    window.__worldLive.ui().then(function (ui) {
+      if (ui && typeof ui === 'object') {
+        lifeUi.clickThrough = !!ui.clickThrough;
+        lifeMode = ui.mode === 'hidden' ? 'hidden' : 'open';
+        applyLifeMode();
+      }
+    });
+    lifeCtlEl.addEventListener('click', function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest('[data-life]') : null;
+      if (!b) return;
+      var act = b.getAttribute('data-life');
+      if (act === 'hide') window.__worldLive.hide();
+      else if (act === 'lock') {
+        window.__worldLive.toggleClickThrough().then(function (r) {
+          lifeUi.clickThrough = !!(r && r.clickThrough);
+          updateLifeUi();
+        });
+      } else if (act === 'settings') window.__worldLive.openSettings();
+    });
+    lifePillEl.addEventListener('click', function () {
+      if (!lifeUi.clickThrough) window.__worldLive.show(); // 锁定点不到本胶囊，不会走到这
     });
   }
 

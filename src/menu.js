@@ -228,8 +228,19 @@ module.exports = function initMenu(ctx) {
     ctx.tray = new Tray(icon);
     ctx.tray.setToolTip("Clawd Desktop Pet");
     // desktop-world fork：按 live.json 恢复动态桌面（幂等，只生效一次）
+    // + 三态生命周期的两个接线：Settings/菜单重建钩子注入、全局快捷键注册
     try {
-      require("../world/app-integration").ensureLiveAutostart();
+      const wi = require("../world/app-integration");
+      wi.setupLiveHooks({
+        openSettings: () => {
+          if (typeof ctx.openSettingsWindow === "function") ctx.openSettingsWindow();
+        },
+        onStateChange: () => {
+          try { buildTrayMenu(); } catch { /* 菜单重建失败不挡生命周期 */ }
+        },
+      });
+      wi.ensureLiveAutostart();
+      wi.ensureLiveShortcut();
     } catch (err) {
       console.error("[live] 自动恢复入口加载失败：", err);
     }
@@ -309,18 +320,19 @@ module.exports = function initMenu(ctx) {
           }
         },
       },
-      // desktop-world fork：动态桌面（v0.5）——透明热刷新窗口，标签随当前状态切换
+      // desktop-world fork：动态桌面（v0.6.6 三态生命周期）——每次 build 都从
+      // liveState() 现读（唯一真源，不缓存布尔）；收起不销毁、真关闭是独立项
       ...(() => {
-        let liveOpen = false;
+        let st = "closed";
         let liveDraggable = false;
         try {
           const wi = require("../world/app-integration");
-          liveOpen = wi.isLiveOpen();
+          st = wi.liveState();
           liveDraggable = wi.isLiveDraggable();
         } catch { /* world 模块不可用时照常渲染其他项 */ }
         return [
           {
-            label: liveOpen ? "🖥️ 关闭动态桌面" : "🖥️ 开启动态桌面",
+            label: st === "open" ? "🖥️ 收起动态桌面" : st === "hidden" ? "🖥️ 展开动态桌面" : "🖥️ 启动动态桌面",
             click: () => {
               try {
                 require("../world/app-integration").toggleLiveDesktop();
@@ -332,10 +344,22 @@ module.exports = function initMenu(ctx) {
           },
           {
             label: liveDraggable ? "🔒 锁定动态桌面（点击穿透）" : "↔️ 解锁拖动动态桌面",
-            enabled: liveOpen,
+            enabled: st !== "closed",
             click: () => {
               try {
                 require("../world/app-integration").toggleLiveDrag();
+              } catch (err) {
+                console.error("[live] 入口加载失败：", err);
+              }
+              buildTrayMenu();
+            },
+          },
+          {
+            label: "⏏️ 关闭动态桌面",
+            enabled: st !== "closed",
+            click: () => {
+              try {
+                require("../world/app-integration").closeLiveDesktop();
               } catch (err) {
                 console.error("[live] 入口加载失败：", err);
               }

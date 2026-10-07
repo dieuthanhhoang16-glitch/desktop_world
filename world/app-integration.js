@@ -129,71 +129,162 @@ async function tidyDesktop() {
 }
 
 // ---------- v0.5 · 动态桌面（透明热刷新窗口，代替"只能截图换壁纸"） ----------
+// v0.6.6 起三态生命周期（closed / hidden / open）：toggle 只做 open↔hidden 互切与
+// closed→open 启动（不销毁窗口）；真销毁只有 closeLiveDesktop（enabled:false）。
+// 唯一的显式"在中间收起"形态是右上角胶囊——番茄钟/随手记随 webContents 活着。
+
+const DEFAULT_LIVE_ACCEL = 'CommandOrControl+Shift+D'; // Cmd(mac)/Ctrl(其他)+Shift+D
 
 let liveStarted = false;
+let liveShortcutAccel = null; // 当前已注册的加速器（相等即幂等跳过；冲突/失败则钉住不再刷屏重试）
 
 function liveOutDir() {
   const { app } = require('electron');
   return path.join(app.getPath('userData'), 'world');
 }
 
-function isLiveOpen() {
+// 三态唯一真源的出口——托盘菜单每次 build 都从这里现读（禁止各处缓存布尔）
+function liveState() {
   try {
-    return require('./live/live').isOpen();
+    return require('./live/live').state();
   } catch {
-    return false;
+    return 'closed';
   }
+}
+
+function isLiveOpen() {
+  return liveState() !== 'closed';
 }
 // 菜单用：true = 当前可拖动（未开穿透）
 function isLiveDraggable() {
   try {
     const live = require('./live/live');
-    return live.isOpen() && live.isLiveClickable();
+    return live.state() !== 'closed' && live.isLiveClickable();
   } catch {
     return false;
   }
 }
 
+/** 托盘「展开/收起」：closed→open 启动；open↔hidden 互切（收起不销毁，番茄钟/随手记保住）。 */
 function toggleLiveDesktop() {
   const live = require('./live/live');
-  const { open } = live.toggle(liveOutDir());
-  if (open) {
+  const before = live.state();
+  const { state: after } = live.toggle(liveOutDir());
+  if (before === 'closed' && after === 'open') {
     liveStarted = true;
     const cfg = live.loadCfg();
     notify(
       '动态桌面已开启 🖥️',
       `${cfg.clickThrough ? '点击穿透、不影响操作' : '可拖动位置'}，每 ${cfg.refreshMin} 分钟自动刷新数据`
     );
-  } else {
-    notify('动态桌面已关闭', '烘焙壁纸还是原样，不影响');
+  } else if (after === 'hidden') {
+    notify('已收起到角落胶囊 📌', '番茄钟和随手记继续跑着；点胶囊 / 托盘 / 快捷键随时展开');
   }
-  return open;
+  return after;
+}
+
+/** 托盘「关闭动态桌面」：真销毁窗口 + enabled:false（下次启动不恢复）。 */
+function closeLiveDesktop() {
+  const live = require('./live/live');
+  if (live.state() === 'closed') return 'closed';
+  live.closeLive();
+  notify('动态桌面已关闭', '随时可从托盘菜单重新启动');
+  return 'closed';
 }
 
 function toggleLiveDrag() {
   const live = require('./live/live');
-  if (!live.isOpen()) {
-    notify('动态桌面还没开', '先点「开启动态桌面」');
+  if (live.state() === 'closed') {
+    notify('动态桌面还没开', '先点「启动动态桌面」');
     return null;
   }
   const { clickThrough } = live.toggleClickThrough();
-  notify(clickThrough ? '已锁定：点击穿透 🔒' : '已解锁：可以拖动 ↔️', clickThrough ? '鼠标会直接点到桌面图标' : '调整好后记得再锁回去');
+  notify(clickThrough ? '已锁定：点击穿透 🔒' : '已解锁：可以拖动 ↔️', clickThrough ? '鼠标会直接点到桌面图标（叫回只能托盘/快捷键）' : '调整好后记得再锁回去');
   return clickThrough;
+}
+
+/**
+ * 托盘把自家能力注进来：控制组的 ⚙ 打开 Settings、状态变化重建托盘菜单。
+ * 幂等（buildTrayMenu/createTray 每次调用只是重赋值）。
+ */
+function setupLiveHooks(hooks) {
+  try {
+    require('./live/live').setHooks(hooks);
+  } catch (err) {
+    console.error('[live] 钩子注入失败：', err.message);
+  }
+}
+
+/**
+ * 全局快捷键（Cmd/Ctrl+Shift+D，可在 live.json 的 shortcut 字段改）。
+ * 注册前冲突检查：应用内已注册（包括其他 feature 注册的同名键）就不注册并 console.warn；
+ * globalShortcut.register 返回 false（系统/其他 App 占用）同样只警告不覆盖。
+ * 语义与托盘「展开/收起」一致：closed→open、open→hidden、hidden→open。
+ */
+function ensureLiveShortcut() {
+  try {
+    const { globalShortcut } = require('electron');
+    const live = require('./live/live');
+    const { validAccelerator } = require('./live/lifecycle');
+    const cfg = live.loadCfg();
+    let accel = DEFAULT_LIVE_ACCEL;
+    if (typeof cfg.shortcut === 'string' && cfg.shortcut.trim()) {
+      const v = validAccelerator(cfg.shortcut);
+      if (v) accel = v;
+      else console.warn(`[live] live.json 的 shortcut "${cfg.shortcut}" 不合法，回退默认 ${DEFAULT_LIVE_ACCEL}（例：CommandOrControl+Shift+D）`);
+    }
+    if (accel === liveShortcutAccel) return; // 幂等：同键不重复注册
+    // 换键：先放下一个（只能是我们自己挂的——liveShortcutAccel 非空才说明注册成功过）
+    if (liveShortcutAccel) {
+      try { globalShortcut.unregister(liveShortcutAccel); } catch { /* 注销失败也不挡新键 */ }
+      liveShortcutAccel = null;
+    }
+    if (globalShortcut.isRegistered(accel)) {
+      console.warn(`[live] 快捷键 ${accel} 已被应用内其他功能占用，本次不注册（可在 live.json 改 shortcut 字段）`);
+      liveShortcutAccel = accel; // 钉住，不每次重建菜单都刷 warn；改键或重启再试
+      return;
+    }
+    let ok = false;
+    try {
+      ok = globalShortcut.register(accel, () => {
+        try {
+          require('./live/live').toggle(liveOutDir());
+        } catch (err) {
+          console.error('[live] 快捷键切换失败：', err.message);
+        }
+      });
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      console.warn(`[live] 快捷键 ${accel} 注册失败（可能被系统或其他 App 占用），本次不注册，托盘菜单不受影响`);
+      liveShortcutAccel = accel; // 同样钉住防刷屏
+      return;
+    }
+    liveShortcutAccel = accel;
+    console.log(`[live] 全局快捷键已注册：${accel}（在 live.json 的 shortcut 字段可改）`);
+  } catch (err) {
+    console.error('[live] 快捷键注册入口失败：', err.message);
+  }
 }
 
 // App 启动时按 live.json 的 enabled 自动恢复窗口（托盘重建菜单时调用，幂等）。
 // 首次运行（还没有 live.json）视为 v0.5 升级：自动开启一次并告知用户如何关。
+// v0.6.6：state=hidden 的恢复直接以胶囊形态登场，绝不先亮全尺寸窗再缩。
 function ensureLiveAutostart() {
   if (liveStarted) return;
   try {
     const live = require('./live/live');
+    const { normalizePersistedState } = require('./live/lifecycle');
     const firstRun = !live.hasSavedCfg();
-    if (firstRun) live.saveCfg({ enabled: true });
-    if (firstRun || live.loadCfg().enabled) {
+    if (firstRun) live.saveCfg({ enabled: true, state: 'open' });
+    const cfg = live.loadCfg();
+    if (firstRun || cfg.enabled) {
       liveStarted = true;
-      live.open(liveOutDir()).catch((err) => console.error('[live] 自动恢复失败：', err.message));
+      const persisted = firstRun ? 'open' : normalizePersistedState(cfg);
+      live.open(liveOutDir(), { startHidden: persisted === 'hidden' }).catch((err) => console.error('[live] 自动恢复失败：', err.message));
       if (firstRun) {
-        notify('动态桌面已就位 🖥️', '右下角是活的早报卡片，自动刷新；托盘菜单可随时关闭或解锁拖动');
+        notify('动态桌面已就位 🖥️', '右下角是活的早报卡片，自动刷新；托盘菜单可随时收起、锁定或关闭');
       }
     }
   } catch (err) {
@@ -201,4 +292,17 @@ function ensureLiveAutostart() {
   }
 }
 
-module.exports = { shareDaily, tidyDesktop, toggleLiveDesktop, toggleLiveDrag, isLiveOpen, isLiveDraggable, ensureLiveAutostart };
+module.exports = {
+  shareDaily,
+  tidyDesktop,
+  toggleLiveDesktop,
+  closeLiveDesktop,
+  toggleLiveDrag,
+  liveState,
+  isLiveOpen,
+  isLiveDraggable,
+  setupLiveHooks,
+  ensureLiveShortcut,
+  ensureLiveAutostart,
+  DEFAULT_LIVE_ACCEL,
+};

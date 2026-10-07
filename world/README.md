@@ -1,4 +1,4 @@
-# world/ — Desktop World 每日早报模块（v0.6.5）
+# world/ — Desktop World 每日早报模块（v0.6.6）
 
 > 本项目 fork 自 clawd-on-desk（AGPL-3.0）。本目录是 fork 后的差异化模块，
 > 与上游 `src/` 引擎保持解耦：只新增、不改动（唯一接线点见下方「App 内集成」）。
@@ -138,7 +138,7 @@ npm run world:watch -- --remove 桌面世界
   特例同日升级：凌晨 0 会话先结算过、当天之后才开工，仍会按新的一天补记。
 - 没配置任何文件夹时，整个功能在模板和分享文案里完全静默（不显示）。
 
-## 动态桌面（v0.6.1 重做形态，v0.6.2 看板增强，v0.6.3 番茄钟 × 任务）
+## 动态桌面（v0.6.1 重做形态，v0.6.2 看板增强，v0.6.3 番茄钟 × 任务，v0.6.6 三态生命周期）
 
 烘焙 PNG 是把早报"截图"用于 IM 分享，有裁剪、会糊；动态桌面是另一个思路——
 透明无框、常驻的桌面组件，直接渲染早报模板本身（原生清晰度），数据每 15 分钟自动热刷。
@@ -180,12 +180,42 @@ v0.6.1 起它从「实体卡片」重做为真正融进桌面的可互动 widget
   整条横条、头顶标签、🍅 角标都只在 live 组件出现，烘焙 PNG 一律不含。
 - **组件永不碰系统壁纸（v0.6.4 起代码层根除）**：跨零点升级完整流水线只做世界结算 + 新一句话 + 分享 PNG，
   没有任何设置系统壁纸的调用；CLI `world:daily` 亦然——PNG 纯作 IM 分享底稿。
-- 配置存 `~/.desktop-world/live.json`（`WORLD_LIVE_FILE` 覆盖）：`{enabled, clickThrough, refreshMin, w, h, x, y}`；
+- 配置存 `~/.desktop-world/live.json`（`WORLD_LIVE_FILE` 覆盖）：`{enabled, clickThrough, refreshMin, w, h, x, y, state, shortcut}`；
   `enabled:true` 时 App 启动自动恢复窗口。
 - 开发预览：`npm run world:live`（独立进程，行为与正式窗口一致）。
 
 边界：窗口浮在桌面图标**上方**（与桌宠同一层）。图标下方的真·壁纸层 PoC 已验证可用
 （`world/live/poc/`，Plash 招式在 macOS 26 全部生效），接回 Electron（N-API 小桥或 sidecar 宿主）是 v0.6 后续段。
+
+## 三态生命周期（v0.6.6）：closed / hidden / open——收起不再销毁
+
+过去「关闭」= `close()` 销毁窗口：番茄钟/随手记在途状态蒸发，重开还有 loadFile 空窗
+（用户报「桌面世界不能隐藏」）。现在三态显式化，**`live.js` 的 `state()` 是唯一真源**
+（托盘菜单、全局快捷键、渲染层 ui 查询都只读它，不再各自缓存布尔）：
+
+| 状态 | 含义 | 进出路径 |
+|---|---|---|
+| `open` | 完整组件（可交互可拖动，可锁穿透） | 托盘「启动」/ 快捷键 / 自启恢复 |
+| `hidden` | **右上角 148×30 胶囊**（🌱等级 · 🍅圈数 · 💡考点数摘要）；webContents 与刷新 timer 全程保活 | — 钮 / 托盘「收起」/ 快捷键收起；点胶囊 / 托盘「展开」/ 快捷键展开 |
+| `closed` | 窗口销毁 + `enabled:false`（下次启动不恢复） | 仅托盘「关闭动态桌面」`closeLive()` |
+
+- **hide() 不是缩小视野而是换形态**：绝不销毁 webContents、不重跑 loadFile、不清 15 分钟
+  刷新 timer——番茄钟继续跑（主进程 deadline 时钟）、随手记文字在途保留；`show()` 精确还原
+  收起前边界，并复用 `open()` 的 macOS 多屏位置守卫（Space/断屏漂移会拉回）。
+- **启动恢复 hidden→hidden**：live.json 增 `state` 字段，`show:false` 建窗后直接以胶囊登场，
+  绝不一启动炸出全尺寸。旧 live.json 无 `state` 按 `enabled` 推导（true→open / false→closed），
+  推导值只在读取时归一、不写回文件物化。
+- **穿透锁全程保持**：hide 态仍是 `setIgnoreMouseEvents(cfg.clickThrough, {forward:true})`——
+  锁定时胶囊穿透点不到（预期行为，胶囊 title 有说明），唤回只能托盘/快捷键。
+- **全局快捷键** `Cmd(mac)/Ctrl+Shift+D`：live.json `shortcut` 字段可改（宽松白名单预校验 +
+  `globalShortcut.register` 终裁）；注册前 `isRegistered` 冲突预检，冲突/注册失败只
+  `console.warn`，**绝不覆盖**任何既有快捷键。
+- **窗口内控制组**：右上角三钮（— 收起 / 🔒↔️ 穿透锁 / ⚙ Settings）+ 胶囊点击展开，全走
+  `__worldLive` preload 桥（`world:live:*` IPC，只服务本窗 webContents）；**烘焙 PNG 形态绝不含
+  pill 与控制组**（元素默认 hidden + `body.bake` CSS `!important` 双保险）。
+- 纯逻辑拆 **`live/lifecycle.js`**（胶囊边界 / 持久态归一 / 位置守卫 / 加速器白名单，无 Electron
+  依赖）与 **`live/cfg.js`**（live.json 读写 0600）：node:test 全覆盖（含冒烟抓回的两个真回归：
+  close 后立刻重开被晚到的 `closed` 事件清引用、手动锁穿透被 v61 迁移刷回）。
 
 ## 定向学习（v0.6.5）：技术总结从"被动总结"变"用户定向"
 
@@ -228,7 +258,7 @@ npm run world:techstack -- --remove 状态管理
 | `app-integration.js` | 桌宠 App 内入口（托盘菜单调用、系统通知反馈、防抖） |
 | `collector-codex.js` | Codex 会话采集（宽进严出解析，可 `options.codex:false` 关闭） |
 | `watch/` | 专案追踪：`config.js`（文件夹登记/分类/最长前缀匹配）、`state.js`（按天结算同日幂等/视图）、`watch.js`（CLI） |
-| `live/` | 动态桌面：`live.js`（widget 窗口 + 15 分钟热刷新 + 随手记/看板隐藏/开 md/番茄钟 IPC）、`notes.js`（按天便签存储）、`board.js`（按天隐藏清单 + 稳定会话键）、`pet.js`（景观桌宠动画挑选）、`pomodoro.js`（番茄钟状态机：主进程时钟 + 按天存储 + 任务类型→动作映射）、`preload.js`（最小 contextBridge）、`preview.js`（开发预览入口）、`poc/`（桌面层 PoC：Swift 桌面层窗口 + 层级验证器） |
+| `live/` | 动态桌面：`live.js`（widget 窗口 + 15 分钟热刷新 + 随手记/看板隐藏/开 md/番茄钟 IPC + 三态生命周期 open/hidden/closed）、`notes.js`（按天便签存储）、`board.js`（按天隐藏清单 + 稳定会话键）、`pet.js`（景观桌宠动画挑选）、`pomodoro.js`（番茄钟状态机：主进程时钟 + 按天存储 + 任务类型→动作映射）、`preload.js`（最小 contextBridge）、`lifecycle.js`（三态纯逻辑：胶囊边界/持久态归一/位置守卫/加速器白名单，无 Electron 依赖）、`cfg.js`（live.json 读写 0600）、`preview.js`（开发预览入口）、`poc/`（桌面层 PoC：Swift 桌面层窗口 + 层级验证器） |
 | `techstack/` | 定向学习：`config.js`（目标读写/关键词白名单 0600）、`memory.js`（项目记忆聚合：专案+近7天日报）、`propose.js`（候选关键词：LLM 结合记忆 + 确定性词典兜底）、`techstack.js`（CLI） |
 | `garden/` | 生长世界：`state.js`（持久状态/结算/阶段表）、`scene.js`（确定性像素 SVG）、`index.js`（门面） |
 | `creature/` | 桌宠皮肤「芽芽」：`sprites.js`（23 状态像素精灵库）、`generate.js`（themes/sprout 生成器） |
