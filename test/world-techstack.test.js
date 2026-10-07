@@ -162,8 +162,17 @@ test('normalizeTechTips：字符串/对象/混合/垃圾全部归一，封顶 4'
   assert.equal(mixed[1].topic, 'electron 多屏');
   assert.equal(mixed[1].project, 'desktop-world');
   assert.ok(mixed[2].answer.length <= 141, 'answer 截断（140 字 + 收尾省略号）');
-  assert.equal(normalizeTechTips([]), undefined);
-  assert.equal(normalizeTechTips('not-array'), undefined);
+  // v0.7：空输入/空结果一律返回 []，不再返回 undefined——让调用方能区分
+  // 「今天确实没料」与「功能坏了」（学习卡片要靠这个信号给没命中的关键词补建空白卡）。
+  assert.deepEqual(normalizeTechTips([]), []);
+  assert.deepEqual(normalizeTechTips('not-array'), []);
+  // 空 tips 时日报 md 依旧不生成（writeDayNotes 判 .length，[] 与 undefined 等价）
+  const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dwnull-'));
+  assert.deepEqual(
+    writeDayNotes(emptyDir, { meta: { date: '2026-10-07' }, source: 'claude', blockers: [], techTips: normalizeTechTips([]) }),
+    [],
+    '老行为不变：空 techTips 不写 tips md',
+  );
 });
 
 // ---------- tips md 结构化排版 ----------

@@ -154,10 +154,15 @@ function fallbackSummary(digest) {
 /**
  * techTips 归一化：LLM 在"定向学习"模式下输出结构化考点对象，旧模式输出字符串；
  * 两种都容忍（LLM 偶尔两边混着来），脏字段截断封顶，空对象丢弃。
- * 返回 undefined 表示没有可沉淀的（UI 静默）。
+ *
+ * v0.7：空输入/空结果一律返回 **[]**。过去返回 undefined，那让「今天确实没料」和
+ * 「功能坏了」变成同一个信号——调用方一律当"没有"处理，于是学习卡片无法给没命中的
+ * 关键词建档，用户看到的正是"配了关键词却什么都没发生"。现在把"空"显式表达为空数组，
+ * 由调用方决定静默（日报 tips md 的既有行为）还是补白（学习卡片）。
+ * 所有既有消费点判的都是 `.length`，`[]` 与 undefined 在那里等价，UI 行为不变。
  */
 function normalizeTechTips(v) {
-  if (!Array.isArray(v)) return undefined;
+  if (!Array.isArray(v)) return [];
   const out = [];
   for (const x of v) {
     if (typeof x === 'string' && x.trim()) {
@@ -173,7 +178,7 @@ function normalizeTechTips(v) {
     }
     if (out.length >= 4) break;
   }
-  return out.length ? out : undefined;
+  return out;
 }
 
 /**
