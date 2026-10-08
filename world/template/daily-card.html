@@ -476,7 +476,7 @@
   body.live .tipchip:hover { background: rgba(7, 11, 26, 0.72); }
 
   /* ---------- 三态生命周期（v0.6.6，仅 live；bake 形态绝不含 pill 与控制组）---------- */
-  /* 右上角控制组：收起 / 穿透锁 / 打开 Settings（展开态才有；在 body 层，不受 .page 拖区影响） */
+  /* 右上角控制组：收起 / 打开 Settings（展开态才有；在 body 层，不受 .page 拖区影响） */
   body.live .lifecycle {
     position: absolute; top: 1vmin; right: 1vmin; z-index: 30;
     display: flex; gap: 0.7vmin; -webkit-app-region: no-drag;
@@ -624,10 +624,9 @@
 <!-- 三态生命周期控制组（v0.6.6，仅 live；默认 hidden，JS 检测 __worldLive 桥才解开） -->
 <div class="lifecycle" id="lifeCtl" hidden>
   <button type="button" data-life="hide" title="收起到角落胶囊（番茄钟和随手记都继续活着）">—</button>
-  <button type="button" data-life="lock" title="">🔒</button>
   <button type="button" data-life="settings" title="打开 Settings">⚙</button>
 </div>
-<!-- 胶囊：hidden 态唯一可见元素，点击展开；穿透锁定时点不动是预期，用托盘/快捷键唤回 -->
+<!-- 胶囊：hidden 态唯一可见元素，点击展开（托盘/快捷键是另外两条等价路） -->
 <div class="pill" id="lifePill" hidden></div>
 
 <script>
@@ -1441,7 +1440,6 @@
   var lifePillEl = document.getElementById('lifePill');
   var lifeCtlEl = document.getElementById('lifeCtl');
   var lifeMode = 'open'; // 'open' | 'hidden'（closed = 窗口没了，渲染层不会知道也不关心）
-  var lifeUi = { clickThrough: false };
   var pillData = null; // render(R) 每次热刷顺手更新的胶囊摘要数据源
 
   function updatePill() {
@@ -1456,19 +1454,7 @@
   }
 
   function updateLifeUi() {
-    // 穿透锁按钮与胶囊提示跟着 clickThrough 走
-    var lockB = lifeCtlEl && lifeCtlEl.querySelector('[data-life="lock"]');
-    if (lockB) {
-      lockB.textContent = lifeUi.clickThrough ? '🔒' : '↔️';
-      lockB.title = lifeUi.clickThrough
-        ? '已锁定穿透（鼠标会用点不到组件）——点这里恢复可交互'
-        : '现在可交互可拖动——点这里锁定穿透';
-    }
-    if (lifePillEl) {
-      lifePillEl.title = lifeUi.clickThrough
-        ? '已锁定穿透（点不到我）——从托盘菜单或快捷键 Cmd/Ctrl+Shift+D 展开'
-        : '点击展开动态桌面';
-    }
+    if (lifePillEl) lifePillEl.title = '点击展开动态桌面';
     updatePill();
   }
 
@@ -1477,14 +1463,10 @@
     updateLifeUi();
   }
 
-  // 主进程注入的形态/状态变化（open() 后初始同步、hide()/show()/穿透锁切换）
+  // 主进程注入的形态变化（open() 后初始同步、hide()/show()）
   window.__worldSetMode = function (mode) {
     lifeMode = mode === 'hidden' ? 'hidden' : 'open';
     applyLifeMode();
-  };
-  window.__worldSetUi = function (ui) {
-    if (ui && typeof ui === 'object' && 'clickThrough' in ui) lifeUi.clickThrough = !!ui.clickThrough;
-    updateLifeUi();
   };
 
   if (LIVE && window.__worldLive) {
@@ -1493,7 +1475,6 @@
     // 启动先对齐主进程真相（startHidden 恢复的胶囊一上来就是对的形态）
     window.__worldLive.ui().then(function (ui) {
       if (ui && typeof ui === 'object') {
-        lifeUi.clickThrough = !!ui.clickThrough;
         lifeMode = ui.mode === 'hidden' ? 'hidden' : 'open';
         applyLifeMode();
       }
@@ -1503,15 +1484,10 @@
       if (!b) return;
       var act = b.getAttribute('data-life');
       if (act === 'hide') window.__worldLive.hide();
-      else if (act === 'lock') {
-        window.__worldLive.toggleClickThrough().then(function (r) {
-          lifeUi.clickThrough = !!(r && r.clickThrough);
-          updateLifeUi();
-        });
-      } else if (act === 'settings') window.__worldLive.openSettings();
+      else if (act === 'settings') window.__worldLive.openSettings();
     });
     lifePillEl.addEventListener('click', function () {
-      if (!lifeUi.clickThrough) window.__worldLive.show(); // 锁定点不到本胶囊，不会走到这
+      window.__worldLive.show();
     });
   }
 

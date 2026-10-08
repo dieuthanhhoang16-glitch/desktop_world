@@ -155,15 +155,6 @@ function liveState() {
 function isLiveOpen() {
   return liveState() !== 'closed';
 }
-// 菜单用：true = 当前可拖动（未开穿透）
-function isLiveDraggable() {
-  try {
-    const live = require('./live/live');
-    return live.state() !== 'closed' && live.isLiveClickable();
-  } catch {
-    return false;
-  }
-}
 
 /** 托盘「展开/收起」：closed→open 启动；open↔hidden 互切（收起不销毁，番茄钟/随手记保住）。 */
 function toggleLiveDesktop() {
@@ -173,10 +164,7 @@ function toggleLiveDesktop() {
   if (before === 'closed' && after === 'open') {
     liveStarted = true;
     const cfg = live.loadCfg();
-    notify(
-      '动态桌面已开启 🖥️',
-      `${cfg.clickThrough ? '点击穿透、不影响操作' : '可拖动位置'}，每 ${cfg.refreshMin} 分钟自动刷新数据`
-    );
+    notify('动态桌面已开启 🖥️', `可拖动位置，每 ${cfg.refreshMin} 分钟自动刷新数据`);
   } else if (after === 'hidden') {
     notify('已收起到角落胶囊 📌', '番茄钟和随手记继续跑着；点胶囊 / 托盘 / 快捷键随时展开');
   }
@@ -190,17 +178,6 @@ function closeLiveDesktop() {
   live.closeLive();
   notify('动态桌面已关闭', '随时可从托盘菜单重新启动');
   return 'closed';
-}
-
-function toggleLiveDrag() {
-  const live = require('./live/live');
-  if (live.state() === 'closed') {
-    notify('动态桌面还没开', '先点「启动动态桌面」');
-    return null;
-  }
-  const { clickThrough } = live.toggleClickThrough();
-  notify(clickThrough ? '已锁定：点击穿透 🔒' : '已解锁：可以拖动 ↔️', clickThrough ? '鼠标会直接点到桌面图标（叫回只能托盘/快捷键）' : '调整好后记得再锁回去');
-  return clickThrough;
 }
 
 /**
@@ -381,10 +358,8 @@ module.exports = {
   tidyDesktop,
   toggleLiveDesktop,
   closeLiveDesktop,
-  toggleLiveDrag,
   liveState,
   isLiveOpen,
-  isLiveDraggable,
   setupLiveHooks,
   ensureLiveShortcut,
   ensureLiveAutostart,

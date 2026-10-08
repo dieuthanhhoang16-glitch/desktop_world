@@ -5,7 +5,8 @@
 // - 无卡片化 widget 风：组件直接"印"在桌面上，文字投影保可读，不再是一张实体卡片。
 // - v0.6.4 起「壁纸」设计整体取消：任何路径（含跨日完整流水线、CLI、托盘）都不写
 //   系统桌面壁纸；日报 PNG 只作 IM 分享底稿。
-// - 默认可交互：随手记可编辑、窗口可拖动；点击穿透改为菜单里手动锁（toggleClickThrough 语义不变）。
+// - 永远可交互：随手记可编辑、窗口可拖动。v0.6.6.1 起「幽灵模式（点击穿透锁定）」整体取消——
+//   用户被锁后找不到解锁出口（窗口内一切连解锁钮本身都穿透），副作用大于收益。
 // - 左侧像素景观有桌宠入住（world/live/pet.js 挑动画），右侧新增「随手记」（world/live/notes.js）。
 //
 // 边界说明（有意取舍）：
@@ -72,23 +73,17 @@ function emitState() {
   }
 }
 
-/** 把形态 + UI 态（clickThrough）推给渲染层（胶囊点击态、锁按钮、is-hidden class）。 */
+/** 把形态推给渲染层（is-hidden class / 胶囊显隐）。 */
 function syncRendererMode(mode) {
   if (!isOpen()) return;
-  const clickThrough = !!loadCfg().clickThrough;
   win.webContents
     .executeJavaScript(
-      `window.__worldSetMode && window.__worldSetMode(${JSON.stringify(mode)});` +
-        `window.__worldSetUi && window.__worldSetUi(${JSON.stringify({ clickThrough })}); 0`
+      `window.__worldSetMode && window.__worldSetMode(${JSON.stringify(mode)}); 0`
     )
     .catch(() => { /* 渲染层尚未就绪时，open() 的路径会再补一次 */ });
 }
 function hasSavedCfg() {
   return fs.existsSync(CFG_FILE);
-}
-function isLiveClickable() {
-  if (!isOpen()) return false;
-  return !loadCfg().clickThrough;
 }
 
 /** 组装 live 视图的报告：沿用最新日报的一句话/思路，数据（统计/世界/专案）全部取实时。digest 可复用，避免重复扫盘。 */
@@ -279,7 +274,7 @@ function ensureNotesIpc() {
   const board = require('./board');
   const { shell } = require('electron');
   const ok = (e) => win && !win.isDestroyed() && e.sender === win.webContents;
-  // 三态生命周期（v0.6.6）：胶囊点击展开、控制组（收起/穿透锁/Settings）都走这里，
+  // 三态生命周期（v0.6.6）：胶囊点击展开、控制组（收起/Settings）都走这里，
   // new 按钮一律 preload invoke，渲染层不直接 require 主进程能力
   ipcMain.handle('world:live:hide', (e) => {
     if (!ok(e)) return 'closed';
@@ -290,12 +285,8 @@ function ensureNotesIpc() {
     return show();
   });
   ipcMain.handle('world:live:ui', (e) => {
-    if (!ok(e)) return { mode: 'closed', clickThrough: false };
-    return { mode: state(), clickThrough: !!loadCfg().clickThrough };
-  });
-  ipcMain.handle('world:live:click-through', (e) => {
-    if (!ok(e)) return { clickThrough: !!loadCfg().clickThrough };
-    return toggleClickThrough();
+    if (!ok(e)) return { mode: 'closed' };
+    return { mode: state() };
   });
   ipcMain.handle('world:live:open-settings', (e) => {
     if (!ok(e)) return false;
@@ -520,7 +511,6 @@ async function open(outDir, opts = {}) {
   });
   const created = win;
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
-  win.setIgnoreMouseEvents(cfg.clickThrough, { forward: true });
   win.on('closed', () => {
     // 'closed' 异步派发：若此时已经重开了新窗口（closeLive→toggle/open 紧挨着来），
     // 晚到的旧事件绝不能清掉新窗口的引用和它的 15 分钟 timer
@@ -554,7 +544,7 @@ async function open(outDir, opts = {}) {
   }
   emitState();
   console.log(
-    `[live] 动态桌面已开启（${opts.startHidden ? '恢复为收起胶囊' : cfg.clickThrough ? '点击穿透' : '可交互可拖动'}，每 ${cfg.refreshMin} 分钟刷新）`
+    `[live] 动态桌面已开启（${opts.startHidden ? '恢复为收起胶囊' : '可交互可拖动'}，每 ${cfg.refreshMin} 分钟刷新）`
   );
   return win;
 }
@@ -562,8 +552,7 @@ async function open(outDir, opts = {}) {
 /**
  * 收起：open → hidden。窗口缩成右上角胶囊（世界等级/番茄/考点摘要），
  * 绝不销毁 webContents、不重跑 loadFile、不清 timer——番茄钟和随手记在途状态全活着。
- * hide 态保持 setIgnoreMouseEvents(cfg.clickThrough)：锁定时胶囊穿透不可点，
- * 只能从托盘/快捷键唤回（预期行为，胶囊 title 有说明）。
+ * 幽灵模式取消后（v0.6.6.1）胶囊永远可点，点一下即展开；托盘/快捷键是另外两条等价路。
  */
 function hide() {
   if (!isOpen()) return 'closed';
@@ -629,29 +618,16 @@ function toggle(outDir) {
   return { state: 'open' };
 }
 
-function toggleClickThrough() {
-  const cfg = loadCfg();
-  const next = !cfg.clickThrough;
-  saveCfg({ clickThrough: next });
-  if (isOpen()) {
-    win.setIgnoreMouseEvents(next, { forward: true });
-    syncRendererMode(visMode); // 胶囊 title/锁按钮跟着新状态走
-  }
-  return { clickThrough: next };
-}
-
 module.exports = {
   open,
   close,
   closeLive,
   toggle,
-  toggleClickThrough,
   hide,
   show,
   state,
   setHooks,
   isOpen,
-  isLiveClickable,
   hasSavedCfg,
   loadCfg,
   saveCfg,

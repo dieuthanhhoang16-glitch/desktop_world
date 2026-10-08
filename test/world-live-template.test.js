@@ -53,7 +53,6 @@ test('pill 与控制组默认 hidden，JS 全走 preload 桥（渲染层不直�
   assert.match(html, /<div class="pill" id="lifePill" hidden>/, 'pill 必须默认 hidden');
   assert.match(html, /<div class="lifecycle" id="lifeCtl" hidden>/, '控制组必须默认 hidden');
   assert.ok(html.includes('window.__worldSetMode'), '缺主进程形态注入入口 __worldSetMode');
-  assert.ok(html.includes('window.__worldSetUi'), '缺主进程 ui 注入入口 __worldSetUi');
   assert.ok(html.includes('__worldLive.hide()') && html.includes('__worldLive.show()'), '胶囊/控制组必须走 __worldLive 桥');
   assert.ok(!/require\s*\(/.test(html), '模板渲染层不得直接 require（只走 preload 桥）');
 });
@@ -65,9 +64,10 @@ test('bake 形态绝不出现 pill 与控制组：CSS 双保险 + 元素默认 h
   assert.match(html, /body\.live\.is-hidden \.page,/, '缺 is-hidden 下隐藏主体的规则');
 });
 
-test('胶囊摘要取现有 live 字段（世界等级 / 番茄数 / 考点数），锁定穿透时提示只能从托盘唤回', () => {
+test('胶囊摘要取现有 live 字段（世界等级 / 番茄数 / 考点数）；幽灵模式已取消，无锁钮与穿透文案', () => {
   const html = fs.readFileSync(TEMPLATE, 'utf8');
   assert.ok(html.includes("stageIcon || '🌱'"), 'pill 世界等级摘要缺失');
   assert.ok(html.includes("parts.push('🍅' + pillData.cycles)"), 'pill 番茄摘要缺失');
-  assert.ok(html.includes('穿透（点不到我）'), 'pill 穿透锁定时的唤回说明缺失');
+  assert.ok(!html.includes('data-life="lock"'), '控制组不应再有穿透锁按钮');
+  assert.ok(!html.includes('点不到'), '不应再有穿透锁定相关文案');
 });

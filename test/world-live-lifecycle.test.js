@@ -1,7 +1,7 @@
 // test/world-live-lifecycle.test.js
 // v0.6.6 三态生命周期（closed / hidden / open）：纯逻辑层全部可单测。
 // 覆盖：state() 归一迁移、旧 live.json 无 state 字段兼容读取、hide/show 不销毁窗口、
-// hide 态 clickThrough 保持、胶囊边界/macOS 位置守卫/快捷键加速器白名单。
+// 幽灵模式取消（v0.6.6.1）后历史 clickThrough 一律归零、胶囊边界/macOS 位置守卫/快捷键加速器白名单。
 'use strict';
 
 const test = require('node:test');
@@ -37,8 +37,7 @@ test('cfg：旧 live.json（无 state/clickThrough:true）兼容读取；saveCfg
   fs.writeFileSync(CFG_FILE, JSON.stringify({ enabled: true, clickThrough: true, w: 980, h: 620, x: -1093, y: 292 }), { mode: 0o600 });
   const cfg = loadCfg();
   assert.equal(cfg.enabled, true);
-  assert.equal(cfg.clickThrough, false); // v61 迁移照旧
-  assert.equal(cfg.v61, true);
+  assert.equal(cfg.clickThrough, false); // v0.6.6.1 起历史 clickThrough:true 一律读取归零
   assert.equal(cfg.x, -1093);
   assert.equal(life.normalizePersistedState(cfg), 'open'); // 无 state → enabled:true → open
 
@@ -60,19 +59,18 @@ test('cfg：enabled:false 的旧文件读出来是 closed；读坏回空不崩',
   assert.equal(life.normalizePersistedState(loadCfg()), 'closed'); // 回空 dflt（enabled:false）→ closed
 });
 
-test('cfg：用户手动开穿透（saveCfg({clickThrough:true})）不会被 v61 迁移刷回 false（回归）', () => {
-  // 真实事故：toggleClickThrough 写 {clickThrough:true}（无 v61 戳）后，下一次 loadCfg 把
-  // 它当 v0.5 遗产迁移回 false——托盘「锁定拖动」根本锁不住。saveCfg 必须自盖 v61 戳。
-  saveCfg({ enabled: true, v61: true, clickThrough: false }); // 干净的现代文件
-  saveCfg({ clickThrough: true }); // 用户点「锁定拖动」
+test('cfg：幽灵模式取消——任何路径的 clickThrough:true 都归零，写盘也无法复活它', () => {
+  // v0.6.6.1 前史：穿透锁经历两代事故（v61 迁移把手动锁刷没 / 锁死后找不到解锁出口），
+  // 用户定调整体取消。现在 loadCfg 读取归零 + saveCfg 写盘强制 false，双保险。
+  saveCfg({ enabled: true, clickThrough: true }); // 试图通过补丁注入
   const read1 = loadCfg();
-  assert.equal(read1.clickThrough, true, '手动开的穿透必须活过下一次读取');
-  assert.equal(read1.v61, true, 'saveCfg 写出的文件自带 v61 戳');
-  // 而真正的 v0.5 遗产文件（无戳）依然被迁移（存量断言不倒退）
+  assert.equal(read1.clickThrough, false, 'saveCfg 强制 false，幽灵模式无法借补丁还魂');
+  assert.equal(JSON.parse(fs.readFileSync(CFG_FILE, 'utf8')).clickThrough, false, '落盘即 false');
+  // 真正的旧文件（历史 clickThrough:true，带不带 v61 戳都一样）
+  fs.writeFileSync(CFG_FILE, JSON.stringify({ enabled: true, clickThrough: true, v61: true, w: 980, h: 620 }), { mode: 0o600 });
+  assert.equal(loadCfg().clickThrough, false);
   fs.writeFileSync(CFG_FILE, JSON.stringify({ enabled: true, clickThrough: true, w: 980, h: 620 }), { mode: 0o600 });
-  const legacy = loadCfg();
-  assert.equal(legacy.clickThrough, false);
-  assert.equal(legacy.v61, true);
+  assert.equal(loadCfg().clickThrough, false);
 });
 
 // ---------- 胶囊边界 ----------
@@ -164,18 +162,16 @@ test('snapPosition：在位不动手，异位拉回；窗口异常静默不挡',
   assert.equal(life.snapPosition(broken, 0, 0), false);
 });
 
-test('hide 态保持 clickThrough：转换全程不碰 setIgnoreMouseEvents（stub 干脆没有这方法）', () => {
+test('hide/show 与鼠标事件开关无关：转换全程不碰 setIgnoreMouseEvents（stub 干脆没有这方法）', () => {
   const stub = makeStubWin({ x: 0, y: 0, width: 980, height: 620 }); // 无 setIgnoreMouseEvents
   const full = life.collapseToPill(stub, () => {});
   life.expandFromPill(stub, full, () => {});
   assert.equal(stub.destroyed, false); // 没炸 = 全程没调过不存在的 ignore-mouse 方法
-  // cfg 层的 clickThrough 也不被 hide 物化：saveCfg({state}) 只动 state
-  saveCfg({ clickThrough: true, v61: true });
+  // saveCfg({state}) 只动 state；clickThrough 永远是 false（幽灵模式已取消）
   const saved = saveCfg({ state: 'hidden' });
-  assert.equal(saved.clickThrough, true, '收起只写 state，穿透锁原样保留');
-  loadCfg();
+  assert.equal(saved.clickThrough, false);
   saveCfg({ state: 'open' });
-  assert.equal(loadCfg().clickThrough, true);
+  assert.equal(loadCfg().clickThrough, false);
 });
 
 // ---------- 快捷键加速器白名单 ----------

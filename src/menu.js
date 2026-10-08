@@ -324,11 +324,9 @@ module.exports = function initMenu(ctx) {
       // liveState() 现读（唯一真源，不缓存布尔）；收起不销毁、真关闭是独立项
       ...(() => {
         let st = "closed";
-        let liveDraggable = false;
         try {
           const wi = require("../world/app-integration");
           st = wi.liveState();
-          liveDraggable = wi.isLiveDraggable();
         } catch { /* world 模块不可用时照常渲染其他项 */ }
         return [
           {
@@ -336,18 +334,6 @@ module.exports = function initMenu(ctx) {
             click: () => {
               try {
                 require("../world/app-integration").toggleLiveDesktop();
-              } catch (err) {
-                console.error("[live] 入口加载失败：", err);
-              }
-              buildTrayMenu();
-            },
-          },
-          {
-            label: liveDraggable ? "🔒 锁定动态桌面（点击穿透）" : "↔️ 解锁拖动动态桌面",
-            enabled: st !== "closed",
-            click: () => {
-              try {
-                require("../world/app-integration").toggleLiveDrag();
               } catch (err) {
                 console.error("[live] 入口加载失败：", err);
               }

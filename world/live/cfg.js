@@ -11,7 +11,8 @@ const path = require('path');
 const CFG_FILE = process.env.WORLD_LIVE_FILE || path.join(os.homedir(), '.desktop-world', 'live.json');
 
 function loadCfg() {
-  // v0.6.1 起组件默认可交互（clickThrough:false）；点击穿透是菜单里的可选锁定。
+  // v0.6.6.1 起「幽灵模式（点击穿透锁定）」整体取消：窗口永远可交互。旧配置里残留的
+  // clickThrough:true 一律在读取时归一为 false（不写回物化，只让运行态看到干净值）。
   // state 字段（v0.6.6+）缺失时不在此补——归一交给 lifecycle.normalizePersistedState，
   // 避免 load/save 往返把推导值当用户意图物化进文件。
   const dflt = { enabled: false, clickThrough: false, refreshMin: 15, w: 980, h: 620, x: null, y: null };
@@ -21,21 +22,14 @@ function loadCfg() {
   } catch {
     return { ...dflt };
   }
-  // 一次性迁移：v0.5 时代默认存了 clickThrough:true，v0.6.1 起组件应是可互动的，刷掉
-  if (cfg.clickThrough === true && !cfg.v61) {
-    cfg = { ...cfg, clickThrough: false, v61: true };
-    try {
-      fs.writeFileSync(CFG_FILE, JSON.stringify(cfg, null, 2), { mode: 0o600 });
-    } catch { /* 迁移失败不挡启动 */ }
-  }
+  if (cfg.clickThrough) cfg.clickThrough = false; // 幽灵模式取消：历史 true 一律归零
   return cfg;
 }
 
 function saveCfg(patch) {
-  // v61 戳必须由 v0.6.1+ 的写路径自己盖：只靠 loadCfg 迁移分支盖的话，用户手动开穿透
-  // （saveCfg({clickThrough:true})，文件里还没有戳）会被下一次 loadCfg 误判成 v0.5 遗产
-  // 又给刷回 false——「锁定拖动」根本锁不住（真实用户可见的 bug，冒烟抓出来的）。
-  const cfg = { ...loadCfg(), ...patch, v61: true };
+  // clickThrough 由补丁注入的路径也要堵死：任何写盘都强制 false，幽灵模式无法借尸还魂。
+  // v61 戳保留（只表示文件出自 v0.6.1+ 的写路径），其原迁移职责已随幽灵模式一起退役。
+  const cfg = { ...loadCfg(), ...patch, clickThrough: false, v61: true };
   fs.mkdirSync(path.dirname(CFG_FILE), { recursive: true });
   fs.writeFileSync(CFG_FILE, JSON.stringify(cfg, null, 2), { mode: 0o600 });
   return cfg;
