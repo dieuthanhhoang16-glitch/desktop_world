@@ -12,6 +12,8 @@
 //      只随 --otscale 等比缩放——不再出现随窗口缩到 2–5px 的裸 vmin 字号。
 //   ⑥ v0.7.1：派发选择器不盖黑色全屏蒙版——它是树主面右上角的小浮层，
 //      工作面任何时候不被罩住、不被挡点击。
+//   ⑦ v0.7.2：树区布局几何（宽/高/行距/圆角/gap）同样是设计稿 px × --otscale——
+//      字号 px 化后几何若还是 vmin，字会在容器里互相压叠。
 'use strict';
 
 const test = require('node:test');
@@ -144,7 +146,7 @@ test('派发选择器不盖黑布：全屏蒙版取消，退成右上角非模�
   const rule = m[1];
   // 锚定右上角，绝不再 fixed + inset:0 罩住整个工作面
   assert.match(rule, /position: absolute/);
-  assert.match(rule, /right: 1vmin/);
+  assert.match(rule, /right: calc\(12px/);
   assert.ok(!/position:\s*fixed/.test(rule), 'picker 不得再 fixed 铺满视口');
   assert.ok(!/inset:\s*0/.test(rule), 'picker 不得再 inset:0 铺满');
   // 不得自带 display：否则撰者规则盖过 UA 的 [hidden]{display:none}，浮层永久可见（本次事故根因）
@@ -167,4 +169,18 @@ test('树区文字按设计稿锁 px（只随 --otscale 等比缩放），不再
   assert.match(html, /function setOrchScale\(\)/);
   assert.match(html, /setProperty\('--otscale'/);
   assert.match(html, /Math\.max\(0\.82, Math\.min\(1\.6/);
+});
+
+test('树区布局几何 px 化：不得残留会压字的 vmin 尺寸（外壳窗口放置除外）', () => {
+  const cssStart = html.indexOf('工单调度树（v0.7');
+  const cssEnd = html.indexOf('番茄钟（v0.7');
+  assert.ok(cssStart > 0 && cssEnd > cssStart, '调度树 CSS 区定位失败');
+  const region = html.slice(cssStart, cssEnd);
+  // 允许残留的只有面板外壳的窗口放置 inset 与外壳圆角
+  const allowed = ['inset: 6.5vmin 5vmin 4.5vmin', 'border-radius: 1vmin'];
+  const lines = region
+    .split('\n')
+    .filter((l) => /(^|[^\w-])\d+(\.\d+)?vmin/.test(l) && !allowed.some((a) => l.includes(a)))
+    .map((l) => l.trim());
+  assert.deepEqual(lines, [], `树区几何残留 vmin：${lines.join(' | ')}`);
 });
