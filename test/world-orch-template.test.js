@@ -18,6 +18,9 @@
 //      __worldOrch 桥发意图；拆单/闸门/账本写盘全在主进程 actions 层。
 //   ⑨ P2 判断层：plan 可问 JEV 判断层（措辞永远本地确定性产出），判断意见
 //      只作预览头部的建议级展示；判断层挂了静默回本地，绝不挡开单。
+//   ⑩ v0.7.5 流体胶囊形变 + 弥散光晕：选择器/开单条水滴式开合、分配中的
+//      工单卡带旋转流光描边 + 底部呼吸背光——全部纯 CSS 关键帧（无逐帧 JS），
+//      几何守 px×--otscale 纪律，reduced-motion 下全部静止。
 'use strict';
 
 const test = require('node:test');
@@ -92,8 +95,8 @@ test('M3 开单条在树主面：目标/agent/cwd 输入 → 拆分预览 → �
   assert.match(html, /otPlanPreview\(\)/);
   assert.match(html, /otPlanCommit\(\)/);
   assert.match(html, /otPlanCancel\(\)/);
-  // 开单草稿态：候选与勾选只活在内存，落账成功才清空
-  assert.match(html, /var otPlan = \{ goal: '', agent: '', cwd: '', drafts: null, checks: \[\], jev: null \};/);
+  // 开单草稿态：候选与勾选只活在内存，落账成功才清空；morph 是形变标记（只带一帧）
+  assert.match(html, /var otPlan = \{ goal: '', agent: '', cwd: '', drafts: null, checks: \[\], jev: null, morph: '' \};/);
   // P2 判断层：被问过就把意见以金色建议级行摆在预览头部（转义照旧，决策权在人）
   assert.match(html, /\.ot-plan \.pjudge \{ color: var\(--ot-gold\); \}/);
   assert.ok(html.includes('esc(otPlan.jev.reason)'), '判断意见缺转义');
@@ -134,6 +137,46 @@ test('工单卡与 M2 新文本全部走 esc 转义', () => {
   }
   // 验收标准逐条渲染成可勾选的 checkbox（M2 收敛带）
   assert.match(block, /acc\.forEach/);
+});
+
+test('v0.7.5 流体胶囊形变 + 弥散光晕：纯 CSS 运动、状态色沿用账本 token、reduced-motion 全静止', () => {
+  // ① 胶囊→面板形变：选择器与开单条预览都从 999px 胶囊圆角延展，高阻尼曲线（不上抛不回弹）
+  assert.match(html, /@keyframes otPkMorph \{[\s\S]*?border-radius: calc\(999px \* var\(--otscale/);
+  assert.match(html, /\.ot-picker \.pk \{ transform-origin: top right; animation: otPkMorph 0\.38s cubic-bezier\(0\.16, 1, 0\.3, 1\) both; \}/);
+  assert.match(html, /@keyframes otPlanMorph \{[\s\S]*?border-radius: calc\(999px \* var\(--otscale/);
+  assert.match(html, /\.ot-plan\.preview\.morphin \{ overflow: hidden; animation: otPlanMorph 0\.46s cubic-bezier\(0\.16, 1, 0\.3, 1\) both; \}/);
+  // 收拢反向复用同帧（面板 → 胶囊）；候选项只在展开帧交错浮现（重推不重演）
+  assert.match(html, /\.ot-plan\.fold \{ overflow: hidden; animation: otPlanMorph 0\.36s cubic-bezier\(0\.5, 0, 0\.75, 0\) reverse both; \}/);
+  assert.ok(html.includes("otPlan.morph = 'morphin'") && html.includes("otPlan.morph = 'fold'"), '形变触发点缺失');
+  assert.match(html, /otPlan\.morph = '';/); // otPlanHtml 读完即清：整树重画不重演入场
+  assert.ok(html.includes("style=\"animation-delay:' + i * 45 + 'ms\""), '候选项行延迟缺失');
+  // ② 弥散光晕：分配中的工单卡（dispatched/running，账本状态）= 旋转流光描边 + 底部呼吸背光
+  assert.match(html, /@property --ot-a \{ syntax: '<angle>';/);
+  assert.match(html, /conic-gradient\(from var\(--ot-a\)/);
+  assert.match(html, /\.tcard\.s-running::before \{?[\s\S]*?animation: otGlowSpin 7s linear infinite;/);
+  assert.match(html, /mask-composite: exclude;/);
+  assert.match(html, /\.tcard\.s-running::after \{?[\s\S]*?filter: blur\(calc\(9px \* var\(--otscale/);
+  assert.match(html, /\.tcard\.s-running::after \{?[\s\S]*?z-index: -1;/); // 光沁在卡片背后
+  assert.match(html, /animation: otGlowBreath 3\.4s ease-in-out infinite alternate;/);
+  // 状态色沿用账本 token，不引入新语义色
+  assert.match(html, /\.tcard\.s-dispatched \{ --ot-glow: var\(--ot-vio\); \}/);
+  assert.match(html, /\.tcard\.s-running \{ --ot-glow: var\(--ot-green2\); \}/);
+  // ③ 加载挂起态：busy 时胶囊主按钮上一缕流光等主进程
+  assert.match(html, /@keyframes otSheen/);
+  assert.match(html, /\.tabpanel\.orch\.busy \.ot-plan \.tact\.go::after \{[\s\S]*?animation: otSheen 1\.05s linear infinite;/);
+  // ④ 运动秩序：全部 CSS 关键帧，无逐帧 JS（既有守门只查 rAF 帧函数，不再赘述）
+  for (const kf of ['otPkMorph', 'otRowIn', 'otPlanMorph', 'otDraftIn', 'otSheen', 'otGlowSpin', 'otGlowBreath']) {
+    assert.match(html, new RegExp('@keyframes ' + kf), '缺关键帧 ' + kf);
+  }
+  // ⑤ reduced-motion 静止两块：第一块守定位闪烁（上面既有测），第二块守本节流光/形变
+  const mid = html.indexOf('@media (prefers-reduced-motion: reduce)');
+  const mid2 = html.indexOf('@media (prefers-reduced-motion: reduce)', mid + 10);
+  assert.ok(mid2 > mid, '缺第二块 reduced-motion 静止');
+  const block2 = html.slice(mid2, mid2 + 700);
+  assert.match(block2, /\.tcard\.s-running::before \{ animation: none; \}/);
+  assert.match(block2, /\.tcard\.s-running::after \{ animation: none; opacity: 0\.7; \}/);
+  assert.match(block2, /\.ot-plan\.preview\.morphin, \.ot-plan\.fold, \.ot-plan\.preview\.morphin \.pdraft \{ animation: none; \}/);
+  assert.match(block2, /\.ot-picker \.pk, \.ot-picker \.pk h4, \.ot-picker \.pkrow \{ animation: none; \}/);
 });
 
 test('依赖连线坐标按容器实际像素量（滚动补偿，拿不到宽度不硬画）', () => {

@@ -277,6 +277,11 @@
      勾选只是本地意图不过桥（不整树重画，不丢滚动位）。
      v0.7.4 P2 判断层：开单预览时若问过判断层，意见以 ⚖ 金色行摆在预览头部
      （建议级，与 keeper advice 同语义；决策权永远在勾选的人）。
+     v0.7.5 流体胶囊形变 + 弥散光晕：选择器/开单条以水滴式开合——尺寸与圆角
+     沿高阻尼曲线（无回弹）无缝过渡，不生硬弹窗；分配中的工单卡
+     （dispatched/running，账本状态）带缓慢旋转的渐变流光微边框 + 底部呼吸
+     弥散背光（卡片背后沁出的柔光）。全部纯 CSS 关键帧，无逐帧 JS；
+     reduced-motion 下流光静止、形变直出。
      形态取舍：这个 tab 走"有底板"而不是动态桌面的无卡片化 widget —— 它是**工作面**
      （MAIN → JEV 判断层 → 工单层 → 收敛带），信息密度高、需要明确的区块分隔；
      早报那侧继续保持无卡片化。两者的取舍依据不同，不是同一套规则。
@@ -401,7 +406,9 @@
   .tact {
     font: inherit; font-size: calc(0.82px * 10 * var(--otscale, 1)); padding: calc(3px * var(--otscale, 1)) calc(7px * var(--otscale, 1)); border-radius: calc(5px * var(--otscale, 1));
     border: 1px solid var(--ot-line2); background: transparent; color: var(--ot-ink2); cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, transform 0.18s cubic-bezier(0.3, 1.2, 0.5, 1);
   }
+  .tact:active { transform: scale(0.93); }
   .tact:hover { border-color: var(--ot-cyan); color: var(--ot-cyan); }
   .tact.go { border-color: #2f4a44; color: var(--ot-green); }
   .tact.go:hover { border-color: var(--ot-green); }
@@ -434,6 +441,20 @@
   .ot-picker .pkrow .l2 { font-size: calc(0.82px * 10 * var(--otscale, 1)); color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ot-picker .pkrow .bdg { color: var(--ot-green); font-size: calc(0.78px * 10 * var(--otscale, 1)); margin-left: calc(5px * var(--otscale, 1)); }
   .ot-picker .pkempty { color: var(--ot-ink3); font-size: calc(0.95px * 10 * var(--otscale, 1)); line-height: 1.65; }
+  /* 派发选择器入场 = 水滴自右上角延展成面板：胶囊圆角 → 面板圆角，
+     尺寸与圆角沿高阻尼曲线（无回弹）无缝过渡，内容行依次浮现（hidden 翻转天然重放动画） */
+  @keyframes otPkMorph {
+    from { opacity: 0; border-radius: calc(999px * var(--otscale, 1)); transform: scale(0.58, 0.4); }
+    60% { opacity: 1; }
+    to { opacity: 1; border-radius: calc(10px * var(--otscale, 1)); transform: scale(1, 1); }
+  }
+  .ot-picker .pk { transform-origin: top right; animation: otPkMorph 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  @keyframes otRowIn { from { opacity: 0; transform: translateY(calc(-5px * var(--otscale, 1))); } to { opacity: 1; transform: none; } }
+  .ot-picker .pk h4 { animation: otRowIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .ot-picker .pkrow { animation: otRowIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .ot-picker .pkrow:nth-of-type(2) { animation-delay: 45ms; }
+  .ot-picker .pkrow:nth-of-type(3) { animation-delay: 90ms; }
+  .ot-picker .pkrow:nth-of-type(4) { animation-delay: 135ms; }
   .tcard .flag {
     position: absolute; top: calc(-8px * var(--otscale, 1)); right: calc(8px * var(--otscale, 1)); font-size: calc(0.78px * 10 * var(--otscale, 1));
     border-radius: calc(4px * var(--otscale, 1)); padding: calc(1px * var(--otscale, 1)) calc(6px * var(--otscale, 1)); line-height: 1.5;
@@ -447,6 +468,34 @@
   .tcard.s-done { border-color: #4a4023; } .tcard.s-done .ot-pbar i { background: var(--ot-gold); } .tcard.s-done .st { color: var(--ot-gold); }
   .tcard.s-failed { border-color: #4d2b2b; background: #181010; } .tcard.s-failed .ot-pbar i { background: var(--ot-red); } .tcard.s-failed .st { color: var(--ot-red); }
   .tcard.s-blocked { border-color: #4d3a2b; background: #171310; } .tcard.s-blocked .ot-pbar i { background: var(--ot-org); } .tcard.s-blocked .st { color: var(--ot-org); }
+
+  /* 弥散光晕（v0.7.5）：工单被分配工作（dispatched=已接活 / running=在做，账本状态）
+     的卡加两层光——① 缓慢旋转的渐变流光微边框（conic 流光绕边走一圈约 7s，
+     底色是同色 14% 的常驻淡描边，所以流光扫过是"提亮"不是"从无到有"）；
+     ② 底部呼吸弥散背光（z-index:-1 沁在卡片背后，径向渐变 + blur，opacity 呼吸）。
+     状态色直接沿用卡的 token（--ot-glow），不引入新语义色。纯 CSS，无逐帧 JS。 */
+  .tcard.s-dispatched { --ot-glow: var(--ot-vio); }
+  .tcard.s-running { --ot-glow: var(--ot-green2); }
+  @property --ot-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+  @keyframes otGlowSpin { to { --ot-a: 360deg; } }
+  .tcard.s-dispatched::before, .tcard.s-running::before {
+    content: ''; position: absolute; inset: calc(-1px * var(--otscale, 1)); pointer-events: none;
+    border-radius: calc(9px * var(--otscale, 1)); padding: calc(1px * var(--otscale, 1));
+    background:
+      conic-gradient(from var(--ot-a), transparent 0 238deg, var(--ot-glow) 302deg, transparent 360deg),
+      linear-gradient(color-mix(in srgb, var(--ot-glow) 14%, transparent) 0 0);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: otGlowSpin 7s linear infinite;
+  }
+  @keyframes otGlowBreath { from { opacity: 0.45; } to { opacity: 1; } }
+  .tcard.s-dispatched::after, .tcard.s-running::after {
+    content: ''; position: absolute; left: calc(6px * var(--otscale, 1)); right: calc(6px * var(--otscale, 1));
+    bottom: calc(-5px * var(--otscale, 1)); height: 55%; z-index: -1; pointer-events: none;
+    background: radial-gradient(62% 100% at 50% 100%, color-mix(in srgb, var(--ot-glow) 55%, transparent), transparent 72%);
+    border-radius: 45% 45% 50% 50%; filter: blur(calc(9px * var(--otscale, 1)));
+    animation: otGlowBreath 3.4s ease-in-out infinite alternate;
+  }
 
   /* 收敛带（M2）：验收逐项可勾（patch acceptanceDone），结论输入 + 写入收敛在树内闭环 */
   .ot-converge {
@@ -495,6 +544,36 @@
   .ot-plan .pdraft .pd-meta { color: var(--ot-ink3); flex: none; font-size: calc(0.8px * 10 * var(--otscale, 1)); }
   .ot-plan .pdraft.off span { color: var(--ot-ink3); text-decoration: line-through; }
   .tabpanel.orch.busy .ot-plan button { opacity: 0.45; pointer-events: none; }
+
+  /* 开单条流体形变（v0.7.5）：输入态(胶囊) ⇄ 预览面板——圆角与高度沿同一条
+     高阻尼曲线开合，收拢时反向复用同一关键帧；候选行仅在展开那帧交错浮现
+     （行延迟由模板按行号内联，只在 morphin 帧输出 style）。整树重画时
+     morph 标记只带一帧，重推不重演——详见 otPlanHtml。 */
+  @keyframes otPlanMorph {
+    from { border-radius: calc(999px * var(--otscale, 1)); max-height: calc(52px * var(--otscale, 1)); opacity: 0.5; }
+    to { border-radius: calc(9px * var(--otscale, 1)); max-height: calc(480px * var(--otscale, 1)); opacity: 1; }
+  }
+  .ot-plan.preview.morphin { overflow: hidden; animation: otPlanMorph 0.46s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .ot-plan.fold { overflow: hidden; animation: otPlanMorph 0.36s cubic-bezier(0.5, 0, 0.75, 0) reverse both; }
+  @keyframes otDraftIn { from { opacity: 0; transform: translateY(calc(-4px * var(--otscale, 1))); } to { opacity: 1; transform: none; } }
+  .ot-plan.preview.morphin .pdraft { animation: otDraftIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  /* 拆单在途（busy）：胶囊主按钮上一缕流光扫过，等主进程拆完再延展成面板 */
+  @keyframes otSheen { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+  .tabpanel.orch.busy .ot-plan .tact.go { position: relative; overflow: hidden; }
+  .tabpanel.orch.busy .ot-plan .tact.go::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(100deg, transparent 32%, rgba(103, 214, 232, 0.32) 50%, transparent 68%);
+    background-size: 220% 100%; animation: otSheen 1.05s linear infinite;
+  }
+  /* reduced-motion 静止（第一块守定位闪烁，这块守本节的流光/形变）：
+     选择器与开单条直出静态终态；流光退成静态渐变描边，背光退成常驻柔光 */
+  @media (prefers-reduced-motion: reduce) {
+    .tcard.s-dispatched::before, .tcard.s-running::before { animation: none; }
+    .tcard.s-dispatched::after, .tcard.s-running::after { animation: none; opacity: 0.7; }
+    .ot-picker .pk, .ot-picker .pk h4, .ot-picker .pkrow { animation: none; }
+    .ot-plan.preview.morphin, .ot-plan.fold, .ot-plan.preview.morphin .pdraft { animation: none; }
+    .tabpanel.orch.busy .ot-plan .tact.go::after { animation: none; }
+  }
 
   /* ④ session log：黑板即日志，最新在下（终端语义，设计稿 118px 高） */
   .ot-log {
@@ -1073,7 +1152,8 @@
   var otSummary = {};   // 收敛结论输入的草稿（按 tid 记住，重渲染不丢正在敲的字）
   // M3 开单条：目标/agent/cwd 的输入草稿 + 拆单预览的候选与勾选（重渲染不丢；
   // 账本里不存在——确认前的候选单只是内存意图，落账后由主进程重推整树再清空）
-  var otPlan = { goal: '', agent: '', cwd: '', drafts: null, checks: [], jev: null };
+  // morph：流体形变标记，只带一帧——otPlanHtml 读完即清，主进程重推的重画不重演入场
+  var otPlan = { goal: '', agent: '', cwd: '', drafts: null, checks: [], jev: null, morph: '' };
 
   // 工单卡按状态出操作（与 world/orch/actions.js ACTIONS 对齐；done 无操作）
   var OT_ACTIONS = {
@@ -1373,7 +1453,12 @@
   // 开单条两种形态：无桥（bake/老 preload）整条不出——开不了单的输入条比没有更误导
   function otPlanHtml() {
     if (!window.__worldOrch) return '';
-    var html = '<div class="ot-plan"><div class="nh"><span class="who">开单 · plan</span><span>打字立单 · 闸门照旧</span></div>';
+    // 流体形变：preview 是面板态；morphin=胶囊→面板延展帧 / fold=面板→胶囊收拢帧。
+    // morph 读完即清——主进程落账重推那帧不带形变，树不重演入场。
+    var play = otPlan.drafts && otPlan.morph === 'morphin';
+    var cls = 'ot-plan' + (otPlan.drafts ? ' preview' : '') + (otPlan.morph ? ' ' + otPlan.morph : '');
+    otPlan.morph = '';
+    var html = '<div class="' + cls + '"><div class="nh"><span class="who">开单 · plan</span><span>打字立单 · 闸门照旧</span></div>';
     if (!otPlan.drafts) {
       html += '<div class="prow">' +
         '<input class="pgoal" data-pgoal placeholder="目标：先把 A 做完，然后补 B 的测试…" value="' + esc(otPlan.goal) + '">' +
@@ -1391,7 +1476,8 @@
       otPlan.drafts.forEach(function (d, i) {
         var keep = otPlan.checks[i] !== false;
         var meta = (d.agent || '?') + ((d.dependsOn && d.dependsOn.length) ? ' ← ' + d.dependsOn.join('+') : '');
-        html += '<label class="pdraft' + (keep ? '' : ' off') + '">' +
+        html += '<label class="pdraft' + (keep ? '' : ' off') + '"' +
+          (play ? ' style="animation-delay:' + i * 45 + 'ms"' : '') + '>' +
           '<input type="checkbox" data-pcheck="' + i + '"' + (keep ? ' checked' : '') + '>' +
           '<span class="pd-id">' + esc(d.id) + '</span><span>' + esc(d.title) + '</span>' +
           '<span class="pd-meta">' + esc(meta) + '</span></label>';
@@ -1424,6 +1510,7 @@
             otPlan.jev = (res.jev && res.jev.modelTried && res.jev.reason)
               ? { source: res.jev.source === 'jev' ? 'jev' : 'local', reason: String(res.jev.reason) }
               : null;
+            otPlan.morph = 'morphin'; // 水滴：输入胶囊 → 预览面板（只此一帧）
           }
           return res;
         });
@@ -1455,7 +1542,7 @@
     otCall(function () {
       return window.__worldOrch.commitPlan(picked).then(function (res) {
         // 落账成功：清开单草稿回输入态（整树随后由主进程重推刷新，本地先画一帧不等推送）
-        if (res && res.ok) { otPlan.goal = ''; otPlan.drafts = null; otPlan.checks = []; otPlan.jev = null; }
+        if (res && res.ok) { otPlan.goal = ''; otPlan.drafts = null; otPlan.checks = []; otPlan.jev = null; otPlan.morph = 'fold'; }
         return res;
       });
     }, otRedrawTree);
@@ -1463,6 +1550,7 @@
 
   function otPlanCancel() {
     otPlan.drafts = null; otPlan.checks = []; otPlan.jev = null;
+    otPlan.morph = 'fold'; // 水滴收回去：面板 → 胶囊（反向复用同一关键帧）
     otRedrawTree();
   }
 
