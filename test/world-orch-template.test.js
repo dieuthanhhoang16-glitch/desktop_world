@@ -122,7 +122,13 @@ test('live.js 导出 setActiveTab / setSessionSnapshot（菜单与 App 接线用
 
 test('app-integration 导出编排入口，菜单不闭包缓存状态', () => {
   const app = fs.readFileSync(path.join(__dirname, '..', 'world', 'app-integration.js'), 'utf8');
-  assert.match(app, /orchState,\s*\n\s*showOrchBoard,\s*\n\s*orchPreflight,/);
+  assert.match(app, /orchState,\s*\n\s*showOrchBoard,\s*\n\s*orchPreflight,\s*\n\s*orchZoom,/);
+  // v0.7.1 工作面字号：主进程持久化倍率 + 定向重推，渲染层只读 orch.zoom 写 --ot-z
+  assert.match(app, /function orchZoom\(delta\)/);
+  const live = fs.readFileSync(path.join(__dirname, '..', 'world', 'live', 'live.js'), 'utf8');
+  assert.match(live, /function orchZoom\(\)/);
+  assert.match(live, /orch\.zoom = orchZoom\(\)/);
+  assert.match(live, /setOrchZoom,/);
   assert.match(app, /function orchState\(sessionSnapshot\)/);
 
   // 菜单每次 build 现读，不缓存布尔

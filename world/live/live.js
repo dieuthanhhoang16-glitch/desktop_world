@@ -168,6 +168,7 @@ async function buildLiveReport(outDir, digest) {
       const { buildTree } = require('../orch/tree-model');
       const decisions = require('../orch/decisions');
       orch.tree = buildTree(orch, { decisions: decisions.list(orch.root, 20) });
+      orch.zoom = orchZoom(); // 工作面字号倍率（v0.7.1）渲染层拿它写 --ot-z
     }
   } catch (e) {
     console.error('[live] 编排视图读取失败（忽略，不影响卡片）：', e.message);
@@ -265,11 +266,36 @@ function refreshOrchView() {
     const { buildTree } = require('../orch/tree-model');
     const decisions = require('../orch/decisions');
     const orch = buildOrchView({ snapshot: orchSnapshot });
-    if (orch) orch.tree = buildTree(orch, { decisions: decisions.list(orch.root, 20) });
+    if (orch) {
+      orch.tree = buildTree(orch, { decisions: decisions.list(orch.root, 20) });
+      orch.zoom = orchZoom(); // 与 buildLiveReport 同一路注入，缩放变更走这里立刻生效
+    }
     pushReport({ ...lastReport, orch });
   } catch (e) {
     console.error('[live] 编排视图定向刷新失败（忽略，下一次定时刷新会再试）：', e.message);
   }
+}
+
+/**
+ * 调度树工作面字号倍率（v0.7.1）：窗口 resizable:false、桌面组件只有 300-600pt，
+ * 纯 vmin 字号 2-5px 读不了。倍率持久化进 live.json 的 orchZoom 字段，夹在 [0.75, 3]，
+ * 缺省 1.8（1 是 M1/M2 的老排版）。渲染层 renderOrch 把它写成 body 的 --ot-z，调度树
+ * 整区字号乘这一倍率（CSS 里 font-size 全部 calc(Xvmin * var(--ot-z, 1))）。
+ */
+function orchZoom() {
+  const z = Number((loadCfg() || {}).orchZoom);
+  return Number.isFinite(z) && z >= 0.75 && z <= 3 ? z : 1.8;
+}
+
+/**
+ * 菜单入口：delta = +0.2/-0.2 步进，null = 恢复默认 1.8。
+ * 写盘后立即 refreshOrchView 定向重推（不跑 collect 全量），下一秒窗口就变大/变小。
+ */
+function setOrchZoom(delta) {
+  const next = delta == null ? 1.8 : Math.min(3, Math.max(0.75, Math.round((orchZoom() + (Number(delta) || 0)) * 100) / 100));
+  saveCfg({ orchZoom: next });
+  refreshOrchView();
+  return next;
 }
 
 /**
@@ -727,4 +753,5 @@ module.exports = {
   setSessionSnapshot,
   activeTab,
   setActiveTab,
+  setOrchZoom,
 };

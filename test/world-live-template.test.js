@@ -144,6 +144,25 @@ test('M2 交互元素齐备：卡片操作/会话选择器/收敛组合器/probl
   assert.ok(html.includes('确认 → 派发 → 收敛'), '缺 M2 闭环宣言');
 });
 
+test('v0.7.1 工作面可读性：整区字号包 --ot-z 倍率，body 供变，底色提亮', () => {
+  const html = fs.readFileSync(TEMPLATE, 'utf8');
+  // 默认倍率定义在 .orch token 区（没有它整区回退 1 倍 vmin 老排版）
+  assert.match(html, /--ot-z: 1\.8;/, '.orch token 区缺默认倍率 --ot-z');
+  // renderOrch 从 orch.zoom 写到 body（tabbar 在 panel 外，挂 panel 上 tab 栏吃不到）
+  assert.match(html, /document\.body\.style\.setProperty\('--ot-z'/, 'renderOrch 缺 zoom 注入');
+  // 调度树整区 font-size 必须走倍率：区内不得再出现裸 vmin 字号（= 漏网的不可缩放文字）
+  const cssStart = html.indexOf('/* 调度树局部 token');
+  const cssEnd = html.indexOf('番茄钟（v0.7', cssStart);
+  assert.ok(cssStart > 0 && cssEnd > cssStart, '找不到调度树 CSS 区');
+  const region = html.slice(cssStart, cssEnd);
+  const bare = region.match(/font-size: (?!calc\()[0-9.]+vmin/);
+  assert.ok(!bare, `调度树区发现未包倍率的裸字号：${bare && bare[0]}`);
+  // 提亮一档：老 #0d 系底色/灰字已退场（桌面壁纸上读不出）
+  for (const dark of ['#0d0f12', '#101318', '#5f6866']) {
+    assert.ok(!html.includes(dark), `老暗色残留：${dark}`);
+  }
+});
+
 test('M2 写操作纪律：忙闸 + 空桥兜底 + bake 形态隐藏双保险仍在', () => {
   const html = fs.readFileSync(TEMPLATE, 'utf8');
   // 一次只许一个写操作在途（防双击双写账本）

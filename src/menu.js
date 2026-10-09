@@ -380,6 +380,17 @@ module.exports = function initMenu(ctx) {
               buildTrayMenu();
             },
           },
+          {
+            // v0.7.1：窗口 resizable:false、纯 vmin 字号 2-5px 没法当工作面用——
+            // 倍率在主进程持久化（live.json orchZoom），渲染层整区字号乘它。
+            label: "🔠 工单看板字号",
+            enabled: liveStateNow !== "closed",
+            submenu: [
+              { label: "放大", click: () => { try { require("../world/app-integration").orchZoom(+0.2); } catch {} } },
+              { label: "缩小", click: () => { try { require("../world/app-integration").orchZoom(-0.2); } catch {} } },
+              { label: "恢复默认（×1.8）", click: () => { try { require("../world/app-integration").orchZoom(null); } catch {} } },
+            ],
+          },
         ];
         if (orchSummary.active) {
           items.push({
