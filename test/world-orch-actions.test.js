@@ -22,9 +22,13 @@ function tmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'dw-orch-actions-'));
 }
 
-/** 注入 prefs：缺省全放行（agent-gate 对缺失 flag 默认 true，见 src/agent-gate.js）。 */
+/**
+ * 注入 prefs：缺省全放行（agent-gate 对缺失 flag 默认 true，见 src/agent-gate.js）。
+ * jevClient 显式置 null：本文件的用例**绝不允许**因误触判断层而出网（红线同
+ * world-orch-llm.test.js）；问判断层的行为由 P2 专测注入假 client 覆盖。
+ */
 function depsFor(root, prefs) {
-  return { root, prefs: prefs === undefined ? { agents: {} } : prefs };
+  return { root, prefs: prefs === undefined ? { agents: {} } : prefs, jevClient: null };
 }
 
 /** 在临时账本里立一张 draft（走真实的 draftTickets → appendTickets 路径）。 */
@@ -254,4 +258,105 @@ test('M2 出口路径：draft → confirm → dispatch → converge 全程 ok', 
   ];
   assert.ok(steps.every((s) => s.ok), `链路断在：${JSON.stringify(steps.find((s) => !s.ok))}`);
   assert.equal(store.get(ticketsFile(root), d.id).status, 'done');
+});
+
+// ---------- M3 开单回路（plan → 勾选 → commitPlan） ----------
+
+test('M3 plan：确定性拆单 + 预发号过闸门，账本零写入；默认不问判断层', async () => {
+  const root = tmpRoot();
+  const res = await actions.plan('先把 A 模块重构做完，然后补 B 的集成测试，最后更新 README',
+    { agent: 'claude-code', cwd: os.tmpdir() }, depsFor(root));
+  assert.equal(res.ok, true, JSON.stringify(res.problems));
+  assert.ok(res.drafts.length >= 2, '应拆出多张草案');
+  assert.ok(res.drafts.every((d) => /^ORCH-\d{3,}$/.test(d.id)), '草案带预发号 id');
+  assert.equal(store.list(ticketsFile(root)).length, 0, 'plan 不得落账');
+  // 本地置信度足够 → split 内部不问判断层
+  assert.equal(res.jev.source, 'local');
+  assert.equal(res.jev.modelTried, false);
+});
+
+test('M3 plan 入参校验：空目标 / 拆不出子句 → 结构化拒绝，不抛', async () => {
+  const root = tmpRoot();
+  expectProblems(await actions.plan('   ', {}, depsFor(root)), ['plan-goal-empty']);
+  expectProblems(await actions.plan('。。。', { agent: 'claude-code', cwd: os.tmpdir() }, depsFor(root)), ['plan-no-clauses']);
+});
+
+test('M3 commitPlan：勾选子集落账即确认，被弃依赖重挂最近保留前置，黑板留痕', async () => {
+  const root = tmpRoot();
+  const planRes = await actions.plan('先写数据 schema，然后接 API 层，最后补端到端测试',
+    { agent: 'claude-code', cwd: os.tmpdir() }, depsFor(root));
+  assert.equal(planRes.ok, true);
+  const picked = planRes.drafts.slice(0, planRes.drafts.length - 1); // 弃最后一张
+  const res = actions.commitPlan(picked, { root, prefs: { agents: {} }, goal: '先写 schema' });
+  assert.equal(res.ok, true, JSON.stringify(res.problems));
+
+  const ledger = store.load(ticketsFile(root));
+  assert.equal(ledger.tickets.length, picked.length);
+  assert.ok(ledger.tickets.every((t) => t.status === 'confirmed'), '勾选即人确认');
+  const ids = new Set(ledger.tickets.map((t) => t.id));
+  assert.ok(ledger.tickets.every((t) => t.dependsOn.every((d) => ids.has(d))),
+    `依赖不得指向未落账 id：${JSON.stringify(ledger.tickets.map((t) => [t.id, t.dependsOn]))}`);
+  const bb = blackboard.list(blackboardFile(root));
+  assert.ok(bb.some((e) => e.kind === 'fact' && /立单/.test(e.text)), '黑板应有立单 fact');
+});
+
+test('M3 commitPlan：空勾选 / 预发号占用 / 非法 id → 结构化拒绝，账本不动', async () => {
+  const root = tmpRoot();
+  expectProblems(actions.commitPlan([], depsFor(root)), ['plan-commit-empty']);
+
+  const planRes = await actions.plan('先整理目录结构，然后写迁移脚本', { agent: 'claude-code', cwd: os.tmpdir() }, depsFor(root));
+  assert.equal(planRes.ok, true);
+  const first = actions.commitPlan(planRes.drafts, { root, prefs: { agents: {} } });
+  assert.equal(first.ok, true);
+  // 同 id 再投 → 占号拒绝；账本不因部分失败写一半
+  expectProblems(actions.commitPlan([planRes.drafts[0]], { root, prefs: { agents: {} } }), ['plan-id-conflict']);
+  expectProblems(actions.commitPlan([{ ...planRes.drafts[0], id: '手写-1' }], { root, prefs: { agents: {} } }), ['plan-id-invalid']);
+  assert.equal(store.list(ticketsFile(root)).length, planRes.drafts.length, '拒绝后账本保持第一次立单结果');
+});
+
+// ---------- P2 判断层接入（JEV） ----------
+
+test('P2 强发问：判断层给概率与路由建议，但工单措辞一个字都不进模型产出', async () => {
+  const root = tmpRoot();
+  const seen = [];
+  const fakeClient = {
+    decide: async ({ state, questions }) => {
+      seen.push({ state, questions });
+      return { ok: true, probs: { splitable: 0.87, needs_research: 0.1, risky: 0.05, agent_claude_code: 0.72 }, usage: {} };
+    },
+  };
+  const goal = '先把 A 模块重构做完，然后补 B 的集成测试，最后更新 README';
+  const res = await actions.plan(goal,
+    { agent: 'claude-code', cwd: os.tmpdir(), jev: true },
+    { root, prefs: { agents: {} }, jevClient: fakeClient, agents: [{ id: 'claude-code', name: 'Claude Code' }] });
+  assert.equal(res.ok, true, JSON.stringify(res.problems));
+  assert.equal(res.jev.source, 'jev', '被问过就是 jev');
+  assert.equal(res.jev.modelTried, true);
+  assert.ok(res.jev.judgment && Math.abs(res.jev.judgment.splitable - 0.87) < 1e-9);
+  assert.equal(res.jev.judgment.suggestedAgent.id, 'claude-code');
+  assert.match(res.jev.reason, /JEV/);
+
+  // 问题表：splitable/needs_research/risky + 每个候选一个 agent_ 路由问句
+  assert.equal(seen.length, 1, '一次调用问完（省时省钱）');
+  assert.ok('splitable' in seen[0].questions && 'risky' in seen[0].questions && 'needs_research' in seen[0].questions);
+  assert.ok('agent_claude_code' in seen[0].questions);
+  // 铁律：工单措辞仍本地确定性规则（与纯本地 plan 逐字节一致）
+  const localOnly = await actions.plan(goal, { agent: 'claude-code', cwd: os.tmpdir() }, depsFor(root));
+  assert.deepEqual(res.drafts, localOnly.drafts);
+});
+
+test('P2 判断层挂了静默降级：client 抛错/坏结果 → 开单照常，绝不拖垮', async () => {
+  const root = tmpRoot();
+  const goal = '先把 A 做完，然后补 B 的测试';
+  const blowing = { decide: async () => { throw new Error('boom'); } };
+  const r1 = await actions.plan(goal, { agent: 'claude-code', cwd: os.tmpdir(), jev: true }, { root, prefs: { agents: {} }, jevClient: blowing });
+  assert.equal(r1.ok, true);
+  assert.equal(r1.jev.source, 'local');
+  assert.equal(r1.jev.modelTried, true, '问了没问成 ≠ 没问');
+
+  const garbage = { decide: async () => ({ ok: false, reason: 'breaker-open' }) };
+  const r2 = await actions.plan(goal, { agent: 'claude-code', cwd: os.tmpdir(), jev: true }, { root, prefs: { agents: {} }, jevClient: garbage });
+  assert.equal(r2.ok, true);
+  assert.equal(r2.jev.source, 'local');
+  assert.equal(r2.jev.modelTried, true);
 });

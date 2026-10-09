@@ -272,6 +272,11 @@
      树区全部宽度/行高/padding/gap 按设计稿 980×620 的 px 值改写为
      calc(Npx * var(--otscale))，与字号同比例缩放；只有面板外壳（.orch 的
      inset 窗口放置）保留 vmin。
+     v0.7.3 M3 开单条（.ot-plan）：工单层与收敛带之间的 dashed 意图区——
+     打字目标 → 拆单预览 → 勾选 → 立单，全走 __worldOrch 桥发意图；
+     勾选只是本地意图不过桥（不整树重画，不丢滚动位）。
+     v0.7.4 P2 判断层：开单预览时若问过判断层，意见以 ⚖ 金色行摆在预览头部
+     （建议级，与 keeper advice 同语义；决策权永远在勾选的人）。
      形态取舍：这个 tab 走"有底板"而不是动态桌面的无卡片化 widget —— 它是**工作面**
      （MAIN → JEV 判断层 → 工单层 → 收敛带），信息密度高、需要明确的区块分隔；
      早报那侧继续保持无卡片化。两者的取舍依据不同，不是同一套规则。
@@ -482,6 +487,8 @@
   .ot-plan .pgoal { flex: 1; min-width: 0; }
   .ot-plan .popt { width: calc(96px * var(--otscale, 1)); }
   .ot-plan .prow2 { display: flex; gap: calc(6px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); align-items: center; color: var(--ot-ink3); font-size: calc(0.85px * 10 * var(--otscale, 1)); }
+  /* 判断层意见（P2）：金色 = 建议级信息，与 keeper advice 同语义；只展示，不替他做决定 */
+  .ot-plan .pjudge { color: var(--ot-gold); }
   .ot-plan .pdraft { display: flex; align-items: baseline; gap: calc(6px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); font-size: calc(0.92px * 10 * var(--otscale, 1)); color: var(--ot-ink); cursor: pointer; }
   .ot-plan .pdraft input { margin: 0; accent-color: var(--ot-green2); flex: none; }
   .ot-plan .pdraft .pd-id { color: var(--ot-green2); flex: none; font-size: calc(0.85px * 10 * var(--otscale, 1)); }
@@ -1066,7 +1073,7 @@
   var otSummary = {};   // 收敛结论输入的草稿（按 tid 记住，重渲染不丢正在敲的字）
   // M3 开单条：目标/agent/cwd 的输入草稿 + 拆单预览的候选与勾选（重渲染不丢；
   // 账本里不存在——确认前的候选单只是内存意图，落账后由主进程重推整树再清空）
-  var otPlan = { goal: '', agent: '', cwd: '', drafts: null, checks: [] };
+  var otPlan = { goal: '', agent: '', cwd: '', drafts: null, checks: [], jev: null };
 
   // 工单卡按状态出操作（与 world/orch/actions.js ACTIONS 对齐；done 无操作）
   var OT_ACTIONS = {
@@ -1376,6 +1383,11 @@
     } else {
       var on = otPlan.checks.filter(Boolean).length;
       html += '<div class="prow2">预览 ' + otPlan.drafts.length + ' 张候选 · 勾选要立的单（已选 ' + on + '）</div>';
+      // 判断层本次开口了就把意见摆出来（与 keeper advice 同是「建议级」金色；听不听在人）
+      if (otPlan.jev) {
+        html += '<div class="prow2 pjudge">⚖ ' + (otPlan.jev.source === 'jev' ? 'JEV 判断层' : '本地判断') +
+          ' · ' + esc(otPlan.jev.reason) + '</div>';
+      }
       otPlan.drafts.forEach(function (d, i) {
         var keep = otPlan.checks[i] !== false;
         var meta = (d.agent || '?') + ((d.dependsOn && d.dependsOn.length) ? ' ← ' + d.dependsOn.join('+') : '');
@@ -1401,10 +1413,18 @@
       otHandle({ ok: false, problems: [{ code: 'plan-goal-empty', reason: '目标还是空的', fix: '在开单条先写一句话目标（如「先把 A 做完，然后补 B 的测试」）' }] });
       return;
     }
+    otPlan.jev = null;
     otCall(function () {
       return window.__worldOrch.plan(goal, { agent: otPlan.agent.trim(), cwd: otPlan.cwd.trim() })
         .then(function (res) {
-          if (res && res.ok) { otPlan.drafts = res.drafts || []; otPlan.checks = otPlan.drafts.map(function () { return true; }); }
+          if (res && res.ok) {
+            otPlan.drafts = res.drafts || [];
+            otPlan.checks = otPlan.drafts.map(function () { return true; });
+            // P2：判断层这次开口了就留一句话在预览头部（⚖ 金色建议级；听不听在人）
+            otPlan.jev = (res.jev && res.jev.modelTried && res.jev.reason)
+              ? { source: res.jev.source === 'jev' ? 'jev' : 'local', reason: String(res.jev.reason) }
+              : null;
+          }
           return res;
         });
     }, otRedrawTree);
@@ -1435,14 +1455,14 @@
     otCall(function () {
       return window.__worldOrch.commitPlan(picked).then(function (res) {
         // 落账成功：清开单草稿回输入态（整树随后由主进程重推刷新，本地先画一帧不等推送）
-        if (res && res.ok) { otPlan.goal = ''; otPlan.drafts = null; otPlan.checks = []; }
+        if (res && res.ok) { otPlan.goal = ''; otPlan.drafts = null; otPlan.checks = []; otPlan.jev = null; }
         return res;
       });
     }, otRedrawTree);
   }
 
   function otPlanCancel() {
-    otPlan.drafts = null; otPlan.checks = [];
+    otPlan.drafts = null; otPlan.checks = []; otPlan.jev = null;
     otRedrawTree();
   }
 

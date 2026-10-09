@@ -16,6 +16,8 @@
 //      字号 px 化后几何若还是 vmin，字会在容器里互相压叠。
 //   ⑧ M3 开单回路：打字目标 → plan 预览 → 勾选 → commitPlan 落账，全部只经
 //      __worldOrch 桥发意图；拆单/闸门/账本写盘全在主进程 actions 层。
+//   ⑨ P2 判断层：plan 可问 JEV 判断层（措辞永远本地确定性产出），判断意见
+//      只作预览头部的建议级展示；判断层挂了静默回本地，绝不挡开单。
 'use strict';
 
 const test = require('node:test');
@@ -91,7 +93,11 @@ test('M3 开单条在树主面：目标/agent/cwd 输入 → 拆分预览 → �
   assert.match(html, /otPlanCommit\(\)/);
   assert.match(html, /otPlanCancel\(\)/);
   // 开单草稿态：候选与勾选只活在内存，落账成功才清空
-  assert.match(html, /var otPlan = \{ goal: '', agent: '', cwd: '', drafts: null, checks: \[\] \};/);
+  assert.match(html, /var otPlan = \{ goal: '', agent: '', cwd: '', drafts: null, checks: \[\], jev: null \};/);
+  // P2 判断层：被问过就把意见以金色建议级行摆在预览头部（转义照旧，决策权在人）
+  assert.match(html, /\.ot-plan \.pjudge \{ color: var\(--ot-gold\); \}/);
+  assert.ok(html.includes('esc(otPlan.jev.reason)'), '判断意见缺转义');
+  assert.match(html, /res\.jev && res\.jev\.modelTried/);
   // 无桥形态（bake/老 preload）整条不出开单口——开不了单的输入条比没有更误导
   const fn = html.slice(html.indexOf('function otPlanHtml()'));
   assert.match(fn.slice(0, 200), /if \(!window\.__worldOrch\) return '';/);

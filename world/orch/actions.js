@@ -357,17 +357,47 @@ function sessionsFor(ticket, snapshot) {
 
 // ---------------------------------------------------------------- M3 开单回路
 //
-// 与 cli.js cmdPlan 同一套语义：① 确定性拆分（tickets.draftTickets，不调 LLM）
+// 与 cli.js cmdPlan 同一套语义：① 确定性拆分（tickets.draftTickets，不调 LLM 写措辞）
 // → ② 可行性检查（dispatch.checkBatch，agent 走 registry、cwd 走真实目录）→
 // ③ 人确认（树里勾选 = CLI 的逐条 y/n）→ 修依赖 → 落账并进「已确认」。
 // 差别只有入口：渲染层经 IPC 发意图，账本文件照样不离开主进程。
+//
+// P2 判断层接入（split.js / llm-prefs.js 是并行开发中的文件）：
+// 工单措辞永远本地确定性产出；判断层只回答「该不该拆 / 派给谁 / 风险多大」并把
+// 每次判断落 decisions/（树模型的 JEV 概率条就从那里读）。加载与调用全程包
+// try/catch —— 判断层缺席/挂掉/在途破坏，都静默退回纯本地，绝不拖垮开单。
+let splitMod = null;
+try { splitMod = require('./split'); } catch (err) { splitMod = null; }
+let llmPrefsMod = null;
+try { llmPrefsMod = require('./llm-prefs'); } catch (err) { llmPrefsMod = null; }
+
+// JEV 客户端：deps.jevClient 显式注入优先（单测口，null = 明确不用判断层）；
+// 默认经 llm-prefs 接好 Settings 与 decisions 落盘；任何一环缺席都视为"没问"。
+function jevClientFor(deps, root) {
+  if (Object.prototype.hasOwnProperty.call(deps, 'jevClient')) return deps.jevClient;
+  if (!llmPrefsMod || typeof llmPrefsMod.createOrchLlmClient !== 'function') return null;
+  try {
+    const made = llmPrefsMod.createOrchLlmClient({ root, recordDecisions: deps.recordDecisions !== false });
+    return made && made.client && typeof made.client.decide === 'function' ? made.client : null;
+  } catch (err) { return null; }
+}
+
+// 路由提问用的已注册 agent 名单（只带提问需要的两个字段；split 内部截取上限）
+function agentsForJudgment(deps) {
+  if (Array.isArray(deps.agents)) return deps.agents;
+  try {
+    const registry = require('../../agents/registry');
+    return (registry.getAllAgents() || []).map((a) => ({ id: a.id, name: a.name }));
+  } catch (err) { return []; }
+}
 
 /**
  * 目标 → 工单草案预览（不写账）。返回的 drafts 带预发号 id，供 commitPlan 回传勾选子集。
+ * 附 jev 元信息（判断层是否被问/判断了什么）——渲染层只用于展示区，决策权仍在人。
  * @param goal 目标文本（自然语言，确定性规则拆子句）
- * @param opts {agent, cwd, independent}（与 CLI 同名参数同语义；空值闸门会拒并给 fix）
+ * @param opts {agent, cwd, independent, jev}（前三个与 CLI 同名同语义；jev===true 强制发问）
  */
-function plan(goal, opts = {}, deps = {}) {
+async function plan(goal, opts = {}, deps = {}) {
   const root = deps.root || ORCH_DIR;
   try {
     const goalText = String(goal || '').trim().slice(0, 800);
@@ -375,12 +405,39 @@ function plan(goal, opts = {}, deps = {}) {
       return fail(problem('plan-goal-empty', '目标是空的', '在开单条里先写一句话目标（比如「把 A 做完，然后补 B 的测试」）'));
     }
     const ledger = store.load(ticketsFile(root));
-    const drafts = T.draftTickets(goalText, {
+    const baseOpts = {
       agent: typeof opts.agent === 'string' ? opts.agent.trim() : '',
       cwd: typeof opts.cwd === 'string' && opts.cwd.trim() ? opts.cwd.trim() : process.cwd(),
       existingIds: ledger.tickets.map((t) => t.id),
       independent: opts.independent === true,
-    });
+    };
+    // ① 拆单：判断层可用时经 split.draftWithLlm（其内部只在本地置信度不足时才真正
+    //    发问；opts.jev 强制发问）。草案本体两边都是 tickets.draftTickets —— 拆分措辞
+    //    永远可复现，模型只影响判断记录，进不了工单一个字。
+    let drafts = null;
+    let jev = { source: 'local', modelTried: false, reason: '', judgment: null };
+    if (splitMod) {
+      try {
+        const res = await splitMod.draftWithLlm(goalText, {
+          ...baseOpts,
+          agents: agentsForJudgment(deps),
+          force: opts.jev === true,
+          client: jevClientFor(deps, root) || undefined,
+        });
+        if (res && Array.isArray(res.tickets)) {
+          drafts = res.tickets;
+          jev = {
+            source: res.source === 'jev' ? 'jev' : 'local',
+            modelTried: res.modelTried === true,
+            reason: String(res.reason || '').slice(0, 200),
+            judgment: res.judgment || null,
+          };
+        }
+      } catch (err) {
+        drafts = null; // draftWithLlm 按契约不 throw；真 throw 就按"没问"落回本地
+      }
+    }
+    if (!drafts) drafts = T.draftTickets(goalText, baseOpts);
     if (!drafts.length) {
       return fail(problem('plan-no-clauses', '没能从目标里拆出任何子句', '目标太短或全是标点；写成「先做 A，再做 B」这样的顺序叙述'));
     }
@@ -390,7 +447,7 @@ function plan(goal, opts = {}, deps = {}) {
     if (!prefs) return fail(prefsProblem());
     const batch = dispatch.checkBatch(preview, { prefs, allTickets: preview });
     if (!batch.ok) return fail(batch.problems);
-    return { ok: true, drafts, goal: goalText };
+    return { ok: true, drafts, goal: goalText, jev };
   } catch (err) {
     return internalError(err);
   }

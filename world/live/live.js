@@ -550,7 +550,8 @@ function ensureNotesIpc() {
   });
   // M3 开单回路：拆单预览只读账不发号（不写盘）；commit 才落账。
   // 拆分/闸门/修依赖/写序全在 actions 层（与 CLI cmdPlan 同一套），handler 只做
-  // 本窗守卫 + 入参白名单 + 成功后定向重推。
+  // 本窗守卫 + 入参白名单 + 成功后定向重推。plan 可能问判断层（P2）→ 异步，
+  // ipcMain.handle 透传 Promise，渲染层照常 then。
   ipcMain.handle('world:orch:plan', (e, goal, opts) => {
     if (!ok(e)) return orchBad();
     try {
@@ -559,6 +560,7 @@ function ensureNotesIpc() {
         agent: String(o.agent == null ? '' : o.agent),
         cwd: String(o.cwd == null ? '' : o.cwd),
         independent: o.independent === true,
+        jev: o.jev === true, // 强制问判断层（默认只在本地置信度不足时才问）
       });
     } catch (err) {
       console.error('[live] 开单预览失败：', err.message);
