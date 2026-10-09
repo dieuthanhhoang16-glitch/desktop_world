@@ -48,7 +48,7 @@
     display: flex; gap: 0.6vmin; -webkit-app-region: no-drag;
   }
   .tabbar .tab {
-    font: inherit; font-size: calc(1.3vmin * var(--ot-z, 1)); cursor: pointer;
+    font: inherit; font-size: 1.3vmin; cursor: pointer;
     padding: 0.5vmin 1.2vmin; border-radius: 999px;
     background: rgba(7, 11, 26, 0.42); border: 1px solid rgba(255, 255, 255, 0.12);
     color: var(--ink-dim);
@@ -276,24 +276,19 @@
   }
   body.live .tabpanel.orch:not([hidden]) {
     display: flex; flex-direction: column;
-    background: #161c29; border: 1px solid #3f4c66; border-radius: 1vmin;
+    background: #0d0f12; border: 1px solid #2c3442; border-radius: 1vmin;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    color: #f2f6f3;
+    color: #e2e7e2;
   }
   body.live .tabpanel.orch { display: none; }
   /* tab 切换：非激活的 daily 面板整块隐藏（display:contents 无法隐藏，所以走 .page 的类） */
   body.live.tab-orch #panelDaily { display: none; }
 
-  /* 调度树局部 token（红橙黄绿青紫的语义与 mockup 锁定一致）
-     --ot-z：工作面字号倍率（v0.7.1）。窗口 resizable:false、桌面组件通常只有 300-600pt，
-     纯 vmin 字号落在 2-5px 没法当工作面用；renderOrch 从 R.orch.zoom 写入（菜单可调），
-     默认 1.8，调回 1 恢复老排版。本段所有 font-size 已统一包成 calc(Xvmin * var(--ot-z, 1))。
-     v0.7.1 整体提亮一档：#0d 系底色贴桌面壁纸读不出，panel/line/ink 全部上移。 */
+  /* 调度树局部 token（红橙黄绿青紫的语义与 mockup 锁定一致） */
   .orch {
-    --ot-z: 1.8;
-    --ot-line: #313a4c; --ot-line2: #3f4c66;
-    --ot-panel: #1a2130; --ot-panel2: #212b3e;
-    --ot-ink: #f2f6f3; --ot-ink2: #bcc8c1; --ot-ink3: #93a29b;
+    --ot-line: #222832; --ot-line2: #2c3442;
+    --ot-panel: #101318; --ot-panel2: #131720;
+    --ot-ink: #e2e7e2; --ot-ink2: #98a19c; --ot-ink3: #5f6866;
     --ot-green: #5eead4; --ot-green2: #34d399; --ot-cyan: #67d6e8;
     --ot-vio: #a78bfa; --ot-gold: #e8c15a; --ot-red: #f87171; --ot-org: #fb923c;
   }
@@ -302,7 +297,7 @@
   .ot-roster {
     flex: 0 0 auto; display: flex; align-items: center; gap: 1.6vmin;
     padding: 0.9vmin 1.4vmin; border-bottom: 1px solid var(--ot-line);
-    font-size: calc(1.15vmin * var(--ot-z, 1));
+    font-size: 1.15vmin;
   }
   .ot-roster .ttl { font-weight: 700; letter-spacing: 0.12em; color: var(--ot-ink); }
   .ot-roster .lg { display: flex; align-items: center; gap: 0.5vmin; color: var(--ot-ink2); }
@@ -318,21 +313,21 @@
     flex: 0 0 21vmin; border-right: 1px solid var(--ot-line); background: var(--ot-panel);
     padding: 1.1vmin 1.2vmin; display: flex; flex-direction: column; overflow-y: auto;
   }
-  .ot-keeper h3 { font-size: calc(1.1vmin * var(--ot-z, 1)); letter-spacing: 0.18em; color: var(--ot-gold); margin: 0 0 0.2vmin; font-weight: 700; }
-  .ot-keeper .role { font-size: calc(0.95vmin * var(--ot-z, 1)); color: var(--ot-ink3); margin-bottom: 0.9vmin; }
-  .ot-keeper .mom { color: var(--ot-ink2); line-height: 1.7; font-size: calc(1.05vmin * var(--ot-z, 1)); }
+  .ot-keeper h3 { font-size: 1.1vmin; letter-spacing: 0.18em; color: var(--ot-gold); margin: 0 0 0.2vmin; font-weight: 700; }
+  .ot-keeper .role { font-size: 0.95vmin; color: var(--ot-ink3); margin-bottom: 0.9vmin; }
+  .ot-keeper .mom { color: var(--ot-ink2); line-height: 1.7; font-size: 1.05vmin; }
   .ot-keeper .mom .m { color: var(--ot-ink); }
   .ot-keeper .advice {
     border: 1px dashed var(--ot-line2); border-radius: 0.7vmin;
-    padding: 0.7vmin 0.8vmin; color: var(--ot-gold); line-height: 1.55; margin: 0.9vmin 0; font-size: calc(1vmin * var(--ot-z, 1));
+    padding: 0.7vmin 0.8vmin; color: var(--ot-gold); line-height: 1.55; margin: 0.9vmin 0; font-size: 1vmin;
     word-break: break-word;
   }
-  .ot-keeper .advice .al { display: block; color: var(--ot-ink3); font-size: calc(0.85vmin * var(--ot-z, 1)); letter-spacing: 0.1em; margin-bottom: 0.35vmin; }
-  .ot-keeper .counts { font-size: calc(0.95vmin * var(--ot-z, 1)); color: var(--ot-ink2); display: grid; grid-template-columns: 1fr auto; gap: 0.3vmin 0.9vmin; margin: 0.4vmin 0 0.8vmin; }
+  .ot-keeper .advice .al { display: block; color: var(--ot-ink3); font-size: 0.85vmin; letter-spacing: 0.1em; margin-bottom: 0.35vmin; }
+  .ot-keeper .counts { font-size: 0.95vmin; color: var(--ot-ink2); display: grid; grid-template-columns: 1fr auto; gap: 0.3vmin 0.9vmin; margin: 0.4vmin 0 0.8vmin; }
   .ot-keeper .counts b { color: var(--ot-ink); font-weight: 600; text-align: right; }
   .ot-keeper .counts b.bad { color: var(--ot-red); }
-  .ot-keeper .quiet { color: var(--ot-ink3); font-size: calc(0.95vmin * var(--ot-z, 1)); }
-  .ot-keeper .oath { margin-top: auto; border-top: 1px solid var(--ot-line); padding-top: 0.8vmin; color: var(--ot-ink3); font-size: calc(0.95vmin * var(--ot-z, 1)); line-height: 1.65; }
+  .ot-keeper .quiet { color: var(--ot-ink3); font-size: 0.95vmin; }
+  .ot-keeper .oath { margin-top: auto; border-top: 1px solid var(--ot-line); padding-top: 0.8vmin; color: var(--ot-ink3); font-size: 0.95vmin; line-height: 1.65; }
   .ot-keeper .oath b { color: var(--ot-red); font-weight: 600; }
 
   /* ③ 树主面：MAIN → JEV → spawn → 工单层 → 收敛带 */
@@ -342,66 +337,66 @@
     position: relative; z-index: 1; background: var(--ot-panel2);
     border: 1px solid var(--ot-line2); border-radius: 0.9vmin; padding: 0.8vmin 1.1vmin;
   }
-  .ot-node .nh { display: flex; align-items: baseline; justify-content: space-between; gap: 1.1vmin; font-size: calc(0.9vmin * var(--ot-z, 1)); color: var(--ot-ink3); }
+  .ot-node .nh { display: flex; align-items: baseline; justify-content: space-between; gap: 1.1vmin; font-size: 0.9vmin; color: var(--ot-ink3); }
   .ot-node .nh .who { color: var(--ot-green); font-weight: 700; letter-spacing: 0.08em; }
   .ot-link { width: 1px; height: 1.6vmin; background: var(--ot-line2); flex: none; }
 
-  .ot-main { width: 40vmin; border-color: #3c5f53; }
-  .ot-main .goal { font-size: calc(1.25vmin * var(--ot-z, 1)); color: var(--ot-ink); line-height: 1.5; margin: 0.4vmin 0 0.6vmin; word-break: break-word; }
-  .ot-main .goal .none { color: var(--ot-ink3); font-size: calc(1.05vmin * var(--ot-z, 1)); }
-  .ot-pbar { height: 0.65vmin; border-radius: 0.4vmin; background: #273244; overflow: hidden; }
+  .ot-main { width: 40vmin; border-color: #2f4a44; }
+  .ot-main .goal { font-size: 1.25vmin; color: var(--ot-ink); line-height: 1.5; margin: 0.4vmin 0 0.6vmin; word-break: break-word; }
+  .ot-main .goal .none { color: var(--ot-ink3); font-size: 1.05vmin; }
+  .ot-pbar { height: 0.65vmin; border-radius: 0.4vmin; background: #1a2027; overflow: hidden; }
   .ot-pbar i { display: block; height: 100%; background: var(--ot-green2); border-radius: 0.4vmin 0 0 0.4vmin; }
-  .ot-main .pmeta { display: flex; justify-content: space-between; font-size: calc(0.9vmin * var(--ot-z, 1)); color: var(--ot-ink2); margin-top: 0.45vmin; }
+  .ot-main .pmeta { display: flex; justify-content: space-between; font-size: 0.9vmin; color: var(--ot-ink2); margin-top: 0.45vmin; }
 
   /* JEV 判断层：概率条 sharp 绿 / split 金 / no 灰；没有 judgment 数据时折叠一行 */
-  .ot-jev { width: 44vmin; border-color: #4a4076; }
+  .ot-jev { width: 44vmin; border-color: #363050; }
   .ot-jev .nh .who { color: var(--ot-vio); }
   .ot-jev .forks { color: var(--ot-ink3); }
-  .ot-jev.local { border-style: dashed; padding: 0.55vmin 1.1vmin; color: var(--ot-ink3); font-size: calc(0.95vmin * var(--ot-z, 1)); }
+  .ot-jev.local { border-style: dashed; padding: 0.55vmin 1.1vmin; color: var(--ot-ink3); font-size: 0.95vmin; }
   .ot-jev.local .who { color: var(--ot-vio); font-weight: 700; margin-right: 0.8vmin; }
-  .ot-jrow { display: grid; grid-template-columns: 11vmin 1fr 7vmin; align-items: center; gap: 0.9vmin; margin-top: 0.5vmin; font-size: calc(1vmin * var(--ot-z, 1)); }
-  .ot-jrow .jl { color: var(--ot-ink2); font-size: calc(0.95vmin * var(--ot-z, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ot-jbar { height: 0.85vmin; background: #273244; border-radius: 0.25vmin; overflow: hidden; }
+  .ot-jrow { display: grid; grid-template-columns: 11vmin 1fr 7vmin; align-items: center; gap: 0.9vmin; margin-top: 0.5vmin; font-size: 1vmin; }
+  .ot-jrow .jl { color: var(--ot-ink2); font-size: 0.95vmin; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ot-jbar { height: 0.85vmin; background: #1a2027; border-radius: 0.25vmin; overflow: hidden; }
   .ot-jbar i { display: block; height: 100%; border-radius: 0.25vmin 0 0 0.25vmin;
     background-image: repeating-linear-gradient(90deg, currentColor 0 0.45vmin, transparent 0.45vmin 0.65vmin); }
-  .ot-jrow .jv { font-size: calc(0.9vmin * var(--ot-z, 1)); text-align: right; }
+  .ot-jrow .jv { font-size: 0.9vmin; text-align: right; }
   .ot-v-sharp { color: var(--ot-green2); } .ot-v-split { color: var(--ot-gold); } .ot-v-no { color: var(--ot-ink3); }
-  .ot-jev .legend { margin-top: 0.7vmin; padding-top: 0.5vmin; border-top: 1px dashed var(--ot-line2); font-size: calc(0.85vmin * var(--ot-z, 1)); color: var(--ot-ink3); }
+  .ot-jev .legend { margin-top: 0.7vmin; padding-top: 0.5vmin; border-top: 1px dashed var(--ot-line2); font-size: 0.85vmin; color: var(--ot-ink3); }
 
-  .ot-spawn-line { margin: 0.2vmin 0 0.7vmin; font-size: calc(0.9vmin * var(--ot-z, 1)); color: var(--ot-ink3); letter-spacing: 0.06em; flex: none; }
+  .ot-spawn-line { margin: 0.2vmin 0 0.7vmin; font-size: 0.9vmin; color: var(--ot-ink3); letter-spacing: 0.06em; flex: none; }
   .ot-spawn-line b { color: var(--ot-cyan); font-weight: 600; }
 
   .ot-lanes { display: flex; gap: 1.1vmin; align-items: flex-start; z-index: 1; }
   .ot-lane { display: flex; flex-direction: column; gap: 0.8vmin; }
   .tcard {
     width: 14.5vmin; background: var(--ot-panel2); border: 1px solid var(--ot-line2);
-    border-radius: 0.7vmin; padding: 0.6vmin 0.8vmin; font-size: calc(1vmin * var(--ot-z, 1)); position: relative;
+    border-radius: 0.7vmin; padding: 0.6vmin 0.8vmin; font-size: 1vmin; position: relative;
   }
-  .tcard .tid { font-size: calc(0.85vmin * var(--ot-z, 1)); color: var(--ot-ink3); display: flex; justify-content: space-between; align-items: center; gap: 0.5vmin; }
+  .tcard .tid { font-size: 0.85vmin; color: var(--ot-ink3); display: flex; justify-content: space-between; align-items: center; gap: 0.5vmin; }
   .tcard .tid .st { font-weight: 700; }
-  .tcard .tname { color: var(--ot-ink); line-height: 1.45; margin: 0.3vmin 0 0.4vmin; font-size: calc(1vmin * var(--ot-z, 1)); word-break: break-word; }
-  .tcard .tmeta { font-size: calc(0.8vmin * var(--ot-z, 1)); color: var(--ot-ink3); display: flex; justify-content: space-between; gap: 0.5vmin; }
-  .tcard .tdeps { font-size: calc(0.8vmin * var(--ot-z, 1)); color: var(--ot-gold); opacity: 0.9; margin-top: 0.25vmin; }
+  .tcard .tname { color: var(--ot-ink); line-height: 1.45; margin: 0.3vmin 0 0.4vmin; font-size: 1vmin; word-break: break-word; }
+  .tcard .tmeta { font-size: 0.8vmin; color: var(--ot-ink3); display: flex; justify-content: space-between; gap: 0.5vmin; }
+  .tcard .tdeps { font-size: 0.8vmin; color: var(--ot-gold); opacity: 0.9; margin-top: 0.25vmin; }
   .tcard .ot-pbar { height: 0.45vmin; margin-top: 0.5vmin; }
-  .tcard .sig { margin-top: 0.4vmin; font-size: calc(0.8vmin * var(--ot-z, 1)); }
+  .tcard .sig { margin-top: 0.4vmin; font-size: 0.8vmin; }
   .tcard .sig .on { color: var(--ot-green2); } .tcard .sig .off { color: var(--ot-ink3); }
   /* 工单卡操作列（M2）：按状态出按钮，全走 __worldOrch 桥；面板 busy 时整列禁点 */
   .tcard .tacts { display: flex; flex-wrap: wrap; gap: 0.4vmin; margin-top: 0.45vmin; }
   .tact {
-    font: inherit; font-size: calc(0.82vmin * var(--ot-z, 1)); padding: 0.2vmin 0.65vmin; border-radius: 0.5vmin;
+    font: inherit; font-size: 0.82vmin; padding: 0.2vmin 0.65vmin; border-radius: 0.5vmin;
     border: 1px solid var(--ot-line2); background: transparent; color: var(--ot-ink2); cursor: pointer;
   }
   .tact:hover { border-color: var(--ot-cyan); color: var(--ot-cyan); }
-  .tact.go { border-color: #3c5f53; color: var(--ot-green); }
+  .tact.go { border-color: #2f4a44; color: var(--ot-green); }
   .tact.go:hover { border-color: var(--ot-green); }
   .tact.warn:hover { border-color: var(--ot-red); color: var(--ot-red); }
   .tabpanel.orch.busy .tact { opacity: 0.45; pointer-events: none; }
   /* 守门员 problems 上墙（M2）：点击行定位到对应工单卡 */
   .ot-problems { margin: 0.6vmin 0; display: flex; flex-direction: column; gap: 0.4vmin; }
   .ot-problems .prob { border: 1px solid #4d2b2b; border-radius: 0.6vmin; padding: 0.45vmin 0.6vmin; background: #171010; cursor: pointer; }
-  .ot-problems .prob .pc { color: var(--ot-red); font-weight: 700; font-size: calc(0.82vmin * var(--ot-z, 1)); letter-spacing: 0.06em; }
-  .ot-problems .prob .pr { color: var(--ot-ink); font-size: calc(0.88vmin * var(--ot-z, 1)); line-height: 1.45; margin-top: 0.15vmin; }
-  .ot-problems .prob .pf { color: var(--ot-gold); font-size: calc(0.82vmin * var(--ot-z, 1)); line-height: 1.45; }
+  .ot-problems .prob .pc { color: var(--ot-red); font-weight: 700; font-size: 0.82vmin; letter-spacing: 0.06em; }
+  .ot-problems .prob .pr { color: var(--ot-ink); font-size: 0.88vmin; line-height: 1.45; margin-top: 0.15vmin; }
+  .ot-problems .prob .pf { color: var(--ot-gold); font-size: 0.82vmin; line-height: 1.45; }
   /* 定位闪烁：problems 点击 → 目标工单卡金色脉冲两拍 */
   @keyframes otFlash { 0%, 100% { box-shadow: none; } 25% { box-shadow: 0 0 0 0.25vmin var(--ot-gold); } 55% { box-shadow: none; } 80% { box-shadow: 0 0 0 0.25vmin var(--ot-gold); } }
   .tcard.flash { animation: otFlash 1.2s ease-in-out; }
@@ -413,57 +408,57 @@
   /* 派发会话选择器：覆盖在调度树面板上的模态，同 agent+同 cwd 的会话置顶 */
   .ot-picker { position: fixed; inset: 0; background: rgba(6, 8, 10, 0.72); z-index: 30; display: flex; align-items: center; justify-content: center; }
   .ot-picker .pk { width: 52vmin; max-height: 60vh; overflow-y: auto; background: var(--ot-panel2); border: 1px solid var(--ot-line2); border-radius: 1vmin; padding: 1vmin 1.2vmin; }
-  .ot-picker .pk h4 { margin: 0 0 0.6vmin; font-size: calc(1vmin * var(--ot-z, 1)); color: var(--ot-cyan); letter-spacing: 0.1em; display: flex; justify-content: space-between; align-items: center; }
+  .ot-picker .pk h4 { margin: 0 0 0.6vmin; font-size: 1vmin; color: var(--ot-cyan); letter-spacing: 0.1em; display: flex; justify-content: space-between; align-items: center; }
   .ot-picker .pk h4 .x { cursor: pointer; color: var(--ot-ink3); font-weight: 400; }
   .ot-picker .pk h4 .x:hover { color: var(--ot-red); }
   .ot-picker .pkrow { display: flex; flex-direction: column; gap: 0.15vmin; padding: 0.5vmin 0.65vmin; border: 1px solid var(--ot-line); border-radius: 0.6vmin; margin-bottom: 0.45vmin; cursor: pointer; }
   .ot-picker .pkrow:hover { border-color: var(--ot-cyan); }
-  .ot-picker .pkrow .l1 { display: flex; justify-content: space-between; gap: 0.6vmin; font-size: calc(0.95vmin * var(--ot-z, 1)); color: var(--ot-ink); }
-  .ot-picker .pkrow .l2 { font-size: calc(0.82vmin * var(--ot-z, 1)); color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ot-picker .pkrow .bdg { color: var(--ot-green); font-size: calc(0.78vmin * var(--ot-z, 1)); margin-left: 0.5vmin; }
-  .ot-picker .pkempty { color: var(--ot-ink3); font-size: calc(0.95vmin * var(--ot-z, 1)); line-height: 1.65; }
+  .ot-picker .pkrow .l1 { display: flex; justify-content: space-between; gap: 0.6vmin; font-size: 0.95vmin; color: var(--ot-ink); }
+  .ot-picker .pkrow .l2 { font-size: 0.82vmin; color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ot-picker .pkrow .bdg { color: var(--ot-green); font-size: 0.78vmin; margin-left: 0.5vmin; }
+  .ot-picker .pkempty { color: var(--ot-ink3); font-size: 0.95vmin; line-height: 1.65; }
   .tcard .flag {
-    position: absolute; top: -0.75vmin; right: 0.7vmin; font-size: calc(0.78vmin * var(--ot-z, 1));
+    position: absolute; top: -0.75vmin; right: 0.7vmin; font-size: 0.78vmin;
     border-radius: 0.35vmin; padding: 0.1vmin 0.5vmin; line-height: 1.5;
   }
   .tcard .flag.stale { background: #2b1e10; color: var(--ot-org); border: 1px solid #4d3a2b; }
   .tcard .flag.blocked { background: #2b1010; color: var(--ot-red); border: 1px solid #4d2b2b; }
   .tcard.s-draft { border-color: #31383f; } .tcard.s-draft .ot-pbar i { background: #94a3b8; } .tcard.s-draft .st { color: #94a3b8; }
   .tcard.s-confirmed { border-color: #2b3a4d; } .tcard.s-confirmed .ot-pbar i { background: var(--ot-cyan); } .tcard.s-confirmed .st { color: var(--ot-cyan); }
-  .tcard.s-dispatched { border-color: #4a4076; } .tcard.s-dispatched .ot-pbar i { background: var(--ot-vio); } .tcard.s-dispatched .st { color: var(--ot-vio); }
-  .tcard.s-running { border-color: #3c5f53; } .tcard.s-running .ot-pbar i { background: var(--ot-green2); } .tcard.s-running .st { color: var(--ot-green2); }
+  .tcard.s-dispatched { border-color: #363050; } .tcard.s-dispatched .ot-pbar i { background: var(--ot-vio); } .tcard.s-dispatched .st { color: var(--ot-vio); }
+  .tcard.s-running { border-color: #2f4a44; } .tcard.s-running .ot-pbar i { background: var(--ot-green2); } .tcard.s-running .st { color: var(--ot-green2); }
   .tcard.s-done { border-color: #4a4023; } .tcard.s-done .ot-pbar i { background: var(--ot-gold); } .tcard.s-done .st { color: var(--ot-gold); }
   .tcard.s-failed { border-color: #4d2b2b; background: #181010; } .tcard.s-failed .ot-pbar i { background: var(--ot-red); } .tcard.s-failed .st { color: var(--ot-red); }
   .tcard.s-blocked { border-color: #4d3a2b; background: #171310; } .tcard.s-blocked .ot-pbar i { background: var(--ot-org); } .tcard.s-blocked .st { color: var(--ot-org); }
 
   /* 收敛带（M2）：验收逐项可勾（patch acceptanceDone），结论输入 + 写入收敛在树内闭环 */
   .ot-converge {
-    width: 44vmin; margin-top: 0.2vmin; border: 1px solid #3c5f53; border-radius: 0.9vmin;
+    width: 44vmin; margin-top: 0.2vmin; border: 1px solid #2f4a44; border-radius: 0.9vmin;
     background: var(--ot-panel2); padding: 0.7vmin 1.1vmin 0.8vmin; z-index: 1; position: relative;
   }
-  .ot-converge .nh { display: flex; justify-content: space-between; font-size: calc(0.9vmin * var(--ot-z, 1)); color: var(--ot-ink3); }
+  .ot-converge .nh { display: flex; justify-content: space-between; font-size: 0.9vmin; color: var(--ot-ink3); }
   .ot-converge .nh .who { color: var(--ot-green); font-weight: 700; }
-  .ot-crow { margin-top: 0.6vmin; font-size: calc(0.95vmin * var(--ot-z, 1)); padding-top: 0.55vmin; border-top: 1px dashed var(--ot-line); }
+  .ot-crow { margin-top: 0.6vmin; font-size: 0.95vmin; padding-top: 0.55vmin; border-top: 1px dashed var(--ot-line); }
   .ot-crow:first-of-type { border-top: none; padding-top: 0; }
   .ot-crow .chead { display: flex; align-items: baseline; gap: 0.8vmin; }
   .ot-crow .cid { color: var(--ot-green2); flex: none; }
   .ot-crow .cchk { color: var(--ot-ink2); flex: none; }
-  .ot-crow .cacc { display: flex; align-items: baseline; gap: 0.45vmin; margin-top: 0.35vmin; color: var(--ot-ink2); font-size: calc(0.92vmin * var(--ot-z, 1)); line-height: 1.5; cursor: pointer; }
+  .ot-crow .cacc { display: flex; align-items: baseline; gap: 0.45vmin; margin-top: 0.35vmin; color: var(--ot-ink2); font-size: 0.92vmin; line-height: 1.5; cursor: pointer; }
   .ot-crow .cacc input { margin: 0; accent-color: var(--ot-green2); flex: none; }
   .ot-crow .cacc.done span { color: var(--ot-ink3); text-decoration: line-through; }
   .ot-crow .cdo { display: flex; gap: 0.5vmin; margin-top: 0.5vmin; align-items: center; }
   .ot-crow .csum {
     flex: 1; background: var(--ot-panel); border: 1px solid var(--ot-line2); border-radius: 0.5vmin;
-    color: var(--ot-ink); font: inherit; font-size: calc(0.92vmin * var(--ot-z, 1)); padding: 0.35vmin 0.6vmin; outline: none;
+    color: var(--ot-ink); font: inherit; font-size: 0.92vmin; padding: 0.35vmin 0.6vmin; outline: none;
   }
   .ot-crow .csum:focus { border-color: var(--ot-green2); }
 
   /* ④ session log：黑板即日志，最新在下（终端语义） */
   .ot-log {
     flex: 0 0 10.5vmin; border-top: 1px solid var(--ot-line); background: var(--ot-panel);
-    font-size: calc(0.95vmin * var(--ot-z, 1)); padding: 0.6vmin 1.2vmin 0.5vmin; overflow-y: auto;
+    font-size: 0.95vmin; padding: 0.6vmin 1.2vmin 0.5vmin; overflow-y: auto;
   }
-  .ot-log .lh { color: var(--ot-ink3); letter-spacing: 0.14em; font-size: calc(0.85vmin * var(--ot-z, 1)); margin-bottom: 0.3vmin; }
+  .ot-log .lh { color: var(--ot-ink3); letter-spacing: 0.14em; font-size: 0.85vmin; margin-bottom: 0.3vmin; }
   .ot-log .r { display: flex; gap: 0.9vmin; line-height: 1.7; color: var(--ot-ink2); white-space: nowrap; }
   .ot-log .r .ts { color: var(--ot-ink3); flex: none; }
   .ot-log .r .who { width: 4.2vmin; flex: none; font-weight: 700; }
@@ -475,7 +470,7 @@
   /* ⑤ 状态行 */
   .ot-status {
     flex: 0 0 auto; border-top: 1px solid var(--ot-line); background: #0e1116;
-    font-size: calc(0.95vmin * var(--ot-z, 1)); color: var(--ot-ink2); padding: 0.55vmin 1.2vmin;
+    font-size: 0.95vmin; color: var(--ot-ink2); padding: 0.55vmin 1.2vmin;
     display: flex; gap: 1.4vmin; align-items: center; white-space: nowrap; overflow: hidden;
   }
   .ot-status .prompt { color: var(--ot-green); font-weight: 700; }
@@ -1078,9 +1073,6 @@
       return;
     }
     bar.hidden = false;
-    // 工作面字号倍率（主进程 orch.zoom → body 上的 CSS var，tabbar 与 panel 同吃；
-    // 窗口 resizable:false，这是唯一的放大途径）
-    document.body.style.setProperty('--ot-z', (o && o.zoom) || 1.8);
 
     var sum = o.summary || { total: 0, pending: 0, active: 0 };
     document.getElementById('orchSum').innerHTML =

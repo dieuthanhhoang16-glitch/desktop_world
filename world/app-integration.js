@@ -312,25 +312,12 @@ function showOrchBoard() {
     }
     live.setActiveTab('orch');
     if (live.state() === 'hidden') live.show();
-    notify('工单看板 🎫', '确认 → 派发 → 收敛全部在树内闭环，不用回 CLI');
+    notify('工单看板 🎫', '逐条确认与派发仍走 CLI：npm run world:orch -- list');
     return { ok: true };
   } catch (err) {
     console.error('[orch] 工单看板失败：', err.message);
     notify('工单看板失败 ❌', err.message);
     return { ok: false, reason: err.message };
-  }
-}
-
-/**
- * 托盘「工单看板字号」：调度树工作面字号倍率（v0.7.1）。
- * delta = ±0.2 步进，null = 恢复默认 1.8；主进程持久化 + 定向重推，渲染层无感接棒。
- */
-function orchZoom(delta) {
-  try {
-    return require('./live/live').setOrchZoom(delta);
-  } catch (err) {
-    console.error('[orch] 字号调节失败：', err.message);
-    return null;
   }
 }
 
@@ -379,6 +366,5 @@ module.exports = {
   orchState,
   showOrchBoard,
   orchPreflight,
-  orchZoom,
   DEFAULT_LIVE_ACCEL,
 };
