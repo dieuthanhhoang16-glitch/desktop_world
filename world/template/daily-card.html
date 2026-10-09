@@ -260,112 +260,177 @@
   .study-card[data-st="settled"] .st { color: #f0b429; }
   .study .nohit { font-size: 1.2vmin; color: var(--ink-faint); margin-top: 0.5vmin; }
 
-  /* ---------- 工单看板（v0.7，仅 live；bake 形态整个 tab 不存在）----------
+  /* ---------- 工单调度树（v0.7，仅 live；bake 形态整个 tab 不存在）----------
      形态取舍：这个 tab 走"有底板"而不是动态桌面的无卡片化 widget —— 它是**工作面**
-     （工位图 + 看板列 + 收件箱 + 黑板），信息密度高、需要明确的区块分隔；
-     早报那侧继续保持无卡片化。两者的取舍依据不同，不是同一套规则。 */
+     （MAIN → JEV 判断层 → 工单层 → 收敛带），信息密度高、需要明确的区块分隔；
+     早报那侧继续保持无卡片化。两者的取舍依据不同，不是同一套规则。
+     配色是调度树自己的一套暗色工作面（.ot-* 局部 token），不污染早报侧。 */
   body.bake .tabbar,
   body.bake #panelOrch { display: none !important; }
   body.bake .tabpanel { display: contents; }
   .orch {
     display: none; /* 由下面 body.live 规则打开；bake/非 live 一律不出 */
     position: absolute; inset: 6.5vmin 5vmin 4.5vmin; z-index: 4;
-    overflow-y: auto; overflow-x: hidden;
+    overflow: hidden;
     -webkit-app-region: no-drag;
   }
-  body.live .tabpanel.orch:not([hidden]) { display: block; }
+  body.live .tabpanel.orch:not([hidden]) {
+    display: flex; flex-direction: column;
+    background: #0d0f12; border: 1px solid #2c3442; border-radius: 1vmin;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: #e2e7e2;
+  }
   body.live .tabpanel.orch { display: none; }
   /* tab 切换：非激活的 daily 面板整块隐藏（display:contents 无法隐藏，所以走 .page 的类） */
   body.live.tab-orch #panelDaily { display: none; }
 
-  .orch-head { display: flex; align-items: baseline; justify-content: space-between; gap: 2vmin; }
-  .orch-title { font-size: 1.6vmin; letter-spacing: 0.22em; color: var(--ink); font-weight: 600; }
-  .orch-sum { font-size: 1.25vmin; color: var(--ink-faint); display: flex; gap: 1.2vmin; flex-wrap: wrap; }
-  .orch-sum b { color: var(--ink-dim); font-weight: 700; }
-
-  /* 工位场景：SVG 由主进程确定性渲染，这里只做定尺 + 信封飞行的定位容器 */
-  .orch-scene {
-    position: relative; margin-top: 1.2vmin;
-    background: rgba(7, 11, 26, 0.42); border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 1.2vmin; padding: 0.8vmin; overflow: hidden;
-  }
-  .orch-scene-svg svg { display: block; width: 100%; height: auto; image-rendering: pixelated; }
-  .orch-scene .noscene { font-size: 1.25vmin; color: var(--ink-faint); padding: 2.4vmin 0; text-align: center; }
-
-  /* 飞行信封：位置/时长由 CSS 变量给出，动画全部走 transform（合成器友好） */
-  .orch-env { position: absolute; inset: 0; pointer-events: none; }
-  .orch-env i {
-    position: absolute; left: 0; top: 0; width: 1.1vmin; height: 0.8vmin;
-    background: #f5e6c8; border-radius: 0.15vmin;
-    box-shadow: 0 0 0.4vmin rgba(245, 230, 200, 0.45);
-    opacity: 0;
-    transform: translate3d(var(--x0), var(--y0), 0);
-    animation: envFly var(--dur, 4.2s) linear var(--delay, 0s) infinite;
-  }
-  @keyframes envFly {
-    0%   { opacity: 0; transform: translate3d(var(--x0), var(--y0), 0); }
-    12%  { opacity: 1; }
-    50%  { opacity: 1; transform: translate3d(var(--xm), calc(var(--y0) - var(--lift)), 0); }
-    88%  { opacity: 1; }
-    100% { opacity: 0; transform: translate3d(var(--x1), var(--y1), 0); }
-  }
-  /* 尊重系统"减少动态效果"：信封静止在起点，不做位移动画 */
-  @media (prefers-reduced-motion: reduce) {
-    .orch-env i { animation: none; opacity: 0.85; transform: translate3d(var(--x1), var(--y1), 0); }
+  /* 调度树局部 token（红橙黄绿青紫的语义与 mockup 锁定一致） */
+  .orch {
+    --ot-line: #222832; --ot-line2: #2c3442;
+    --ot-panel: #101318; --ot-panel2: #131720;
+    --ot-ink: #e2e7e2; --ot-ink2: #98a19c; --ot-ink3: #5f6866;
+    --ot-green: #5eead4; --ot-green2: #34d399; --ot-cyan: #67d6e8;
+    --ot-vio: #a78bfa; --ot-gold: #e8c15a; --ot-red: #f87171; --ot-org: #fb923c;
   }
 
-  .orch-warn {
-    margin-top: 1vmin; padding: 0.7vmin 1vmin; border-radius: 0.9vmin;
-    background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.4);
-    color: #fecaca; font-size: 1.25vmin;
+  /* ① roster 带：图例即真相 */
+  .ot-roster {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 1.6vmin;
+    padding: 0.9vmin 1.4vmin; border-bottom: 1px solid var(--ot-line);
+    font-size: 1.15vmin;
   }
+  .ot-roster .ttl { font-weight: 700; letter-spacing: 0.12em; color: var(--ot-ink); }
+  .ot-roster .lg { display: flex; align-items: center; gap: 0.5vmin; color: var(--ot-ink2); }
+  .ot-roster .lg i { width: 0.8vmin; height: 0.8vmin; border-radius: 0.2vmin; flex: none; }
+  .ot-roster .sp { flex: 1; }
+  .ot-roster .sum { color: var(--ot-ink3); }
+  .ot-roster .sum b { color: var(--ot-ink2); font-weight: 600; }
 
-  /* 工单列：横向排布，空列也占位（列宽稳定，拖动/热刷新时不跳） */
-  .orch-cols { display: flex; gap: 1vmin; margin-top: 1.2vmin; align-items: flex-start; }
-  .orch-col {
-    flex: 1 1 0; min-width: 0;
-    background: rgba(7, 11, 26, 0.34); border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1vmin; padding: 0.7vmin;
-  }
-  .orch-col > .label { font-size: 1.2vmin; color: var(--ink-faint); letter-spacing: 0.14em; }
-  .orch-col > .label .n { color: var(--ink-dim); font-weight: 700; }
-  .orch-col .cards { display: flex; flex-direction: column; gap: 0.5vmin; margin-top: 0.6vmin; }
-  .orch-col .empty { font-size: 1.1vmin; color: var(--ink-faint); opacity: 0.55; }
-  .orch-card {
-    border-radius: 0.8vmin; padding: 0.55vmin 0.7vmin;
-    background: rgba(255, 255, 255, 0.045); border-left: 0.28vmin solid var(--c, #64748b);
-  }
-  .orch-card .oid { font-size: 1.1vmin; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
-  .orch-card .otitle { font-size: 1.25vmin; color: var(--ink); line-height: 1.4; word-break: break-word; }
-  .orch-card .ometa { font-size: 1.1vmin; color: var(--ink-faint); margin-top: 0.25vmin; word-break: break-all; }
-  .orch-card .odeps { font-size: 1.05vmin; color: #f0b429; opacity: 0.85; margin-top: 0.2vmin; }
-  .orch-card ol { margin: 0.3vmin 0 0; padding-left: 1.6vmin; }
-  .orch-card li { font-size: 1.05vmin; color: var(--ink-dim); line-height: 1.4; }
+  .ot-mid { flex: 1; display: flex; min-height: 0; }
 
-  .orch-lower { display: flex; gap: 1vmin; margin-top: 1.2vmin; align-items: flex-start; }
-  .orch-lower > section {
-    flex: 1 1 0; min-width: 0;
-    background: rgba(7, 11, 26, 0.34); border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1vmin; padding: 0.8vmin;
+  /* ② 守门员栏：只在三个时刻发言；红线常驻 */
+  .ot-keeper {
+    flex: 0 0 21vmin; border-right: 1px solid var(--ot-line); background: var(--ot-panel);
+    padding: 1.1vmin 1.2vmin; display: flex; flex-direction: column; overflow-y: auto;
   }
-  .orch-lower .label { font-size: 1.2vmin; color: var(--ink-faint); letter-spacing: 0.14em; }
-  .orch-lower .label .hint { letter-spacing: 0.06em; opacity: 0.7; margin-left: 0.6vmin; }
-  .orch-inbox-list, .orch-fact-list { margin-top: 0.6vmin; max-height: 16vmin; overflow-y: auto; }
-  .orch-inbox-row { font-size: 1.2vmin; color: var(--ink-dim); padding: 0.25vmin 0; }
-  .orch-inbox-row .sid { color: var(--blue); }
-  .orch-inbox-row .n { color: #f0b429; font-weight: 700; }
-  .orch-fact {
-    font-size: 1.15vmin; color: var(--ink-dim); line-height: 1.5;
-    padding: 0.3vmin 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+  .ot-keeper h3 { font-size: 1.1vmin; letter-spacing: 0.18em; color: var(--ot-gold); margin: 0 0 0.2vmin; font-weight: 700; }
+  .ot-keeper .role { font-size: 0.95vmin; color: var(--ot-ink3); margin-bottom: 0.9vmin; }
+  .ot-keeper .mom { color: var(--ot-ink2); line-height: 1.7; font-size: 1.05vmin; }
+  .ot-keeper .mom .m { color: var(--ot-ink); }
+  .ot-keeper .advice {
+    border: 1px dashed var(--ot-line2); border-radius: 0.7vmin;
+    padding: 0.7vmin 0.8vmin; color: var(--ot-gold); line-height: 1.55; margin: 0.9vmin 0; font-size: 1vmin;
+    word-break: break-word;
   }
-  .orch-fact .fk { color: var(--ink-faint); font-size: 1.05vmin; }
-  .orch-fact .ft { color: #f0b429; }
-  .orch-lower .none { font-size: 1.1vmin; color: var(--ink-faint); opacity: 0.6; margin-top: 0.4vmin; }
-  .orch-hint { margin-top: 1.2vmin; font-size: 1.1vmin; color: var(--ink-faint); }
-  .orch-hint code {
-    color: var(--ink-dim); background: rgba(255, 255, 255, 0.06);
-    border-radius: 0.3vmin; padding: 0.1vmin 0.4vmin;
+  .ot-keeper .advice .al { display: block; color: var(--ot-ink3); font-size: 0.85vmin; letter-spacing: 0.1em; margin-bottom: 0.35vmin; }
+  .ot-keeper .counts { font-size: 0.95vmin; color: var(--ot-ink2); display: grid; grid-template-columns: 1fr auto; gap: 0.3vmin 0.9vmin; margin: 0.4vmin 0 0.8vmin; }
+  .ot-keeper .counts b { color: var(--ot-ink); font-weight: 600; text-align: right; }
+  .ot-keeper .counts b.bad { color: var(--ot-red); }
+  .ot-keeper .quiet { color: var(--ot-ink3); font-size: 0.95vmin; }
+  .ot-keeper .oath { margin-top: auto; border-top: 1px solid var(--ot-line); padding-top: 0.8vmin; color: var(--ot-ink3); font-size: 0.95vmin; line-height: 1.65; }
+  .ot-keeper .oath b { color: var(--ot-red); font-weight: 600; }
+
+  /* ③ 树主面：MAIN → JEV → spawn → 工单层 → 收敛带 */
+  .ot-tree { flex: 1; min-width: 0; position: relative; overflow-y: auto; overflow-x: auto; display: flex; flex-direction: column; align-items: center; padding: 1.4vmin 1.6vmin 1vmin; }
+  .ot-tree svg.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .ot-node {
+    position: relative; z-index: 1; background: var(--ot-panel2);
+    border: 1px solid var(--ot-line2); border-radius: 0.9vmin; padding: 0.8vmin 1.1vmin;
   }
+  .ot-node .nh { display: flex; align-items: baseline; justify-content: space-between; gap: 1.1vmin; font-size: 0.9vmin; color: var(--ot-ink3); }
+  .ot-node .nh .who { color: var(--ot-green); font-weight: 700; letter-spacing: 0.08em; }
+  .ot-link { width: 1px; height: 1.6vmin; background: var(--ot-line2); flex: none; }
+
+  .ot-main { width: 40vmin; border-color: #2f4a44; }
+  .ot-main .goal { font-size: 1.25vmin; color: var(--ot-ink); line-height: 1.5; margin: 0.4vmin 0 0.6vmin; word-break: break-word; }
+  .ot-main .goal .none { color: var(--ot-ink3); font-size: 1.05vmin; }
+  .ot-pbar { height: 0.65vmin; border-radius: 0.4vmin; background: #1a2027; overflow: hidden; }
+  .ot-pbar i { display: block; height: 100%; background: var(--ot-green2); border-radius: 0.4vmin 0 0 0.4vmin; }
+  .ot-main .pmeta { display: flex; justify-content: space-between; font-size: 0.9vmin; color: var(--ot-ink2); margin-top: 0.45vmin; }
+
+  /* JEV 判断层：概率条 sharp 绿 / split 金 / no 灰；没有 judgment 数据时折叠一行 */
+  .ot-jev { width: 44vmin; border-color: #363050; }
+  .ot-jev .nh .who { color: var(--ot-vio); }
+  .ot-jev .forks { color: var(--ot-ink3); }
+  .ot-jev.local { border-style: dashed; padding: 0.55vmin 1.1vmin; color: var(--ot-ink3); font-size: 0.95vmin; }
+  .ot-jev.local .who { color: var(--ot-vio); font-weight: 700; margin-right: 0.8vmin; }
+  .ot-jrow { display: grid; grid-template-columns: 11vmin 1fr 7vmin; align-items: center; gap: 0.9vmin; margin-top: 0.5vmin; font-size: 1vmin; }
+  .ot-jrow .jl { color: var(--ot-ink2); font-size: 0.95vmin; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ot-jbar { height: 0.85vmin; background: #1a2027; border-radius: 0.25vmin; overflow: hidden; }
+  .ot-jbar i { display: block; height: 100%; border-radius: 0.25vmin 0 0 0.25vmin;
+    background-image: repeating-linear-gradient(90deg, currentColor 0 0.45vmin, transparent 0.45vmin 0.65vmin); }
+  .ot-jrow .jv { font-size: 0.9vmin; text-align: right; }
+  .ot-v-sharp { color: var(--ot-green2); } .ot-v-split { color: var(--ot-gold); } .ot-v-no { color: var(--ot-ink3); }
+  .ot-jev .legend { margin-top: 0.7vmin; padding-top: 0.5vmin; border-top: 1px dashed var(--ot-line2); font-size: 0.85vmin; color: var(--ot-ink3); }
+
+  .ot-spawn-line { margin: 0.2vmin 0 0.7vmin; font-size: 0.9vmin; color: var(--ot-ink3); letter-spacing: 0.06em; flex: none; }
+  .ot-spawn-line b { color: var(--ot-cyan); font-weight: 600; }
+
+  .ot-lanes { display: flex; gap: 1.1vmin; align-items: flex-start; z-index: 1; }
+  .ot-lane { display: flex; flex-direction: column; gap: 0.8vmin; }
+  .tcard {
+    width: 14.5vmin; background: var(--ot-panel2); border: 1px solid var(--ot-line2);
+    border-radius: 0.7vmin; padding: 0.6vmin 0.8vmin; font-size: 1vmin; position: relative;
+  }
+  .tcard .tid { font-size: 0.85vmin; color: var(--ot-ink3); display: flex; justify-content: space-between; align-items: center; gap: 0.5vmin; }
+  .tcard .tid .st { font-weight: 700; }
+  .tcard .tname { color: var(--ot-ink); line-height: 1.45; margin: 0.3vmin 0 0.4vmin; font-size: 1vmin; word-break: break-word; }
+  .tcard .tmeta { font-size: 0.8vmin; color: var(--ot-ink3); display: flex; justify-content: space-between; gap: 0.5vmin; }
+  .tcard .tdeps { font-size: 0.8vmin; color: var(--ot-gold); opacity: 0.9; margin-top: 0.25vmin; }
+  .tcard .ot-pbar { height: 0.45vmin; margin-top: 0.5vmin; }
+  .tcard .sig { margin-top: 0.4vmin; font-size: 0.8vmin; }
+  .tcard .sig .on { color: var(--ot-green2); } .tcard .sig .off { color: var(--ot-ink3); }
+  .tcard .flag {
+    position: absolute; top: -0.75vmin; right: 0.7vmin; font-size: 0.78vmin;
+    border-radius: 0.35vmin; padding: 0.1vmin 0.5vmin; line-height: 1.5;
+  }
+  .tcard .flag.stale { background: #2b1e10; color: var(--ot-org); border: 1px solid #4d3a2b; }
+  .tcard .flag.blocked { background: #2b1010; color: var(--ot-red); border: 1px solid #4d2b2b; }
+  .tcard.s-draft { border-color: #31383f; } .tcard.s-draft .ot-pbar i { background: #94a3b8; } .tcard.s-draft .st { color: #94a3b8; }
+  .tcard.s-confirmed { border-color: #2b3a4d; } .tcard.s-confirmed .ot-pbar i { background: var(--ot-cyan); } .tcard.s-confirmed .st { color: var(--ot-cyan); }
+  .tcard.s-dispatched { border-color: #363050; } .tcard.s-dispatched .ot-pbar i { background: var(--ot-vio); } .tcard.s-dispatched .st { color: var(--ot-vio); }
+  .tcard.s-running { border-color: #2f4a44; } .tcard.s-running .ot-pbar i { background: var(--ot-green2); } .tcard.s-running .st { color: var(--ot-green2); }
+  .tcard.s-done { border-color: #4a4023; } .tcard.s-done .ot-pbar i { background: var(--ot-gold); } .tcard.s-done .st { color: var(--ot-gold); }
+  .tcard.s-failed { border-color: #4d2b2b; background: #181010; } .tcard.s-failed .ot-pbar i { background: var(--ot-red); } .tcard.s-failed .st { color: var(--ot-red); }
+  .tcard.s-blocked { border-color: #4d3a2b; background: #171310; } .tcard.s-blocked .ot-pbar i { background: var(--ot-org); } .tcard.s-blocked .st { color: var(--ot-org); }
+
+  /* 收敛带：M1 只读 —— 验收进度可见，收敛动作仍在 CLI */
+  .ot-converge {
+    width: 44vmin; margin-top: 0.2vmin; border: 1px solid #2f4a44; border-radius: 0.9vmin;
+    background: var(--ot-panel2); padding: 0.7vmin 1.1vmin 0.8vmin; z-index: 1; position: relative;
+  }
+  .ot-converge .nh { display: flex; justify-content: space-between; font-size: 0.9vmin; color: var(--ot-ink3); }
+  .ot-converge .nh .who { color: var(--ot-green); font-weight: 700; }
+  .ot-crow { display: flex; align-items: baseline; gap: 0.8vmin; margin-top: 0.5vmin; font-size: 0.95vmin; }
+  .ot-crow .cid { color: var(--ot-green2); flex: none; }
+  .ot-crow .cchk { color: var(--ot-ink2); flex: none; }
+  .ot-crow .chint { color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ④ session log：黑板即日志，最新在下（终端语义） */
+  .ot-log {
+    flex: 0 0 10.5vmin; border-top: 1px solid var(--ot-line); background: var(--ot-panel);
+    font-size: 0.95vmin; padding: 0.6vmin 1.2vmin 0.5vmin; overflow-y: auto;
+  }
+  .ot-log .lh { color: var(--ot-ink3); letter-spacing: 0.14em; font-size: 0.85vmin; margin-bottom: 0.3vmin; }
+  .ot-log .r { display: flex; gap: 0.9vmin; line-height: 1.7; color: var(--ot-ink2); white-space: nowrap; }
+  .ot-log .r .ts { color: var(--ot-ink3); flex: none; }
+  .ot-log .r .who { width: 4.2vmin; flex: none; font-weight: 700; }
+  .ot-log .r.jev .who { color: var(--ot-vio); } .ot-log .r.gate .who { color: var(--ot-cyan); }
+  .ot-log .r.orch .who { color: var(--ot-green2); } .ot-log .r.user .who { color: var(--ot-gold); }
+  .ot-log .r .tx { overflow: hidden; text-overflow: ellipsis; }
+  .ot-log .none { color: var(--ot-ink3); }
+
+  /* ⑤ 状态行 */
+  .ot-status {
+    flex: 0 0 auto; border-top: 1px solid var(--ot-line); background: #0e1116;
+    font-size: 0.95vmin; color: var(--ot-ink2); padding: 0.55vmin 1.2vmin;
+    display: flex; gap: 1.4vmin; align-items: center; white-space: nowrap; overflow: hidden;
+  }
+  .ot-status .prompt { color: var(--ot-green); font-weight: 700; }
+  .ot-status b { color: var(--ot-ink); font-weight: 600; }
+  .ot-status .bad { color: var(--ot-red); font-weight: 700; }
+  .ot-status .cur { flex: 1; }
+
 
   /* ---------- 番茄钟（v0.7，仅 live 组件；烘焙壁纸完全不含此板块）---------- */
   body.bake .pomo { display: none !important; }
@@ -594,30 +659,25 @@
   </aside>
   </div><!-- /tabpanel:daily -->
 
-  <!-- tab:orch —— 工单看板（v0.7）。工位场景 + 工单列 + 收件箱 + 黑板。
-       整个 panel 默认 hidden：没建过工单、或 bake 形态下永不出现。 -->
+  <!-- tab:orch —— 工单调度树（v0.7 重写）。五个区：roster 带 / 守门员栏 / 树主面 / session log / 状态行。
+       整个 panel 默认 hidden：没建过工单、或 bake 形态下永不出现。
+       M1 只读：确认/派发/收敛仍在 CLI（stage ③ 人确认回路不进渲染层）。 -->
   <div class="tabpanel orch" id="panelOrch" hidden>
-    <div class="orch-head">
-      <div class="orch-title">🎫 工单看板 TICKETS</div>
-      <div class="orch-sum" id="orchSum"></div>
+    <div class="ot-roster">
+      <span class="ttl">工单调度树</span>
+      <span class="lg"><i style="background:var(--ot-green)"></i>sol · 主会话</span>
+      <span class="lg"><i style="background:var(--ot-cyan)"></i>agents</span>
+      <span class="lg"><i style="background:var(--ot-vio)"></i>jev · 判断</span>
+      <span class="lg"><i style="background:var(--ot-gold)"></i>gate · 守门</span>
+      <span class="sp"></span>
+      <span class="sum" id="orchSum"></span>
     </div>
-    <div class="orch-scene">
-      <div class="orch-scene-svg" id="orchScene"></div>
-      <div class="orch-env" id="orchEnv" aria-hidden="true"></div>
+    <div class="ot-mid">
+      <aside class="ot-keeper" id="orchKeeper"></aside>
+      <div class="ot-tree" id="orchTree"></div>
     </div>
-    <div class="orch-warn" id="orchWarn" hidden></div>
-    <div class="orch-cols" id="orchCols"></div>
-    <div class="orch-lower">
-      <section class="orch-inbox">
-        <div class="label">✉️ 收件箱 INBOX <span class="hint">派发只投递，不代你执行</span></div>
-        <div class="orch-inbox-list" id="orchInbox"></div>
-      </section>
-      <section class="orch-facts">
-        <div class="label">🧠 共享事实 BLACKBOARD <span class="hint">只追加，不覆盖</span></div>
-        <div class="orch-fact-list" id="orchFacts"></div>
-      </section>
-    </div>
-    <div class="orch-hint">派单与逐条确认在 CLI：<code>npm run world:orch -- plan "…" --agent &lt;id&gt;</code> · <code>--list</code> · <code>--dispatch ORCH-001 --to &lt;sessionId&gt;</code></div>
+    <div class="ot-log" id="orchLog"></div>
+    <div class="ot-status" id="orchStatus"></div>
   </div><!-- /tabpanel:orch -->
 </div>
 
@@ -907,19 +967,11 @@
     }, 1000);
   }
 
-  // ---------- 工单看板（v0.7）：纯渲染层 ----------
-  // 数据全部来自主进程 buildOrchView（R.orch）。渲染层不读文件、不做可行性判断、
-  // 不派单 —— 派单与逐条确认是 CLI 的事（stage ③ 的硬闸门在 CLI 里）。
-  var ORCH_COLS = [
-    ['draft', '草案', '#94a3b8'],
-    ['confirmed', '已确认', '#7dd3fc'],
-    ['dispatched', '已派发', '#a78bfa'],
-    ['running', '执行中', '#4ade80'],
-    ['done', '已完成', '#f0b429'],
-    ['failed', '失败', '#f87171'],
-    ['blocked', '阻塞', '#fb923c'],
-  ];
-  var ORCH_FACT_ICON = { fact: '·', decision: '⚖️', blocker: '🚧', convergence: '🌳', correction: '✏️' };
+  // ---------- 工单调度树（v0.7 重写）：纯渲染层 ----------
+  // 数据全部来自主进程 buildOrchView + tree-model（R.orch.tree）。
+  // 渲染层不读文件、不做可行性判断、不派单 —— M1 只读；
+  // 派单与逐条确认是 CLI 的事（stage ③ 的硬闸门在 CLI 里）。
+  var OT_ENGINE_LABEL = { working: 'working', thinking: 'thinking', juggling: 'juggling', attention: 'attention', sweeping: 'sweeping', carrying: 'carrying', notification: 'notification', idle: 'idle', sleeping: 'sleeping' };
   var orchTab = 'daily'; // 当前 tab；托盘可通过 __worldSetTab 切进来
 
   function setTab(next) {
@@ -933,11 +985,22 @@
     document.getElementById('panelOrch').hidden = orchTab !== 'orch';
   }
 
+  function otPct(p) { return Math.round((Number(p) || 0) * 100); }
+  function otBar(p) { return '<div class="ot-pbar"><i style="width:' + otPct(p) + '%"></i></div>'; }
+  function otTime(at) {
+    var n = Number(at);
+    if (!n) return '--:--:--';
+    var d = new Date(n);
+    function pad(x) { return (x < 10 ? '0' : '') + x; }
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
   function renderOrch(o) {
     var bar = document.getElementById('tabBar');
     var panel = document.getElementById('panelOrch');
+    var t = o && o.tree;
     // 没有工单 → 整个 tab 不出现（连 tab 按钮都不亮），不占界面
-    if (!o || !o.active) {
+    if (!o || !o.active || !t) {
       bar.hidden = true;
       panel.hidden = true;
       if (orchTab === 'orch') setTab('daily');
@@ -946,10 +1009,9 @@
     bar.hidden = false;
 
     var sum = o.summary || { total: 0, pending: 0, active: 0 };
-    var unread = (o.inbox || []).reduce(function (a, b) { return a + (b.unread || 0); }, 0);
     document.getElementById('orchSum').innerHTML =
       '共 <b>' + sum.total + '</b> 张 · 待确认 <b>' + sum.pending + '</b> · 在跑 <b>' + sum.active + '</b>' +
-      (unread ? ' · 未读信封 <b>' + unread + '</b>' : '');
+      (t.status.inbox ? ' · 未读信封 <b>' + t.status.inbox + '</b>' : '');
     var badge = document.getElementById('orchBadge');
     if (badge) {
       var n = sum.pending || 0;
@@ -957,100 +1019,163 @@
       badge.textContent = n > 0 ? String(n) : '';
     }
 
-    // 工位场景：SVG 是主进程确定性渲染好的字符串（纯像素，无脚本）
-    var sc = document.getElementById('orchScene');
-    sc.innerHTML = (o.scene && o.scene.svg)
-      ? o.scene.svg
-      : '<div class="noscene">还没有工位——先在 CLI 拆一张工单：npm run world:orch -- plan "…" --agent claude-code</div>';
-
-    // 成环时明说，不装作正常
-    var warn = document.getElementById('orchWarn');
-    var cycles = o.cycles || [];
-    warn.hidden = cycles.length === 0;
-    if (cycles.length) {
-      warn.textContent = '⚠️ 依赖成环，派单会被拦下：' + cycles.map(function (c) { return c.join(' → '); }).join('；');
-    }
-
-    // 工单列：只渲染非空列，空列也保留一格占位避免热刷新时列宽乱跳
-    var colsEl = document.getElementById('orchCols');
-    colsEl.innerHTML = '';
-    var columns = o.columns || {};
-    var shown = ORCH_COLS.filter(function (c) { return (columns[c[0]] || []).length; });
-    var use = shown.length ? shown : ORCH_COLS.slice(0, 4);
-    use.forEach(function (c) {
-      var list = columns[c[0]] || [];
-      var col = document.createElement('div');
-      col.className = 'orch-col';
-      var cards = list.length
-        ? list.map(function (t) {
-            var deps = t.dependsOn || [];
-            return '<div class="orch-card" style="--c:' + c[2] + '">' +
-              '<div class="oid">' + esc(t.id) + '</div>' +
-              '<div class="otitle">' + esc(t.title) + '</div>' +
-              '<div class="ometa">' + esc(t.agent || '未指定 agent') + (t.sessionId ? ' · 已接会话' : '') + '</div>' +
-              (deps.length ? '<div class="odeps">依赖 ' + esc(deps.join(', ')) + '</div>' : '') +
-              ((t.acceptance && t.acceptance.length)
-                ? '<ol>' + t.acceptance.slice(0, 4).map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ol>'
-                : '') +
-              '</div>';
-          }).join('')
-        : '<div class="empty">—</div>';
-      col.innerHTML = '<div class="label">' + c[1] + ' <span class="n">' + list.length + '</span></div>' +
-        '<div class="cards">' + cards + '</div>';
-      colsEl.appendChild(col);
-    });
-
-    // 收件箱概览
-    var inbox = o.inbox || [];
-    document.getElementById('orchInbox').innerHTML = inbox.length
-      ? inbox.map(function (b) {
-          return '<div class="orch-inbox-row"><span class="sid">' + esc(b.sessionId) + '</span> · <span class="n">' + b.unread + '</span> 封未读</div>';
-        }).join('')
-      : '<div class="none">没有未读信封</div>';
-
-    // 黑板事实（只追加，所以倒序即时间序）
-    var facts = o.facts || [];
-    document.getElementById('orchFacts').innerHTML = facts.length
-      ? facts.map(function (f) {
-          return '<div class="orch-fact">' +
-            '<span class="fk">' + (ORCH_FACT_ICON[f.kind] || '·') + ' ' + esc(f.ticketIds && f.ticketIds.length ? f.ticketIds.join(', ') : '') + '</span> ' +
-            '<span class="ft">' + esc(f.text) + '</span></div>';
-        }).join('')
-      : '<div class="none">黑板还是空的</div>';
-
-    layoutEnvelopes(o);
+    renderKeeper(t);
+    renderTree(t);
+    renderLog(t);
+    renderStatus(t);
   }
 
-  // 飞行信封：只写 CSS 变量，动画由 @keyframes 的 transform 表达。
-  // 刻意不做逐帧 JS —— JS 只在渲染/热刷时算一次坐标。
-  function layoutEnvelopes(o) {
-    var wrap = document.getElementById('orchEnv');
-    var svg = document.querySelector('#orchScene svg');
-    var envs = (o && o.envelopes) || [];
-    wrap.innerHTML = '';
-    if (!svg || !envs.length) return;
-    // SVG viewBox 是 320x96（CELL=2 → 160x48格），按实际显示宽度换算成 px
-    var box = svg.getBoundingClientRect();
-    if (!box.width) return;
-    var VB_W = 320, VB_H = 96;
-    var k = box.width / VB_W;
-    envs.forEach(function (e, i) {
-      var i2 = document.createElement('i');
-      // 工位坐标是像素格（1格=CELL=2px），CSS 里直接给 px 偏移
-      var x0 = e.from.x * 2 * k, y0 = (96 - e.from.y * 2 - 8) * k;
-      var x1 = e.to.x * 2 * k, y1 = (96 - e.to.y * 2 - 8) * k;
-      var xm = (x0 + x1) / 2;
-      i2.style.setProperty('--x0', x0.toFixed(1) + 'px');
-      i2.style.setProperty('--y0', y0.toFixed(1) + 'px');
-      i2.style.setProperty('--xm', xm.toFixed(1) + 'px');
-      i2.style.setProperty('--y1', y1.toFixed(1) + 'px');
-      i2.style.setProperty('--x1', x1.toFixed(1) + 'px');
-      i2.style.setProperty('--lift', (e.lift * 2 * k).toFixed(1) + 'px');
-      // 错峰：低频节奏，避免所有信封同时出发
-      i2.style.setProperty('--delay', (i * 0.7).toFixed(2) + 's');
-      i2.style.setProperty('--dur', (4.2 + (i % 3) * 0.6).toFixed(2) + 's');
-      wrap.appendChild(i2);
+  // ② 守门员栏：三闸门 + 红线常驻。M1 数据全来自账本/黑板/decisions（只读）。
+  function renderKeeper(t) {
+    var k = t.keeper || { blocked: 0, failed: 0, cycles: 0, lastAdvice: '' };
+    document.getElementById('orchKeeper').innerHTML =
+      '<h3>GATE KEEPER</h3><div class="role">三闸门 · on call</div>' +
+      '<div class="mom">只在三个时刻发言：<br><span class="m">◇</span> 派发之前<br><span class="m">◇</span> 连续失败<br><span class="m">◇</span> 收敛之前</div>' +
+      '<div class="advice"><span class="al">last advice</span>' + esc(k.lastAdvice || 'silent on every routine turn') + '</div>' +
+      '<div class="counts">' +
+        '<span>阻塞</span><b' + (k.blocked ? ' class="bad"' : '') + '>' + k.blocked + '</b>' +
+        '<span>失败</span><b' + (k.failed ? ' class="bad"' : '') + '>' + k.failed + '</b>' +
+        '<span>依赖环</span><b' + (k.cycles ? ' class="bad"' : '') + '>' + k.cycles + '</b>' +
+        '<span>jev forks</span><b>' + (t.status.jev || 0) + '</b>' +
+      '</div>' +
+      '<div class="quiet">写操作仍在 CLI（M1 只读）</div>' +
+      '<div class="oath"><b>从不 spawn 进程。</b><br>派单只写信封；动不动手，那个 agent 自己定。</div>';
+  }
+
+  // ③ 树主面：MAIN → JEV → spawn → 工单层 → 收敛带
+  function renderTree(t) {
+    var html = '<svg class="wires" id="orchWires" aria-hidden="true"></svg>';
+
+    html += '<div class="ot-node ot-main">' +
+      '<div class="nh"><span class="who">MAIN · 主会话</span><span>plans + writes code</span></div>' +
+      '<div class="goal">' + (t.main.goal
+        ? esc(t.main.goal)
+        : '<span class="none">还没有立单目标——CLI：npm run world:orch -- plan "…" --agent &lt;id&gt;</span>') + '</div>' +
+      otBar(t.main.progress) +
+      '<div class="pmeta"><span>' + t.main.tickets + ' tickets · max 8</span><span>' + otPct(t.main.progress) + '%</span></div></div>';
+
+    html += '<div class="ot-link"></div>';
+
+    if (t.judgment) {
+      html += '<div class="ot-node ot-jev"><div class="nh"><span class="who">JEV · fork layer</span><span class="forks">forks ' + t.judgment.forks + '</span></div>';
+      t.judgment.bars.forEach(function (b) {
+        html += '<div class="ot-jrow"><span class="jl">' + esc(b.label) + '</span>' +
+          '<div class="ot-jbar ot-v-' + b.verdict + '"><i style="width:' + otPct(b.p) + '%"></i></div>' +
+          '<span class="jv ot-v-' + b.verdict + '">' + b.p.toFixed(2) + ' ' + b.verdict + '</span></div>';
+      });
+      html += '<div class="legend"><span class="ot-v-sharp">sharp → 直接立单</span> · <span class="ot-v-split">split → 人来定</span> · no → 不问</div></div>';
+    } else {
+      html += '<div class="ot-node ot-jev local"><span class="who">JEV</span>judgment · local · 没问 Jev</div>';
+    }
+
+    html += '<div class="ot-spawn-line">spawn · max 8 · <b>' + t.main.tickets + ' 张</b> · 按拓扑分列</div>';
+
+    html += '<div class="ot-lanes">';
+    t.lanes.forEach(function (lane) {
+      html += '<div class="ot-lane">';
+      lane.forEach(function (c) { html += tcardHtml(c, t.signals.byTicket[c.id] || {}); });
+      html += '</div>';
     });
+    html += '</div>';
+
+    if (t.converge.length) {
+      html += '<div class="ot-converge"><div class="nh"><span class="who">收敛 · review + verify</span><span>验收过了才算完</span></div>';
+      t.converge.forEach(function (c) {
+        var done = (c.acceptanceDone || []).filter(Boolean).length;
+        html += '<div class="ot-crow"><span class="cid">' + esc(c.id) + '</span>' +
+          '<span class="cchk">验收 ' + done + '/' + (c.acceptance || []).length + '</span>' +
+          '<span class="chint">npm run world:orch -- converge ' + esc(c.id) + ' --summary "…"</span></div>';
+      });
+      html += '</div>';
+    }
+
+    var el = document.getElementById('orchTree');
+    el.innerHTML = html;
+    // 依赖连线要等 DOM 落位后量坐标（与旧信封同一个纪律：JS 只在渲染时算一次）。
+    // 此刻 panel 可能还 hidden（量出来全是 0）→ 切 tab 时还会再量一次（relayoutOrchWires）。
+    requestAnimationFrame(function () { layoutTreeWires(t); });
+  }
+
+  function tcardHtml(c, sig) {
+    var label = c.statusLabel || c.status;
+    var engine = sig.engine || '';
+    var on = engine && engine !== 'idle' && engine !== 'sleeping';
+    var sigText = sig.stale ? '◌ ' + (OT_ENGINE_LABEL[engine] || '无会话')
+      : on ? '● ' + (OT_ENGINE_LABEL[engine] || engine)
+      : engine ? '◌ ' + (OT_ENGINE_LABEL[engine] || engine)
+      : '○ 无会话';
+    var flag = '';
+    if (c.status === 'blocked') flag = '<span class="flag blocked">待改派</span>';
+    else if (sig.stale) flag = '<span class="flag stale">还没接活</span>';
+    return '<div class="tcard s-' + esc(c.status) + '" data-tid="' + esc(c.id) + '">' + flag +
+      '<div class="tid"><span>' + esc(c.id) + '</span><span class="st">' + esc(label) + '</span></div>' +
+      '<div class="tname">' + esc(c.title) + '</div>' +
+      '<div class="tmeta"><span>' + esc(c.agent || '?') + '</span><span>' + esc(c.action || '') + '</span></div>' +
+      otBar(c.progress) +
+      '<div class="sig"><span class="' + (on ? 'on' : 'off') + '">' + esc(sigText) + '</span></div></div>';
+  }
+
+  // 依赖连线（dependsOn 边）：DOM 落位后量一次坐标，画静态贝塞尔，不做动画。
+  function layoutTreeWires(t) {
+    var svg = document.getElementById('orchWires');
+    var host = document.getElementById('orchTree');
+    if (!svg || !host || !t) return;
+    var hb = host.getBoundingClientRect();
+    if (!hb.width) return; // panel 还 hidden：等切 tab 时重量
+    function port(id, side) {
+      var card = host.querySelector('.tcard[data-tid="' + id + '"]');
+      if (!card) return null;
+      var b = card.getBoundingClientRect();
+      var x = (side === 'left' ? b.left : b.right) - hb.left + host.scrollLeft;
+      return { x: x, y: b.top - hb.top + host.scrollTop + b.height / 2 };
+    }
+    svg.setAttribute('viewBox', '0 0 ' + host.scrollWidth + ' ' + host.scrollHeight);
+    svg.textContent = '';
+    var ns = 'http://www.w3.org/2000/svg';
+    (t.edges || []).forEach(function (e) {
+      var a = port(e.from, 'right');
+      var b = port(e.to, 'left');
+      if (!a || !b) return;
+      var mx = (a.x + b.x) / 2;
+      var p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', 'M ' + a.x + ' ' + a.y + ' C ' + mx + ' ' + a.y + ' ' + mx + ' ' + b.y + ' ' + b.x + ' ' + b.y);
+      p.setAttribute('fill', 'none');
+      p.setAttribute('stroke', '#2c3442');
+      p.setAttribute('stroke-width', '1.2');
+      svg.appendChild(p);
+    });
+  }
+
+  // 切到 orch tab 时重量一次连线（渲染那刻 panel 可能还藏着的补救）。
+  function relayoutOrchWires() {
+    if (orchTab === 'orch' && lastR && lastR.orch && lastR.orch.tree) layoutTreeWires(lastR.orch.tree);
+  }
+
+  // ④ session log：黑板即日志，最新在下（终端语义），自动滚到底
+  function renderLog(t) {
+    var el = document.getElementById('orchLog');
+    var rows = t.log || [];
+    el.innerHTML = '<div class="lh">SESSION LOG · 黑板即日志</div>' + (rows.length
+      ? rows.map(function (r) {
+          return '<div class="r ' + esc(r.who) + '"><span class="ts">' + otTime(r.at) + '</span>' +
+            '<span class="who">' + esc(r.who) + '</span><span class="tx">' + esc(r.text) + '</span></div>';
+        }).join('')
+      : '<div class="none">黑板还是空的——CLI 开第一张单：npm run world:orch -- plan "…"</div>');
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ⑤ 状态行
+  function renderStatus(t) {
+    var s = t.status || {};
+    document.getElementById('orchStatus').innerHTML =
+      '<span class="prompt">~/.desktop-world/orch $</span>' +
+      '<span>tickets [<b>' + (s.total || 0) + '</b>]</span>' +
+      '<span>pending [<b>' + (s.pending || 0) + '</b>]</span>' +
+      '<span>active [<b>' + (s.active || 0) + '</b>]</span>' +
+      '<span>inbox [<b>' + (s.inbox || 0) + '</b>]</span>' +
+      '<span class="' + (s.cycles ? 'bad' : '') + '">cycles [<b>' + (s.cycles || 0) + '</b>]</span>' +
+      '<span>jev [<b>' + (s.jev || 0) + '</b>]</span>' +
+      '<span class="cur"></span><span class="prompt">▊</span>';
   }
 
   function render(R) {
@@ -1502,8 +1627,8 @@
       var btn = e.target.closest ? e.target.closest('.tab') : null;
       if (!btn) return;
       setTab(btn.getAttribute('data-tab'));
-      // 切到编排面板时窗口尺寸可能需要重排：重算信封坐标（CSS 变量）
-      if (orchTab === 'orch' && lastR) layoutEnvelopes(lastR.orch);
+      // 切到调度树时面板刚可见：依赖连线需要以可见 DOM 重量一次坐标
+      relayoutOrchWires();
     });
     // 键盘：Ctrl/Cmd + 1/2 在两个 tab 间切（桌面上没有鼠标时也够得着）
     document.addEventListener('keydown', function (e) {
@@ -1511,14 +1636,14 @@
       if (e.key !== '1' && e.key !== '2') return;
       e.preventDefault();
       setTab(e.key === '2' ? 'orch' : 'daily');
-      if (orchTab === 'orch' && lastR) layoutEnvelopes(lastR.orch);
+      relayoutOrchWires();
     });
   }
   // 主进程（托盘「工单看板」）切 tab 的入口：与渲染层点按钮走同一个 setTab
   window.__worldSetTab = function (tab) {
     if (tab !== 'orch' || (lastR && lastR.orch && lastR.orch.active)) {
       setTab(tab);
-      if (orchTab === 'orch' && lastR) layoutEnvelopes(lastR.orch);
+      relayoutOrchWires();
     }
   };
   setTab('daily');

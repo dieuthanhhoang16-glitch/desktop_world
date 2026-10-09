@@ -71,3 +71,30 @@ test('胶囊摘要取现有 live 字段（世界等级 / 番茄数 / 考点数�
   assert.ok(!html.includes('data-life="lock"'), '控制组不应再有穿透锁按钮');
   assert.ok(!html.includes('点不到'), '不应再有穿透锁定相关文案');
 });
+
+// ---------- v0.7 工单调度树：五区结构守门 ----------
+// 调度树是工作面：roster 带 / 守门员栏 / 树主面 / session log / 状态行，缺一个就是结构回退。
+
+test('调度树五区骨架存在且 panel 默认 hidden；bake 双保险未被破坏', () => {
+  const html = fs.readFileSync(TEMPLATE, 'utf8');
+  assert.match(html, /<div class="tabpanel orch" id="panelOrch" hidden>/, '调度树 panel 必须默认 hidden');
+  for (const id of ['orchKeeper', 'orchTree', 'orchLog', 'orchStatus', 'orchSum']) {
+    assert.ok(html.includes(`id="${id}"`), `缺调度树区元素 #${id}`);
+  }
+  assert.match(html, /body\.bake \.tabbar,\s*body\.bake #panelOrch \{\s*display:\s*none\s*!important;\s*\}/, 'bake 隐藏双保险被改');
+  assert.ok(html.includes('class="ot-roster"'), '缺 roster 带');
+  assert.ok(html.includes('class="ot-mid"'), '缺 mid 容器（守门员栏 + 树主面）');
+});
+
+test('调度树数据只走 R.orch.tree（tree-model），渲染层不算布局/clobber 旧看板已清', () => {
+  const html = fs.readFileSync(TEMPLATE, 'utf8');
+  assert.ok(html.includes('lastR.orch.tree'), '渲染层必须消费 R.orch.tree（主进程注入的 view-model）');
+  // 旧七列看板与飞行信封的残留一律不允许：它们与 tree-model 是两套世界观
+  for (const stale of ['ORCH_COLS', 'layoutEnvelopes', 'orch-scene', 'orch-env', 'orchCols', 'orchInbox', 'orchFacts']) {
+    assert.ok(!html.includes(stale), `旧看板残留：${stale}`);
+  }
+  // 红线上墙：守门员栏必须有「从不 spawn 进程」的常驻声明
+  assert.ok(html.includes('从不 spawn 进程'), '守门员红线宣言缺失');
+  // 双信号：stale（还没接活）是账本/引擎两盏灯分形的落点
+  assert.ok(html.includes('还没接活'), 'stale 旗标（还没接活）缺失');
+});

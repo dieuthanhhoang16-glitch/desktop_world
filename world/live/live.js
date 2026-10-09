@@ -158,6 +158,13 @@ async function buildLiveReport(outDir, digest) {
   try {
     const { buildOrchView } = require('../orch');
     orch = buildOrchView({ snapshot: sessionSnapshot || digestAsSnapshot(digest) });
+    // 调度树视图模型（v0.7 调度树主面）：纯函数层 tree-model 把账本/黑板/decisions
+    // 折成 MAIN→JEV→工单层→收敛带的树结构。模板上没有 require，只能从这里注入。
+    if (orch) {
+      const { buildTree } = require('../orch/tree-model');
+      const decisions = require('../orch/decisions');
+      orch.tree = buildTree(orch, { decisions: decisions.list(orch.root, 20) });
+    }
   } catch (e) {
     console.error('[live] 编排视图读取失败（忽略，不影响卡片）：', e.message);
   }
