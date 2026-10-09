@@ -312,7 +312,7 @@ function showOrchBoard() {
     }
     live.setActiveTab('orch');
     if (live.state() === 'hidden') live.show();
-    notify('工单看板 🎫', '逐条确认与派发仍走 CLI：npm run world:orch -- list');
+    notify('工单看板 🎫', '确认/派发/收敛都在树内点按闭环；开新单走 npm run world:orch -- plan');
     return { ok: true };
   } catch (err) {
     console.error('[orch] 工单看板失败：', err.message);

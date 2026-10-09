@@ -8,6 +8,10 @@
 //   ③ 渲染层不做可行性判断、不碰账本文件：确认/派发/收敛全部经 __worldOrch 桥
 //      到主进程 actions 层（硬闸门在那里），渲染层只发意图。
 //   ④ 依赖连线是静态贝塞尔，不做逐帧 JS 动画。
+//   ⑤ v0.7.1：树区文字按设计稿（dw-office-tree.html，980×620 下 9–13px）以 px 定死、
+//      只随 --otscale 等比缩放——不再出现随窗口缩到 2–5px 的裸 vmin 字号。
+//   ⑥ v0.7.1：派发选择器不盖黑色全屏蒙版——它是树主面右上角的小浮层，
+//      工作面任何时候不被罩住、不被挡点击。
 'use strict';
 
 const test = require('node:test');
@@ -131,4 +135,36 @@ test('app-integration 导出编排入口，菜单不闭包缓存状态', () => {
   assert.match(menu, /showOrchBoard\(\)/);
   // 菜单里不得出现"启动进程/拉 agent"这类越界入口
   assert.ok(!/orchState[\s\S]{0,400}spawn/.test(menu));
+});
+
+test('派发选择器不盖黑布：全屏蒙版取消，退成右上角非模态小浮层', () => {
+  assert.ok(!html.includes('rgba(6, 8, 10, 0.72)'), '黑色透明蒙版 rgba(6,8,10,.72) 不得复活');
+  const m = html.match(/\.ot-picker \{([^}]*)\}/);
+  assert.ok(m, '缺 .ot-picker 规则');
+  const rule = m[1];
+  // 锚定右上角，绝不再 fixed + inset:0 罩住整个工作面
+  assert.match(rule, /position: absolute/);
+  assert.match(rule, /right: 1vmin/);
+  assert.ok(!/position:\s*fixed/.test(rule), 'picker 不得再 fixed 铺满视口');
+  assert.ok(!/inset:\s*0/.test(rule), 'picker 不得再 inset:0 铺满');
+  // 不得自带 display：否则撰者规则盖过 UA 的 [hidden]{display:none}，浮层永久可见（本次事故根因）
+  assert.ok(!/display\s*:/.test(rule), '.ot-picker 自带 display 会让 hidden 失效');
+  assert.match(rule, /pointer-events: none/, '浮层壳不得吃点击（工作面永远点得到）');
+  // 内容卡片实心 + 投影：浮层自身盖得住下面的树
+  assert.match(html, /\.ot-picker \.pk \{[^}]*background: var\(--ot-panel2\)/);
+  assert.match(html, /\.ot-picker \.pk \{[^}]*box-shadow/);
+});
+
+test('树区文字按设计稿锁 px（只随 --otscale 等比缩放），不再有裸 vmin 字号', () => {
+  // orch CSS 区（调度树注释起 → 番茄钟板块止）不得出现 font-size: Xvmin
+  const cssStart = html.indexOf('工单调度树（v0.7');
+  const cssEnd = html.indexOf('番茄钟（v0.7');
+  assert.ok(cssStart > 0 && cssEnd > cssStart, '调度树 CSS 区定位失败');
+  const region = html.slice(cssStart, cssEnd);
+  assert.ok(!/font-size:\s*[\d.]+vmin/.test(region), '树区出现裸 vmin 字号（会随窗口缩到 2–5px 不可读）');
+  // 等比缩放 token：:root 声明默认 1 + JS 按窗口宽写入（980 = 设计稿宽，clamp 防糊防炸）
+  assert.match(html, /--otscale: 1;/);
+  assert.match(html, /function setOrchScale\(\)/);
+  assert.match(html, /setProperty\('--otscale'/);
+  assert.match(html, /Math\.max\(0\.82, Math\.min\(1\.6/);
 });
