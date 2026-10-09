@@ -548,6 +548,32 @@ function ensureNotesIpc() {
       return { sessions: [] };
     }
   });
+  // M3 开单回路：拆单预览只读账不发号（不写盘）；commit 才落账。
+  // 拆分/闸门/修依赖/写序全在 actions 层（与 CLI cmdPlan 同一套），handler 只做
+  // 本窗守卫 + 入参白名单 + 成功后定向重推。
+  ipcMain.handle('world:orch:plan', (e, goal, opts) => {
+    if (!ok(e)) return orchBad();
+    try {
+      const o = opts && typeof opts === 'object' ? opts : {};
+      return orchActions.plan(String(goal || ''), {
+        agent: String(o.agent == null ? '' : o.agent),
+        cwd: String(o.cwd == null ? '' : o.cwd),
+        independent: o.independent === true,
+      });
+    } catch (err) {
+      console.error('[live] 开单预览失败：', err.message);
+      return { ok: false, problems: [{ code: 'internal-error', reason: err.message, fix: 'actions 层本应吞掉异常——提 issue' }] };
+    }
+  });
+  ipcMain.handle('world:orch:commitPlan', (e, tickets) => {
+    if (!ok(e)) return orchBad();
+    try {
+      return orchDone(orchActions.commitPlan(Array.isArray(tickets) ? tickets : []));
+    } catch (err) {
+      console.error('[live] 立单失败：', err.message);
+      return { ok: false, problems: [{ code: 'internal-error', reason: err.message, fix: 'actions 层本应吞掉异常——提 issue' }] };
+    }
+  });
 }
 
 /**

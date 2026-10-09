@@ -14,6 +14,8 @@
 //      工作面任何时候不被罩住、不被挡点击。
 //   ⑦ v0.7.2：树区布局几何（宽/高/行距/圆角/gap）同样是设计稿 px × --otscale——
 //      字号 px 化后几何若还是 vmin，字会在容器里互相压叠。
+//   ⑧ M3 开单回路：打字目标 → plan 预览 → 勾选 → commitPlan 落账，全部只经
+//      __worldOrch 桥发意图；拆单/闸门/账本写盘全在主进程 actions 层。
 'use strict';
 
 const test = require('node:test');
@@ -66,10 +68,33 @@ test('渲染层不做可行性判断、不碰账本：闸门与写盘全在主�
   for (const leak of ['checkBatch', 'checkTicket', 'agent-gate', 'tickets.json', 'blackboard.json', 'ticketsFile']) {
     assert.ok(!html.includes(leak), `渲染层出现主进程职责：${leak}`);
   }
-  // 开单回路 M3 才进树：模板不得有 plan 动作
-  assert.ok(!/__worldOrch\s*\.\s*plan/.test(html));
-  // 立单指引仍指向 CLI（M3 前唯一开单口）
+  // M3 开单回路同样只发意图：拆单预览与落账全走 __worldOrch 桥
+  assert.match(html, /__worldOrch\.plan\(/);
+  assert.match(html, /__worldOrch\.commitPlan\(/);
+  // 空目标立单指引把 CLI 等价口留在文案里
   assert.match(html, /npm run world:orch -- plan/);
+});
+
+test('M3 开单条在树主面：目标/agent/cwd 输入 → 拆分预览 → 勾选 → 立单', () => {
+  // 开单条样式进了树区 CSS（几何被 ⑦ 号 vmin 守门自动覆盖，这里守 px 基准存在）
+  assert.match(html, /\.ot-plan \{/);
+  assert.match(html, /\.ot-plan \{[^}]*width: calc\(470px \* var\(--otscale/);
+  // 三个输入：闸门要求 agent + cwd 非空（agent-unknown / cwd-missing），开单条必须带上
+  for (const attr of ['data-pgoal', 'data-pagent', 'data-pcwd']) assert.ok(html.includes(attr), `开单条缺输入 ${attr}`);
+  // 预览/立单/弃单三个桥按钮 + 预览勾选（勾选是本地意图不过桥，只翻 class）
+  for (const attr of ['data-plan="1"', 'data-plan-commit', 'data-plan-cancel', 'data-pcheck']) {
+    assert.ok(html.includes(attr), `开单条缺交互 ${attr}`);
+  }
+  // 事件代理四分支都接到各自函数
+  assert.match(html, /otTogglePlan\(pcheck\)/);
+  assert.match(html, /otPlanPreview\(\)/);
+  assert.match(html, /otPlanCommit\(\)/);
+  assert.match(html, /otPlanCancel\(\)/);
+  // 开单草稿态：候选与勾选只活在内存，落账成功才清空
+  assert.match(html, /var otPlan = \{ goal: '', agent: '', cwd: '', drafts: null, checks: \[\] \};/);
+  // 无桥形态（bake/老 preload）整条不出开单口——开不了单的输入条比没有更误导
+  const fn = html.slice(html.indexOf('function otPlanHtml()'));
+  assert.match(fn.slice(0, 200), /if \(!window\.__worldOrch\) return '';/);
 });
 
 test('编排数据全部来自主进程注入的 R.orch，渲染层不读文件', () => {

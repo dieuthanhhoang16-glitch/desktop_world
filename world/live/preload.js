@@ -55,11 +55,13 @@ contextBridge.exposeInMainWorld('__worldLive', {
   openSettings: () => ipcRenderer.invoke('world:live:open-settings'),
 });
 
-// 编排写入口（v0.7 M2）：调度树上的工单动作。所有方法返回 actions 层的
+// 编排写入口（v0.7 M2/M3）：调度树上的工单动作 + 开单回路。所有方法返回 actions 层的
 // 错误协议 {ok:true,...}|{ok:false, problems:[{code,reason,fix}]}，渲染层原样上墙。
 contextBridge.exposeInMainWorld('__worldOrch', {
   transition: (id, action, payload) => ipcRenderer.invoke('world:orch:transition', id, action, payload),
   patch: (id, patch) => ipcRenderer.invoke('world:orch:patch', id, patch),
   remove: (id) => ipcRenderer.invoke('world:orch:remove', id),
   sessions: (ticketId) => ipcRenderer.invoke('world:orch:sessions', ticketId),
+  plan: (goal, opts) => ipcRenderer.invoke('world:orch:plan', goal, opts),
+  commitPlan: (tickets) => ipcRenderer.invoke('world:orch:commitPlan', tickets),
 });

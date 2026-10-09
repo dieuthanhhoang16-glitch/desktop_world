@@ -99,22 +99,23 @@ test('调度树数据只走 R.orch.tree（tree-model），渲染层不算布局/
   assert.ok(html.includes('还没接活'), 'stale 旗标（还没接活）缺失');
 });
 
-// ---------- v0.7 M2：树内写闭环（出口：确认→派发→收敛不出 tab） ----------
+// ---------- v0.7 M2/M3：树内写闭环 + 开单回路（出口：确认→派发→收敛→开单不出 tab） ----------
 
-test('M2 写闭环只走 __worldOrch 桥：transition/patch/remove/sessions 一个不缺且通道对刃', () => {
+test('M2/M3 写闭环只走 __worldOrch 桥：六个方法一个不缺且三层通道对刃', () => {
   const html = fs.readFileSync(TEMPLATE, 'utf8');
-  for (const call of ['__worldOrch.transition', '__worldOrch.patch', '__worldOrch.remove', '__worldOrch.sessions']) {
+  for (const call of ['__worldOrch.transition', '__worldOrch.patch', '__worldOrch.remove', '__worldOrch.sessions', '__worldOrch.plan', '__worldOrch.commitPlan']) {
     assert.ok(html.includes(call), `渲染层缺 ${call} 调用`);
   }
-  // 桥必须真实暴露这四个通道（渲染层 invoke 的 channel 名与 preload 一一对应）
+  // 桥必须真实暴露这六个通道（渲染层 invoke 的 channel 名与 preload 一一对应）
   const preload = fs.readFileSync(path.join(__dirname, '..', 'world', 'live', 'preload.js'), 'utf8');
   assert.ok(preload.includes("exposeInMainWorld('__worldOrch'"), 'preload 缺 __worldOrch 桥');
-  for (const ch of ['world:orch:transition', 'world:orch:patch', 'world:orch:remove', 'world:orch:sessions']) {
+  const channels = ['world:orch:transition', 'world:orch:patch', 'world:orch:remove', 'world:orch:sessions', 'world:orch:plan', 'world:orch:commitPlan'];
+  for (const ch of channels) {
     assert.ok(preload.includes(`'${ch}'`), `preload 缺通道 ${ch}`);
   }
   // 主进程必须有对应 handler（桥对不上刃就是哑按钮）
   const live = fs.readFileSync(path.join(__dirname, '..', 'world', 'live', 'live.js'), 'utf8');
-  for (const ch of ['world:orch:transition', 'world:orch:patch', 'world:orch:remove', 'world:orch:sessions']) {
+  for (const ch of channels) {
     assert.ok(live.includes(`ipcMain.handle('${ch}'`), `live.js 缺 handler ${ch}`);
   }
 });

@@ -319,6 +319,7 @@ function removeTicket(id, deps = {}) {
  * 避免"选择器推荐的"和"工位实际匹配的"不是同一个人。
  * snapshot 形状对齐 session snapshot（{sessions:[{id,agentId,agentName,state,cwd,headless}]}）。
  */
+
 function sessionsFor(ticket, snapshot) {
   const agent = String((ticket && ticket.agent) || '');
   const cwd = String((ticket && ticket.cwd) || '');
@@ -354,6 +355,135 @@ function sessionsFor(ticket, snapshot) {
   return list;
 }
 
+// ---------------------------------------------------------------- M3 开单回路
+//
+// 与 cli.js cmdPlan 同一套语义：① 确定性拆分（tickets.draftTickets，不调 LLM）
+// → ② 可行性检查（dispatch.checkBatch，agent 走 registry、cwd 走真实目录）→
+// ③ 人确认（树里勾选 = CLI 的逐条 y/n）→ 修依赖 → 落账并进「已确认」。
+// 差别只有入口：渲染层经 IPC 发意图，账本文件照样不离开主进程。
+
+/**
+ * 目标 → 工单草案预览（不写账）。返回的 drafts 带预发号 id，供 commitPlan 回传勾选子集。
+ * @param goal 目标文本（自然语言，确定性规则拆子句）
+ * @param opts {agent, cwd, independent}（与 CLI 同名参数同语义；空值闸门会拒并给 fix）
+ */
+function plan(goal, opts = {}, deps = {}) {
+  const root = deps.root || ORCH_DIR;
+  try {
+    const goalText = String(goal || '').trim().slice(0, 800);
+    if (!goalText) {
+      return fail(problem('plan-goal-empty', '目标是空的', '在开单条里先写一句话目标（比如「把 A 做完，然后补 B 的测试」）'));
+    }
+    const ledger = store.load(ticketsFile(root));
+    const drafts = T.draftTickets(goalText, {
+      agent: typeof opts.agent === 'string' ? opts.agent.trim() : '',
+      cwd: typeof opts.cwd === 'string' && opts.cwd.trim() ? opts.cwd.trim() : process.cwd(),
+      existingIds: ledger.tickets.map((t) => t.id),
+      independent: opts.independent === true,
+    });
+    if (!drafts.length) {
+      return fail(problem('plan-no-clauses', '没能从目标里拆出任何子句', '目标太短或全是标点；写成「先做 A，再做 B」这样的顺序叙述'));
+    }
+    // ② 可行性检查（与 cmdPlan 同款：草案用账本序号的预发 id 参与依赖图）
+    const preview = drafts.map((d, i) => ({ ...d, id: T.formatId(ledger.seq + i + 1) }));
+    const prefs = prefsSnapshot(deps);
+    if (!prefs) return fail(prefsProblem());
+    const batch = dispatch.checkBatch(preview, { prefs, allTickets: preview });
+    if (!batch.ok) return fail(batch.problems);
+    return { ok: true, drafts, goal: goalText };
+  } catch (err) {
+    return internalError(err);
+  }
+}
+
+/**
+ * 勾选子集 → 落账。渲染层传回的每张草案重新走白名单重建（不信任任何多余字段），
+ * id 撞账本即拒；被丢弃的工单如果被保留项当依赖，重挂到最近一张还保留的前置
+ * （cmdPlan repairDeps 同款）。落账后逐张翻到「已确认」——树里勾选那一下就是人确认。
+ */
+function commitPlan(tickets, deps = {}) {
+  const root = deps.root || ORCH_DIR;
+  try {
+    if (!Array.isArray(tickets) || !tickets.length) {
+      return fail(problem('plan-commit-empty', '一张都没选', '勾选至少一张草案再点「立单」；都不想要就点「弃」'));
+    }
+    if (tickets.length > T.MAX_TICKETS) {
+      return fail(problem('plan-commit-too-many', `一次最多立 ${T.MAX_TICKETS} 张`, '目标拆细了；分成几批开单'));
+    }
+    const ledger = store.load(ticketsFile(root));
+    const existing = new Set(ledger.tickets.map((t) => t.id));
+    const seen = new Set();
+    const accepted = [];
+    const problems = [];
+    tickets.forEach((raw, idx) => {
+      // 白名单重建：id/title/agent/cwd/dependsOn/acceptance/action，其它字段一律不信
+      const t = raw && typeof raw === 'object' ? raw : {};
+      const id = String(t.id || '');
+      if (!TICKET_ID_RE.test(id)) {
+        problems.push(problem('plan-id-invalid', `非法工单号：${id || '(空)'}`, '草案 id 由 plan 预发号，不手编；重新点一次「拆单预览」'));
+        return;
+      }
+      if (existing.has(id) || seen.has(id)) {
+        problems.push(problem('plan-id-conflict', `工单号已被占用：${id}`, '预览过期了（期间账本进了新单）；重新「拆单预览」拿新号', { id }));
+        return;
+      }
+      seen.add(id);
+      const title = String(t.title == null ? '' : t.title).trim().slice(0, 200);
+      const agent = String(t.agent == null ? '' : t.agent).trim().slice(0, 80);
+      const cwd = String(t.cwd == null ? '' : t.cwd).trim().slice(0, 400);
+      const dependsOn = Array.isArray(t.dependsOn)
+        ? [...new Set(t.dependsOn.map(String).map((s) => s.trim()).filter((s) => TICKET_ID_RE.test(s) && s !== id))]
+        : [];
+      const acceptance = Array.isArray(t.acceptance)
+        ? t.acceptance.map((a) => String(a == null ? '' : a).trim().slice(0, 200)).filter(Boolean).slice(0, 12)
+        : [];
+      const action = String(t.action == null ? '' : t.action).trim().slice(0, 40);
+      const rebuilt = { id, title, action, agent, cwd, dependsOn, acceptance, status: 'draft' };
+      const errs = T.validateTicket(rebuilt);
+      if (errs.length) {
+        problems.push(problem('plan-ticket-invalid', `${id} 不合法：${errs.join('；')}`, '草案结构和 tickets.validateTicket 没对齐——提 issue', { id }));
+        return;
+      }
+      accepted.push(rebuilt);
+    });
+    if (problems.length) return fail(problems);
+    // 闸门再跑一遍真号（plan 与 commit 之间账本可能变了；比 CLI 多这一步是刻意的）
+    const prefs = prefsSnapshot(deps);
+    if (!prefs) return fail(prefsProblem());
+    const batch = dispatch.checkBatch(accepted, { prefs, allTickets: ledger.tickets.concat(accepted) });
+    if (!batch.ok) return fail(batch.problems);
+    // ③ 修依赖：被弃选的依赖重挂到最近一张还保留的前置（cmdPlan 同款）
+    const acceptedIds = new Set(accepted.map((t) => t.id));
+    for (const t of accepted) {
+      const kept = [];
+      for (const dep of T.depsOf(t)) {
+        if (existing.has(dep)) { kept.push(dep); continue; } // 依赖账本里已有的单，原样保留
+        if (acceptedIds.has(dep)) { kept.push(dep); continue; }
+        let replacement = '';
+        const idx = accepted.indexOf(t);
+        for (let k = idx - 1; k >= 0; k -= 1) {
+          if (acceptedIds.has(accepted[k].id)) { replacement = accepted[k].id; break; }
+        }
+        if (replacement) kept.push(replacement);
+      }
+      t.dependsOn = [...new Set(kept)];
+    }
+    // 落账 + 已确认（勾选即人确认）+ 黑板留痕，与 cmdPlan ④ 同序
+    const goal = String(deps.goal || '').trim().slice(0, 120);
+    store.appendTickets(ticketsFile(root), accepted);
+    blackboard.append(blackboardFile(root), {
+      kind: 'fact',
+      text: `立单 ${accepted.map((t) => t.id).join(', ')}${goal ? `：${goal}` : ''}`,
+      ticketIds: accepted.map((t) => t.id),
+    });
+    const file = ticketsFile(root);
+    for (const t of accepted) store.setStatus(file, t.id, 'confirmed');
+    return { ok: true, ids: accepted.map((t) => t.id) };
+  } catch (err) {
+    return internalError(err);
+  }
+}
+
 module.exports = {
   ACTIONS,
   PATCH_FIELDS,
@@ -361,4 +491,6 @@ module.exports = {
   patch,
   removeTicket,
   sessionsFor,
+  plan,
+  commitPlan,
 };

@@ -465,6 +465,30 @@
   }
   .ot-crow .csum:focus { border-color: var(--ot-green2); }
 
+  /* 开单条（M3）：打字目标 → 拆单预览 → 勾选 → 立单（plan/commitPlan 全走 __worldOrch 桥）；
+     几何与设计稿同纪律（470px 工作带 × --otscale）。dashed 边 = 这是"还没进账本"的意图区 */
+  .ot-plan {
+    width: calc(470px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); border: 1px dashed var(--ot-line2); border-radius: calc(9px * var(--otscale, 1));
+    background: var(--ot-panel2); padding: calc(8px * var(--otscale, 1)) calc(12px * var(--otscale, 1)) calc(9px * var(--otscale, 1)); z-index: 1; position: relative;
+  }
+  .ot-plan .nh { display: flex; justify-content: space-between; font-size: calc(0.9px * 10 * var(--otscale, 1)); color: var(--ot-ink3); }
+  .ot-plan .nh .who { color: var(--ot-cyan); font-weight: 700; }
+  .ot-plan .prow { display: flex; gap: calc(6px * var(--otscale, 1)); margin-top: calc(7px * var(--otscale, 1)); align-items: center; }
+  .ot-plan input {
+    background: var(--ot-panel); border: 1px solid var(--ot-line2); border-radius: calc(5px * var(--otscale, 1));
+    color: var(--ot-ink); font: inherit; font-size: calc(0.92px * 10 * var(--otscale, 1)); padding: calc(5px * var(--otscale, 1)) calc(8px * var(--otscale, 1)); outline: none;
+  }
+  .ot-plan input:focus { border-color: var(--ot-cyan); }
+  .ot-plan .pgoal { flex: 1; min-width: 0; }
+  .ot-plan .popt { width: calc(96px * var(--otscale, 1)); }
+  .ot-plan .prow2 { display: flex; gap: calc(6px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); align-items: center; color: var(--ot-ink3); font-size: calc(0.85px * 10 * var(--otscale, 1)); }
+  .ot-plan .pdraft { display: flex; align-items: baseline; gap: calc(6px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); font-size: calc(0.92px * 10 * var(--otscale, 1)); color: var(--ot-ink); cursor: pointer; }
+  .ot-plan .pdraft input { margin: 0; accent-color: var(--ot-green2); flex: none; }
+  .ot-plan .pdraft .pd-id { color: var(--ot-green2); flex: none; font-size: calc(0.85px * 10 * var(--otscale, 1)); }
+  .ot-plan .pdraft .pd-meta { color: var(--ot-ink3); flex: none; font-size: calc(0.8px * 10 * var(--otscale, 1)); }
+  .ot-plan .pdraft.off span { color: var(--ot-ink3); text-decoration: line-through; }
+  .tabpanel.orch.busy .ot-plan button { opacity: 0.45; pointer-events: none; }
+
   /* ④ session log：黑板即日志，最新在下（终端语义，设计稿 118px 高） */
   .ot-log {
     flex: 0 0 calc(118px * var(--otscale, 1)); border-top: 1px solid var(--ot-line); background: var(--ot-panel);
@@ -1031,15 +1055,18 @@
 
   // ---------- 工单调度树（v0.7 重写）：纯渲染层 ----------
   // 数据全部来自主进程 buildOrchView + tree-model（R.orch.tree）。
-  // 渲染层不读文件、不做可行性判断、不派单 —— M1 只读；
-  // 派单与逐条确认是 CLI 的事（stage ③ 的硬闸门在 CLI 里）。
+  // 渲染层不读文件、不做可行性判断 —— 确认/派发/收敛（M2）与开单（M3）
+  // 全部只发意图过 __worldOrch 桥，硬闸门与账本写盘都在主进程 actions 层。
   var OT_ENGINE_LABEL = { working: 'working', thinking: 'thinking', juggling: 'juggling', attention: 'attention', sweeping: 'sweeping', carrying: 'carrying', notification: 'notification', idle: 'idle', sleeping: 'sleeping' };
   var orchTab = 'daily'; // 当前 tab；托盘可通过 __worldSetTab 切进来
 
-  // ----- M2 树内写闭环的渲染侧状态（都不是持久数据：账本在主进程，刷新即重建） -----
+  // ----- M2/M3 树内写闭环的渲染侧状态（都不是持久数据：账本在主进程，刷新即重建） -----
   var otProblems = [];  // 最近一次写操作返回的错误协议，上守门员栏；成功即清空
   var otBusy = false;   // 一次只许一个写操作在途（按钮整列禁点，防双击双写）
   var otSummary = {};   // 收敛结论输入的草稿（按 tid 记住，重渲染不丢正在敲的字）
+  // M3 开单条：目标/agent/cwd 的输入草稿 + 拆单预览的候选与勾选（重渲染不丢；
+  // 账本里不存在——确认前的候选单只是内存意图，落账后由主进程重推整树再清空）
+  var otPlan = { goal: '', agent: '', cwd: '', drafts: null, checks: [] };
 
   // 工单卡按状态出操作（与 world/orch/actions.js ACTIONS 对齐；done 无操作）
   var OT_ACTIONS = {
@@ -1151,7 +1178,7 @@
       '<div class="nh"><span class="who">MAIN · 主会话</span><span>plans + writes code</span></div>' +
       '<div class="goal">' + (t.main.goal
         ? esc(t.main.goal)
-        : '<span class="none">还没有立单目标——CLI：npm run world:orch -- plan "…" --agent &lt;id&gt;</span>') + '</div>' +
+        : '<span class="none">还没有立单目标——下方「开单」条打字立单（CLI 等价口：npm run world:orch -- plan "…" --agent &lt;id&gt;）</span>') + '</div>' +
       otBar(t.main.progress) +
       '<div class="pmeta"><span>' + t.main.tickets + ' tickets · max 8</span><span>' + otPct(t.main.progress) + '%</span></div></div>';
 
@@ -1178,6 +1205,9 @@
       html += '</div>';
     });
     html += '</div>';
+
+    // 开单条（M3）：工单层之下、收敛带之上。输入态常设，预览期切勾选态
+    html += otPlanHtml();
 
     if (t.converge.length) {
       html += '<div class="ot-converge"><div class="nh"><span class="who">收敛 · review + verify</span><span>验收过了才算完</span></div>';
@@ -1252,12 +1282,12 @@
     return !!(res && res.ok);
   }
 
-  function otCall(fn) {
+  function otCall(fn, after) {
     if (otBusy) return;
     if (!window.__worldOrch) { otHandle(null); return; }
     otSetBusy(true);
-    fn().then(function (res) { otSetBusy(false); otHandle(res); },
-      function () { otSetBusy(false); otHandle(null); });
+    fn().then(function (res) { otSetBusy(false); otHandle(res); if (after) after(res, true); },
+      function () { otSetBusy(false); otHandle(null); if (after) after(null, false); });
   }
 
   // 工单卡按钮：dispatch 开会话选择器、remove 走删除口，其余直达 actions 层
@@ -1330,6 +1360,92 @@
     });
   }
 
+  // ---------------- M3 树内开单回路：打字目标 → plan 预览 → 勾选 → commitPlan 落账 ----------------
+  // 与 CLI cmdPlan 同一条纪律：拆单/闸门/落账全在主进程，渲染层只递目标与勾选结果。
+
+  // 开单条两种形态：无桥（bake/老 preload）整条不出——开不了单的输入条比没有更误导
+  function otPlanHtml() {
+    if (!window.__worldOrch) return '';
+    var html = '<div class="ot-plan"><div class="nh"><span class="who">开单 · plan</span><span>打字立单 · 闸门照旧</span></div>';
+    if (!otPlan.drafts) {
+      html += '<div class="prow">' +
+        '<input class="pgoal" data-pgoal placeholder="目标：先把 A 做完，然后补 B 的测试…" value="' + esc(otPlan.goal) + '">' +
+        '<button class="tact go" data-plan="1">拆单预览</button></div>' +
+        '<div class="prow2">agent <input class="popt" data-pagent placeholder="claude-code" value="' + esc(otPlan.agent) + '">' +
+        ' cwd <input class="popt" data-pcwd placeholder="cwd（闸门要用）" value="' + esc(otPlan.cwd) + '"></div>';
+    } else {
+      var on = otPlan.checks.filter(Boolean).length;
+      html += '<div class="prow2">预览 ' + otPlan.drafts.length + ' 张候选 · 勾选要立的单（已选 ' + on + '）</div>';
+      otPlan.drafts.forEach(function (d, i) {
+        var keep = otPlan.checks[i] !== false;
+        var meta = (d.agent || '?') + ((d.dependsOn && d.dependsOn.length) ? ' ← ' + d.dependsOn.join('+') : '');
+        html += '<label class="pdraft' + (keep ? '' : ' off') + '">' +
+          '<input type="checkbox" data-pcheck="' + i + '"' + (keep ? ' checked' : '') + '>' +
+          '<span class="pd-id">' + esc(d.id) + '</span><span>' + esc(d.title) + '</span>' +
+          '<span class="pd-meta">' + esc(meta) + '</span></label>';
+      });
+      html += '<div class="prow"><button class="tact go" data-plan-commit="1">✔ 立单（' + on + '）</button>' +
+        '<button class="tact warn" data-plan-cancel="1">✕ 弃掉预览</button></div>';
+    }
+    return html + '</div>';
+  }
+
+  function otRedrawTree() {
+    if (lastR && lastR.orch && lastR.orch.tree) renderTree(lastR.orch.tree);
+  }
+
+  // ① 拆单预览：只读，不落账——主进程不会因此重推，靠 after 回调本地重画树
+  function otPlanPreview() {
+    var goal = otPlan.goal.trim();
+    if (!goal) {
+      otHandle({ ok: false, problems: [{ code: 'plan-goal-empty', reason: '目标还是空的', fix: '在开单条先写一句话目标（如「先把 A 做完，然后补 B 的测试」）' }] });
+      return;
+    }
+    otCall(function () {
+      return window.__worldOrch.plan(goal, { agent: otPlan.agent.trim(), cwd: otPlan.cwd.trim() })
+        .then(function (res) {
+          if (res && res.ok) { otPlan.drafts = res.drafts || []; otPlan.checks = otPlan.drafts.map(function () { return true; }); }
+          return res;
+        });
+    }, otRedrawTree);
+  }
+
+  // 勾选切的是本地意图，不过桥：只翻 class + 刷新两个计数，整张树不重画（不闪、不丢滚动位）
+  function otTogglePlan(inp) {
+    var i = Number(inp.getAttribute('data-pcheck'));
+    if (!otPlan.drafts || !(i >= 0 && i < otPlan.checks.length)) return;
+    otPlan.checks[i] = inp.checked;
+    var lab = inp.closest('.pdraft');
+    if (lab) lab.classList.toggle('off', !inp.checked);
+    var on = otPlan.checks.filter(Boolean).length;
+    var btn = document.querySelector('.ot-plan [data-plan-commit]');
+    if (btn) btn.textContent = '✔ 立单（' + on + '）';
+    var cnt = document.querySelector('.ot-plan .prow2');
+    if (cnt) cnt.textContent = '预览 ' + otPlan.drafts.length + ' 张候选 · 勾选要立的单（已选 ' + on + '）';
+  }
+
+  // ② 确认立单：勾中的候选原样递主进程——白名单重建/重跑闸门/修依赖/落账全在那边
+  function otPlanCommit() {
+    if (!otPlan.drafts || otBusy) return;
+    var picked = otPlan.drafts.filter(function (d, i) { return otPlan.checks[i] !== false; });
+    if (!picked.length) {
+      otHandle({ ok: false, problems: [{ code: 'plan-commit-empty', reason: '预览里的候选全被取消了勾选', fix: '至少勾一张再立单，或点 ✕ 弃掉预览' }] });
+      return;
+    }
+    otCall(function () {
+      return window.__worldOrch.commitPlan(picked).then(function (res) {
+        // 落账成功：清开单草稿回输入态（整树随后由主进程重推刷新，本地先画一帧不等推送）
+        if (res && res.ok) { otPlan.goal = ''; otPlan.drafts = null; otPlan.checks = []; }
+        return res;
+      });
+    }, otRedrawTree);
+  }
+
+  function otPlanCancel() {
+    otPlan.drafts = null; otPlan.checks = [];
+    otRedrawTree();
+  }
+
   // problems 点击定位：滚到工单卡 + 金色脉冲两拍
   function otLocate(tid) {
     var card = document.querySelector('#orchTree .tcard[data-tid="' + tid + '"]');
@@ -1361,13 +1477,24 @@
     if (acc) { otToggleAccept(acc); return; }
     var conv = el.closest('[data-converge]');
     if (conv) { otConverge(conv.getAttribute('data-converge')); return; }
+    // 开单条（M3）：预览勾选是本地意图不过桥；三个按钮才发桥调用
+    var pcheck = el.closest('input[data-pcheck]');
+    if (pcheck) { otTogglePlan(pcheck); return; }
+    if (el.closest('[data-plan]')) { otPlanPreview(); return; }
+    if (el.closest('[data-plan-commit]')) { otPlanCommit(); return; }
+    if (el.closest('[data-plan-cancel]')) { otPlanCancel(); return; }
     // 选择器已是非模态小浮层：不挡工作面，只有它自己的 ✕ 负责关闭
     if (el.closest('.ot-picker .x')) { otClosePicker(); return; }
   }
   function otPanelInput(e) {
     var el = e.target;
-    var s = el && el.closest ? el.closest('input[data-csum]') : null;
-    if (s) otSummary[s.getAttribute('data-csum')] = s.value;
+    if (!el || !el.closest) return;
+    var s = el.closest('input[data-csum]');
+    if (s) { otSummary[s.getAttribute('data-csum')] = s.value; return; }
+    // 开单条三个输入进 otPlan 草稿（重渲染不丢字）
+    if (el.closest('input[data-pgoal]')) otPlan.goal = el.value;
+    else if (el.closest('input[data-pagent]')) otPlan.agent = el.value;
+    else if (el.closest('input[data-pcwd]')) otPlan.cwd = el.value;
   }
   (function otBindOnce() {
     var panel = document.getElementById('panelOrch');
