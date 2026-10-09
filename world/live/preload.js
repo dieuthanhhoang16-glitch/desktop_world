@@ -1,8 +1,9 @@
 // world/live/preload.js
 // 动态桌面窗口的 preload（sandbox:true 下可用 contextBridge + ipcRenderer）。
-// 暴露七个最小面：随手记读写、看板隐藏/恢复、打开当日随笔 md、番茄钟（渲染层只展示，
+// 暴露八个最小面：随手记读写、看板隐藏/恢复、打开当日随笔 md、番茄钟（渲染层只展示，
 // 时钟与落盘全在主进程——poll 拉取 view，动作只发指令）、定向学习（出候选/落目标）、
-// 学习卡片（列卡片 / 打开卡片 md）、三态生命周期（收起/展开/打开 Settings）。
+// 学习卡片（列卡片 / 打开卡片 md）、三态生命周期（收起/展开/打开 Settings）、
+// 编排写入口（确认/派发/收敛等工单动作——闸门与账本全在主进程 actions 层，这里只传话）。
 // 其他通道一律不开。
 'use strict';
 
@@ -52,4 +53,13 @@ contextBridge.exposeInMainWorld('__worldLive', {
   show: () => ipcRenderer.invoke('world:live:show'),
   ui: () => ipcRenderer.invoke('world:live:ui'),
   openSettings: () => ipcRenderer.invoke('world:live:open-settings'),
+});
+
+// 编排写入口（v0.7 M2）：调度树上的工单动作。所有方法返回 actions 层的
+// 错误协议 {ok:true,...}|{ok:false, problems:[{code,reason,fix}]}，渲染层原样上墙。
+contextBridge.exposeInMainWorld('__worldOrch', {
+  transition: (id, action, payload) => ipcRenderer.invoke('world:orch:transition', id, action, payload),
+  patch: (id, patch) => ipcRenderer.invoke('world:orch:patch', id, patch),
+  remove: (id) => ipcRenderer.invoke('world:orch:remove', id),
+  sessions: (ticketId) => ipcRenderer.invoke('world:orch:sessions', ticketId),
 });

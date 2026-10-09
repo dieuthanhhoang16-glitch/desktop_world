@@ -380,6 +380,43 @@
   .tcard .ot-pbar { height: 0.45vmin; margin-top: 0.5vmin; }
   .tcard .sig { margin-top: 0.4vmin; font-size: 0.8vmin; }
   .tcard .sig .on { color: var(--ot-green2); } .tcard .sig .off { color: var(--ot-ink3); }
+  /* 工单卡操作列（M2）：按状态出按钮，全走 __worldOrch 桥；面板 busy 时整列禁点 */
+  .tcard .tacts { display: flex; flex-wrap: wrap; gap: 0.4vmin; margin-top: 0.45vmin; }
+  .tact {
+    font: inherit; font-size: 0.82vmin; padding: 0.2vmin 0.65vmin; border-radius: 0.5vmin;
+    border: 1px solid var(--ot-line2); background: transparent; color: var(--ot-ink2); cursor: pointer;
+  }
+  .tact:hover { border-color: var(--ot-cyan); color: var(--ot-cyan); }
+  .tact.go { border-color: #2f4a44; color: var(--ot-green); }
+  .tact.go:hover { border-color: var(--ot-green); }
+  .tact.warn:hover { border-color: var(--ot-red); color: var(--ot-red); }
+  .tabpanel.orch.busy .tact { opacity: 0.45; pointer-events: none; }
+  /* 守门员 problems 上墙（M2）：点击行定位到对应工单卡 */
+  .ot-problems { margin: 0.6vmin 0; display: flex; flex-direction: column; gap: 0.4vmin; }
+  .ot-problems .prob { border: 1px solid #4d2b2b; border-radius: 0.6vmin; padding: 0.45vmin 0.6vmin; background: #171010; cursor: pointer; }
+  .ot-problems .prob .pc { color: var(--ot-red); font-weight: 700; font-size: 0.82vmin; letter-spacing: 0.06em; }
+  .ot-problems .prob .pr { color: var(--ot-ink); font-size: 0.88vmin; line-height: 1.45; margin-top: 0.15vmin; }
+  .ot-problems .prob .pf { color: var(--ot-gold); font-size: 0.82vmin; line-height: 1.45; }
+  /* 定位闪烁：problems 点击 → 目标工单卡金色脉冲两拍 */
+  @keyframes otFlash { 0%, 100% { box-shadow: none; } 25% { box-shadow: 0 0 0 0.25vmin var(--ot-gold); } 55% { box-shadow: none; } 80% { box-shadow: 0 0 0 0.25vmin var(--ot-gold); } }
+  .tcard.flash { animation: otFlash 1.2s ease-in-out; }
+  /* 调度树没有飞行/位移动画（连线是静态贝塞尔）。唯一动画是定位闪烁，
+     reduced-motion 下退成常驻金框，不做脉冲 */
+  @media (prefers-reduced-motion: reduce) {
+    .tcard.flash { animation: none; box-shadow: 0 0 0 0.25vmin var(--ot-gold); }
+  }
+  /* 派发会话选择器：覆盖在调度树面板上的模态，同 agent+同 cwd 的会话置顶 */
+  .ot-picker { position: fixed; inset: 0; background: rgba(6, 8, 10, 0.72); z-index: 30; display: flex; align-items: center; justify-content: center; }
+  .ot-picker .pk { width: 52vmin; max-height: 60vh; overflow-y: auto; background: var(--ot-panel2); border: 1px solid var(--ot-line2); border-radius: 1vmin; padding: 1vmin 1.2vmin; }
+  .ot-picker .pk h4 { margin: 0 0 0.6vmin; font-size: 1vmin; color: var(--ot-cyan); letter-spacing: 0.1em; display: flex; justify-content: space-between; align-items: center; }
+  .ot-picker .pk h4 .x { cursor: pointer; color: var(--ot-ink3); font-weight: 400; }
+  .ot-picker .pk h4 .x:hover { color: var(--ot-red); }
+  .ot-picker .pkrow { display: flex; flex-direction: column; gap: 0.15vmin; padding: 0.5vmin 0.65vmin; border: 1px solid var(--ot-line); border-radius: 0.6vmin; margin-bottom: 0.45vmin; cursor: pointer; }
+  .ot-picker .pkrow:hover { border-color: var(--ot-cyan); }
+  .ot-picker .pkrow .l1 { display: flex; justify-content: space-between; gap: 0.6vmin; font-size: 0.95vmin; color: var(--ot-ink); }
+  .ot-picker .pkrow .l2 { font-size: 0.82vmin; color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ot-picker .pkrow .bdg { color: var(--ot-green); font-size: 0.78vmin; margin-left: 0.5vmin; }
+  .ot-picker .pkempty { color: var(--ot-ink3); font-size: 0.95vmin; line-height: 1.65; }
   .tcard .flag {
     position: absolute; top: -0.75vmin; right: 0.7vmin; font-size: 0.78vmin;
     border-radius: 0.35vmin; padding: 0.1vmin 0.5vmin; line-height: 1.5;
@@ -394,17 +431,27 @@
   .tcard.s-failed { border-color: #4d2b2b; background: #181010; } .tcard.s-failed .ot-pbar i { background: var(--ot-red); } .tcard.s-failed .st { color: var(--ot-red); }
   .tcard.s-blocked { border-color: #4d3a2b; background: #171310; } .tcard.s-blocked .ot-pbar i { background: var(--ot-org); } .tcard.s-blocked .st { color: var(--ot-org); }
 
-  /* 收敛带：M1 只读 —— 验收进度可见，收敛动作仍在 CLI */
+  /* 收敛带（M2）：验收逐项可勾（patch acceptanceDone），结论输入 + 写入收敛在树内闭环 */
   .ot-converge {
     width: 44vmin; margin-top: 0.2vmin; border: 1px solid #2f4a44; border-radius: 0.9vmin;
     background: var(--ot-panel2); padding: 0.7vmin 1.1vmin 0.8vmin; z-index: 1; position: relative;
   }
   .ot-converge .nh { display: flex; justify-content: space-between; font-size: 0.9vmin; color: var(--ot-ink3); }
   .ot-converge .nh .who { color: var(--ot-green); font-weight: 700; }
-  .ot-crow { display: flex; align-items: baseline; gap: 0.8vmin; margin-top: 0.5vmin; font-size: 0.95vmin; }
+  .ot-crow { margin-top: 0.6vmin; font-size: 0.95vmin; padding-top: 0.55vmin; border-top: 1px dashed var(--ot-line); }
+  .ot-crow:first-of-type { border-top: none; padding-top: 0; }
+  .ot-crow .chead { display: flex; align-items: baseline; gap: 0.8vmin; }
   .ot-crow .cid { color: var(--ot-green2); flex: none; }
   .ot-crow .cchk { color: var(--ot-ink2); flex: none; }
-  .ot-crow .chint { color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ot-crow .cacc { display: flex; align-items: baseline; gap: 0.45vmin; margin-top: 0.35vmin; color: var(--ot-ink2); font-size: 0.92vmin; line-height: 1.5; cursor: pointer; }
+  .ot-crow .cacc input { margin: 0; accent-color: var(--ot-green2); flex: none; }
+  .ot-crow .cacc.done span { color: var(--ot-ink3); text-decoration: line-through; }
+  .ot-crow .cdo { display: flex; gap: 0.5vmin; margin-top: 0.5vmin; align-items: center; }
+  .ot-crow .csum {
+    flex: 1; background: var(--ot-panel); border: 1px solid var(--ot-line2); border-radius: 0.5vmin;
+    color: var(--ot-ink); font: inherit; font-size: 0.92vmin; padding: 0.35vmin 0.6vmin; outline: none;
+  }
+  .ot-crow .csum:focus { border-color: var(--ot-green2); }
 
   /* ④ session log：黑板即日志，最新在下（终端语义） */
   .ot-log {
@@ -661,7 +708,8 @@
 
   <!-- tab:orch —— 工单调度树（v0.7 重写）。五个区：roster 带 / 守门员栏 / 树主面 / session log / 状态行。
        整个 panel 默认 hidden：没建过工单、或 bake 形态下永不出现。
-       M1 只读：确认/派发/收敛仍在 CLI（stage ③ 人确认回路不进渲染层）。 -->
+       M2 树内写闭环：确认/派发/收敛全走 __worldOrch 桥（闸门与账本在主进程 actions 层），
+       problems 上守门员栏点击定位；开单回路仍是 CLI plan（M3 进树）。 -->
   <div class="tabpanel orch" id="panelOrch" hidden>
     <div class="ot-roster">
       <span class="ttl">工单调度树</span>
@@ -678,6 +726,8 @@
     </div>
     <div class="ot-log" id="orchLog"></div>
     <div class="ot-status" id="orchStatus"></div>
+    <!-- 派发会话选择器：点击工单卡「派发」才出现，backdrop/✕ 关闭 -->
+    <div class="ot-picker" id="orchPicker" hidden><div class="pk" id="orchPickerBox"></div></div>
   </div><!-- /tabpanel:orch -->
 </div>
 
@@ -974,6 +1024,22 @@
   var OT_ENGINE_LABEL = { working: 'working', thinking: 'thinking', juggling: 'juggling', attention: 'attention', sweeping: 'sweeping', carrying: 'carrying', notification: 'notification', idle: 'idle', sleeping: 'sleeping' };
   var orchTab = 'daily'; // 当前 tab；托盘可通过 __worldSetTab 切进来
 
+  // ----- M2 树内写闭环的渲染侧状态（都不是持久数据：账本在主进程，刷新即重建） -----
+  var otProblems = [];  // 最近一次写操作返回的错误协议，上守门员栏；成功即清空
+  var otBusy = false;   // 一次只许一个写操作在途（按钮整列禁点，防双击双写）
+  var otSummary = {};   // 收敛结论输入的草稿（按 tid 记住，重渲染不丢正在敲的字）
+
+  // 工单卡按状态出操作（与 world/orch/actions.js ACTIONS 对齐；done 无操作）
+  var OT_ACTIONS = {
+    draft:      [['confirm', '确认', 'go'], ['remove', '删', 'warn']],
+    confirmed:  [['dispatch', '派发', 'go'], ['redraft', '回草案', ''], ['remove', '删', 'warn']],
+    dispatched: [['converge', '收敛', 'go'], ['fail', '标失败', 'warn'], ['reconfirm', '撤回重确', ''], ['block', '阻塞', 'warn']],
+    running:    [['block', '阻塞', 'warn'], ['fail', '标失败', 'warn']],
+    failed:     [['reconfirm', '重确', 'go'], ['block', '阻塞', 'warn']],
+    blocked:    [['redraft', '改回草案', ''], ['reconfirm', '重确', 'go']],
+    done:       [],
+  };
+
   function setTab(next) {
     orchTab = next === 'orch' ? 'orch' : 'daily';
     document.body.classList.toggle('tab-orch', orchTab === 'orch');
@@ -1025,7 +1091,8 @@
     renderStatus(t);
   }
 
-  // ② 守门员栏：三闸门 + 红线常驻。M1 数据全来自账本/黑板/decisions（只读）。
+  // ② 守门员栏：三闸门 + 红线常驻。M2 起 additionally 承担写操作的 problems 上墙
+  //（actions 层错误协议原样贴出，点一条定位到对应工单卡）。
   function renderKeeper(t) {
     var k = t.keeper || { blocked: 0, failed: 0, cycles: 0, lastAdvice: '' };
     document.getElementById('orchKeeper').innerHTML =
@@ -1038,8 +1105,21 @@
         '<span>依赖环</span><b' + (k.cycles ? ' class="bad"' : '') + '>' + k.cycles + '</b>' +
         '<span>jev forks</span><b>' + (t.status.jev || 0) + '</b>' +
       '</div>' +
-      '<div class="quiet">写操作仍在 CLI（M1 只读）</div>' +
+      otProblemsHtml() +
+      '<div class="quiet">写入在树内闭环：确认 → 派发 → 收敛</div>' +
       '<div class="oath"><b>从不 spawn 进程。</b><br>派单只写信封；动不动手，那个 agent 自己定。</div>';
+  }
+
+  // problems 上墙：code 红字 + reason 正文 + fix 金色指向；带 id/ids 的可点击定位
+  function otProblemsHtml() {
+    if (!otProblems.length) return '';
+    return '<div class="ot-problems">' + otProblems.map(function (p) {
+      var tid = p.id || (p.ids && p.ids[0]) || '';
+      return '<div class="prob"' + (tid ? ' data-prob-tid="' + esc(tid) + '"' : '') + '>' +
+        '<span class="pc">' + esc(p.code || 'problem') + '</span>' +
+        '<div class="pr">' + esc(p.reason || '') + '</div>' +
+        '<div class="pf">→ ' + esc(p.fix || '') + '</div></div>';
+    }).join('') + '</div>';
   }
 
   // ③ 树主面：MAIN → JEV → spawn → 工单层 → 收敛带
@@ -1081,10 +1161,21 @@
     if (t.converge.length) {
       html += '<div class="ot-converge"><div class="nh"><span class="who">收敛 · review + verify</span><span>验收过了才算完</span></div>';
       t.converge.forEach(function (c) {
-        var done = (c.acceptanceDone || []).filter(Boolean).length;
-        html += '<div class="ot-crow"><span class="cid">' + esc(c.id) + '</span>' +
-          '<span class="cchk">验收 ' + done + '/' + (c.acceptance || []).length + '</span>' +
-          '<span class="chint">npm run world:orch -- converge ' + esc(c.id) + ' --summary "…"</span></div>';
+        var acc = c.acceptance || [];
+        var checked = c.acceptanceDone || [];
+        var done = checked.filter(Boolean).length;
+        html += '<div class="ot-crow" data-crow="' + esc(c.id) + '">' +
+          '<div class="chead"><span class="cid">' + esc(c.id) + '</span>' +
+          '<span class="cchk">验收 ' + done + '/' + acc.length + '</span></div>';
+        acc.forEach(function (a, i) {
+          html += '<label class="cacc' + (checked[i] ? ' done' : '') + '">' +
+            '<input type="checkbox" data-caccept="' + esc(c.id) + ':' + i + '"' + (checked[i] ? ' checked' : '') + '>' +
+            '<span>' + esc(a) + '</span></label>';
+        });
+        // 结论输入草稿存 otSummary（重渲染不丢字）；只有这张卡的验收能勾
+        html += '<div class="cdo"><input class="csum" data-csum="' + esc(c.id) + '" ' +
+          'placeholder="收敛结论（一句话，写进黑板）" value="' + esc(otSummary[c.id] || '') + '">' +
+          '<button class="tact go" data-converge="' + esc(c.id) + '">写入收敛</button></div></div>';
       });
       html += '</div>';
     }
@@ -1107,13 +1198,161 @@
     var flag = '';
     if (c.status === 'blocked') flag = '<span class="flag blocked">待改派</span>';
     else if (sig.stale) flag = '<span class="flag stale">还没接活</span>';
+    var acts = OT_ACTIONS[c.status] || [];
+    var actsHtml = acts.length
+      ? '<div class="tacts">' + acts.map(function (a) {
+          return '<button class="tact ' + a[2] + '" data-tact="' + a[0] + '" data-tid="' + esc(c.id) + '">' + a[1] + '</button>';
+        }).join('') + '</div>'
+      : '';
     return '<div class="tcard s-' + esc(c.status) + '" data-tid="' + esc(c.id) + '">' + flag +
       '<div class="tid"><span>' + esc(c.id) + '</span><span class="st">' + esc(label) + '</span></div>' +
       '<div class="tname">' + esc(c.title) + '</div>' +
       '<div class="tmeta"><span>' + esc(c.agent || '?') + '</span><span>' + esc(c.action || '') + '</span></div>' +
       otBar(c.progress) +
-      '<div class="sig"><span class="' + (on ? 'on' : 'off') + '">' + esc(sigText) + '</span></div></div>';
+      '<div class="sig"><span class="' + (on ? 'on' : 'off') + '">' + esc(sigText) + '</span></div>' +
+      actsHtml + '</div>';
   }
+
+  // ---------------- M2 树内写闭环：全部走 __worldOrch 桥，渲染层绝不直接 require ----------------
+
+  function otSetBusy(b) {
+    otBusy = b;
+    var p = document.getElementById('panelOrch');
+    if (p) p.classList.toggle('busy', b);
+  }
+
+  // 统一出口：成功清 problems（主进程会定向重推 orch 段，整棵面板随后刷新）；
+  // 失败把错误协议留上守门员栏并立即重画（不等下一次数据刷新）
+  function otHandle(res) {
+    otProblems = (res && res.ok) ? []
+      : (res && res.problems && res.problems.length) ? res.problems
+      : [{ code: 'bridge-down', reason: '编排桥没有回应', fix: '重启组件窗；账本在 ~/.desktop-world/orch/，CLI 仍可操作' }];
+    if (lastR && lastR.orch && lastR.orch.tree) renderKeeper(lastR.orch.tree);
+    return !!(res && res.ok);
+  }
+
+  function otCall(fn) {
+    if (otBusy) return;
+    if (!window.__worldOrch) { otHandle(null); return; }
+    otSetBusy(true);
+    fn().then(function (res) { otSetBusy(false); otHandle(res); },
+      function () { otSetBusy(false); otHandle(null); });
+  }
+
+  // 工单卡按钮：dispatch 开会话选择器、remove 走删除口，其余直达 actions 层
+  function otCardAction(tid, action) {
+    if (action === 'dispatch') { otOpenPicker(tid); return; }
+    if (action === 'remove') { otRemove(tid); return; }
+    otCall(function () {
+      var payload = {};
+      if (action === 'converge') payload = { summary: otSummary[tid] || '', acceptanceDone: otChecks(tid) };
+      return window.__worldOrch.transition(tid, action, payload)
+        .then(function (res) { if (res && res.ok && action === 'converge') delete otSummary[tid]; return res; });
+    });
+  }
+
+  function otRemove(tid) {
+    otCall(function () { return window.__worldOrch.remove(tid); });
+  }
+
+  // 派发会话选择器：同 agent 同 cwd 置顶（排序在主进程 actions.sessionsFor）
+  function otOpenPicker(tid) {
+    if (otBusy || !window.__worldOrch) return;
+    otSetBusy(true);
+    window.__worldOrch.sessions(tid).then(function (res) {
+      otSetBusy(false);
+      var list = (res && res.sessions) || [];
+      var html = '<h4>派发 ' + esc(tid) + ' · 选一个在线会话<span class="x">✕ 关闭</span></h4>';
+      if (!list.length) {
+        html += '<div class="pkempty">看不到在线会话。编排层不拉进程：先自己开一个 agent 会话，回来再点「派发」。同 agent、同 cwd 的会话会排在最前。</div>';
+      }
+      list.forEach(function (s) {
+        var badges = (s.sameCwd ? '<span class="bdg">同 cwd</span>' : '') +
+          (s.sameAgent ? '<span class="bdg">同 agent</span>' : '') +
+          (s.headless ? '<span class="bdg">headless</span>' : '');
+        html += '<div class="pkrow" data-pick-sid="' + esc(s.id) + '" data-tid="' + esc(tid) + '">' +
+          '<div class="l1"><span>' + esc(s.agentName || s.agentId || '?') + badges + '</span><span>' + esc(s.state || '') + '</span></div>' +
+          '<div class="l2">' + esc(s.id) + (s.cwd ? ' · ' + esc(s.cwd) : '') + '</div></div>';
+      });
+      document.getElementById('orchPickerBox').innerHTML = html;
+      document.getElementById('orchPicker').hidden = false;
+    }, function () { otSetBusy(false); otHandle(null); });
+  }
+  function otClosePicker() { document.getElementById('orchPicker').hidden = true; }
+  function otDispatchTo(tid, sid) {
+    otCall(function () {
+      return window.__worldOrch.transition(tid, 'dispatch', { sessionId: sid })
+        .then(function (res) { if (res && res.ok) otClosePicker(); return res; });
+    });
+  }
+
+  // 收敛带：验收勾选（立即落账 patch acceptanceDone）+ 结论草稿 + 写入收敛
+  function otChecks(tid) {
+    var out = [];
+    document.querySelectorAll('.ot-crow[data-crow="' + tid + '"] input[data-caccept]')
+      .forEach(function (inp) { out.push(!!inp.checked); });
+    return out;
+  }
+  function otToggleAccept(inp) {
+    var tid = String(inp.getAttribute('data-caccept') || '').split(':')[0];
+    if (!tid) return;
+    // 写操作在途时勾选先收住：浏览器已经翻好了打勾，这里翻回去，等重推后按账本重画
+    if (otBusy || !window.__worldOrch) { inp.checked = !inp.checked; return; }
+    window.__worldOrch.patch(tid, { acceptanceDone: otChecks(tid) }).then(function (res) {
+      if (!res || !res.ok) otHandle(res);
+    }, function () { otHandle(null); });
+  }
+  function otConverge(tid) {
+    otCall(function () {
+      return window.__worldOrch.transition(tid, 'converge', { summary: otSummary[tid] || '', acceptanceDone: otChecks(tid) })
+        .then(function (res) { if (res && res.ok) delete otSummary[tid]; return res; });
+    });
+  }
+
+  // problems 点击定位：滚到工单卡 + 金色脉冲两拍
+  function otLocate(tid) {
+    var card = document.querySelector('#orchTree .tcard[data-tid="' + tid + '"]');
+    if (!card) return;
+    card.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    card.classList.remove('flash');
+    void card.offsetWidth; // 重触动画
+    card.classList.add('flash');
+    setTimeout(function () { card.classList.remove('flash'); }, 1300);
+  }
+
+  // 面板事件代理：一次绑定扛住每次 innerHTML 重渲染
+  function otPanelClick(e) {
+    var el = e.target;
+    if (!el || !el.closest) return;
+    var actBtn = el.closest('[data-tact]');
+    if (actBtn) {
+      var tid = actBtn.getAttribute('data-tid');
+      var action = actBtn.getAttribute('data-tact');
+      if (action === 'remove') otRemove(tid);
+      else otCardAction(tid, action);
+      return;
+    }
+    var prob = el.closest('[data-prob-tid]');
+    if (prob) { otLocate(prob.getAttribute('data-prob-tid')); return; }
+    var pick = el.closest('[data-pick-sid]');
+    if (pick) { otDispatchTo(pick.getAttribute('data-tid'), pick.getAttribute('data-pick-sid')); return; }
+    var acc = el.closest('input[data-caccept]');
+    if (acc) { otToggleAccept(acc); return; }
+    var conv = el.closest('[data-converge]');
+    if (conv) { otConverge(conv.getAttribute('data-converge')); return; }
+    if (el.closest('.ot-picker .x') || el.id === 'orchPicker') { otClosePicker(); return; }
+  }
+  function otPanelInput(e) {
+    var el = e.target;
+    var s = el && el.closest ? el.closest('input[data-csum]') : null;
+    if (s) otSummary[s.getAttribute('data-csum')] = s.value;
+  }
+  (function otBindOnce() {
+    var panel = document.getElementById('panelOrch');
+    if (!panel || !window.__worldOrch) return; // bake/无桥形态：M2 交互整段不存在（只读渲染照旧）
+    panel.addEventListener('click', otPanelClick);
+    panel.addEventListener('input', otPanelInput);
+  })();
 
   // 依赖连线（dependsOn 边）：DOM 落位后量一次坐标，画静态贝塞尔，不做动画。
   function layoutTreeWires(t) {

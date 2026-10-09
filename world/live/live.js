@@ -44,6 +44,8 @@ let liveOutDirRef = null; // open() 时记下 outDir（打开当日 md 用）
 let petOverride = null; // app 侧引擎状态注入（见 setPetState），缺省时走数据推导
 let sessionSnapshot = null; // app 侧引擎真实 session snapshot 注入（见 setSessionSnapshot）
 let activeTabRef = 'daily'; // 当前 tab：'daily' 早报 | 'orch' 工单看板
+let lastReport = null; // 最近一次 pushReport 的整页报告（编排写操作后只重算 orch 段重推，不重扫盘）
+let orchSnapshot = null; // 最近一次建 orch 视图用的 session snapshot（world:orch:sessions 选择器复用）
 
 // ---- 三态生命周期的模块态（窗口存在期间的显式形态；state() 的出口）----
 let visMode = 'open'; // 窗口活着时的形态：'open' | 'hidden'（closed = 没有窗口，不占这里）
@@ -157,7 +159,9 @@ async function buildLiveReport(outDir, digest) {
   let orch;
   try {
     const { buildOrchView } = require('../orch');
-    orch = buildOrchView({ snapshot: sessionSnapshot || digestAsSnapshot(digest) });
+    const snap = sessionSnapshot || digestAsSnapshot(digest);
+    orchSnapshot = snap; // 缓存给 world:orch:sessions：选择器与工位匹配用同一份会话名单
+    orch = buildOrchView({ snapshot: snap });
     // 调度树视图模型（v0.7 调度树主面）：纯函数层 tree-model 把账本/黑板/decisions
     // 折成 MAIN→JEV→工单层→收敛带的树结构。模板上没有 require，只能从这里注入。
     if (orch) {
@@ -241,11 +245,31 @@ function setPetState(state) {
 
 /** 把报告推进窗口（转义 < 防注入提前闭合，虽然数据纯本地）。 */
 function pushReport(report) {
+  lastReport = report || null;
   if (!isOpen()) return;
   const payload = JSON.stringify(report).replace(/</g, '\\u003c');
   win.webContents
     .executeJavaScript(`window.__worldRender && window.__worldRender(${payload}); 0`)
     .catch((err) => console.error('[live] 注入失败：', err.message));
+}
+
+/**
+ * 编排写操作后的定向重推（v0.7 M2）：只重算 orch 段（账本/黑板/decisions 都是同步小读），
+ * 日报/世界/番茄等段原样保留并整页重推 —— 不为一次点按跑 collect() 全量扫盘。
+ * 渲染层 render() 会整棵重画调度树，工位/日志/状态行同时吃到新账本。
+ */
+function refreshOrchView() {
+  if (!lastReport) return;
+  try {
+    const { buildOrchView } = require('../orch');
+    const { buildTree } = require('../orch/tree-model');
+    const decisions = require('../orch/decisions');
+    const orch = buildOrchView({ snapshot: orchSnapshot });
+    if (orch) orch.tree = buildTree(orch, { decisions: decisions.list(orch.root, 20) });
+    pushReport({ ...lastReport, orch });
+  } catch (e) {
+    console.error('[live] 编排视图定向刷新失败（忽略，下一次定时刷新会再试）：', e.message);
+  }
 }
 
 /**
@@ -464,6 +488,64 @@ function ensureNotesIpc() {
     } catch (err) {
       console.error('[live] 手动完成任务失败：', err.message);
       return badView;
+    }
+  });
+
+  // 编排写入口（v0.7 M2）：确认/派发/收敛/失败/阻塞/改派/重确 + patch/删单 + 派发会话选择器。
+  // 闸门、账本写序、信封投递全在 world/orch/actions.js（与 CLI 同一套），handler 只做
+  // 三件事：本窗守卫、入参白名单、成功后定向重推 orch 段。错误协议原样透传给渲染层上墙。
+  const orchActions = require('../orch/actions');
+  const orchBad = () => ({ ok: false, problems: [{ code: 'window-mismatch', reason: '写请求不是组件窗发出的', fix: '在桌面组件的调度树里操作' }] });
+  const orchDone = (res) => {
+    if (res && res.ok) refreshOrchView();
+    return res;
+  };
+  const ORCH_ID_RE = /^ORCH-\d{3,}$/;
+  ipcMain.handle('world:orch:transition', (e, id, action, payload) => {
+    if (!ok(e)) return orchBad();
+    try {
+      return orchDone(orchActions.transition(
+        String(id || ''), String(action || ''),
+        payload && typeof payload === 'object' ? payload : {},
+      ));
+    } catch (err) {
+      console.error('[live] 编排动作失败：', err.message);
+      return { ok: false, problems: [{ code: 'internal-error', reason: err.message, fix: 'actions 层本应吞掉异常——提 issue' }] };
+    }
+  });
+  ipcMain.handle('world:orch:patch', (e, id, patch) => {
+    if (!ok(e)) return orchBad();
+    try {
+      return orchDone(orchActions.patch(String(id || ''), patch && typeof patch === 'object' ? patch : {}));
+    } catch (err) {
+      console.error('[live] 编排 patch 失败：', err.message);
+      return { ok: false, problems: [{ code: 'internal-error', reason: err.message, fix: 'actions 层本应吞掉异常——提 issue' }] };
+    }
+  });
+  ipcMain.handle('world:orch:remove', (e, id) => {
+    if (!ok(e)) return orchBad();
+    try {
+      return orchDone(orchActions.removeTicket(String(id || '')));
+    } catch (err) {
+      console.error('[live] 编排删单失败：', err.message);
+      return { ok: false, problems: [{ code: 'internal-error', reason: err.message, fix: 'actions 层本应吞掉异常——提 issue' }] };
+    }
+  });
+  // 会话选择器数据源：与工位匹配同一份 snapshot（缓存自最近一次报告），ticket 只用于
+  // 置顶排序（同 agent 同 cwd 在前），读不到/传错就给未排序列表，绝不报错
+  ipcMain.handle('world:orch:sessions', (e, ticketId) => {
+    if (!ok(e)) return { sessions: [] };
+    try {
+      let ticket = null;
+      const id = String(ticketId || '');
+      if (ORCH_ID_RE.test(id)) {
+        const { ticketsFile, ORCH_DIR } = require('../orch/paths');
+        ticket = require('../orch/store').get(ticketsFile(ORCH_DIR), id);
+      }
+      return { sessions: orchActions.sessionsFor(ticket, orchSnapshot) };
+    } catch (err) {
+      console.error('[live] 编排会话列表失败：', err.message);
+      return { sessions: [] };
     }
   });
 }
