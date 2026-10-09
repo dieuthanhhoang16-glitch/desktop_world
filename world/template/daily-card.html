@@ -1154,6 +1154,10 @@
   // 账本里不存在——确认前的候选单只是内存意图，落账后由主进程重推整树再清空）
   // morph：流体形变标记，只带一帧——otPlanHtml 读完即清，主进程重推的重画不重演入场
   var otPlan = { goal: '', agent: '', cwd: '', drafts: null, checks: [], jev: null, morph: '' };
+  // 焦点守卫：主进程推送会整树 innerHTML 重画，正在打字的开单条/收敛输入框会丢焦点、
+  // 点按可能被替换帧吞掉——推送帧若在树内输入框持焦时到达，暂存待渲（otPendingTree），
+  // 焦点离开树才落；本地意图（勾选/预览/弃单）走 force 直画，不被守卫拦住。
+  var otPendingTree = null;
 
   // 工单卡按状态出操作（与 world/orch/actions.js ACTIONS 对齐；done 无操作）
   var OT_ACTIONS = {
@@ -1258,7 +1262,18 @@
   }
 
   // ③ 树主面：MAIN → JEV → spawn → 工单层 → 收敛带
-  function renderTree(t) {
+  function renderTree(t, opts) {
+    // 焦点守卫：非强制帧（主进程推送）遇上树内输入框持焦 → 暂存，blur 时落（见 otBindOnce）。
+    // 树内可输入的元素：开单条三个输入 + 收敛带结论输入——它们正被碰时，画新帧 = 抢键盘。
+    if (!opts || !opts.force) {
+      var ae = document.activeElement;
+      var treeEl = document.getElementById('orchTree');
+      if (ae && treeEl && treeEl.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
+        otPendingTree = t;
+        return;
+      }
+    }
+    otPendingTree = null;
     var html = '<svg class="wires" id="orchWires" aria-hidden="true"></svg>';
 
     html += '<div class="ot-node ot-main">' +
@@ -1489,7 +1504,8 @@
   }
 
   function otRedrawTree() {
-    if (lastR && lastR.orch && lastR.orch.tree) renderTree(lastR.orch.tree);
+    // 本地意图帧（勾选/预览/弃单/落账回执）：force 直画——守卫只拦推送帧，不拦用户自己的动作
+    if (lastR && lastR.orch && lastR.orch.tree) renderTree(lastR.orch.tree, { force: true });
   }
 
   // ① 拆单预览：只读，不落账——主进程不会因此重推，靠 after 回调本地重画树
@@ -1609,6 +1625,15 @@
     if (!panel || !window.__worldOrch) return; // bake/无桥形态：M2 交互整段不存在（只读渲染照旧）
     panel.addEventListener('click', otPanelClick);
     panel.addEventListener('input', otPanelInput);
+    // 焦点守卫的落地口：焦点彻底离开树（blank 区/其他面板）时，把暂存的推送帧画出来。
+    // 焦点只在树内几个输入框之间挪（relatedTarget 仍在树里）时不落——还在打字。
+    panel.addEventListener('focusout', function (e) {
+      if (!otPendingTree) return;
+      var treeEl = document.getElementById('orchTree');
+      if (treeEl && e.relatedTarget && treeEl.contains(e.relatedTarget)) return;
+      var t = otPendingTree;
+      renderTree(t, { force: true });
+    });
   })();
 
   // 依赖连线（dependsOn 边）：DOM 落位后量一次坐标，画静态贝塞尔，不做动画。

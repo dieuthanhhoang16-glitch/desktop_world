@@ -179,7 +179,22 @@ test('v0.7.5 流体胶囊形变 + 弥散光晕：纯 CSS 运动、状态色沿�
   assert.match(block2, /\.ot-picker \.pk, \.ot-picker \.pk h4, \.ot-picker \.pkrow \{ animation: none; \}/);
 });
 
+test('v0.7.6 焦点守卫：推送帧撞上树内输入框持焦 → 暂存待渲，blur 才落；本地意图帧直画', () => {
+  // 触发背景：主进程推送整树 innerHTML 重画，打字中的开单条被抢焦点、点按被替换帧吞掉
+  assert.match(html, /var otPendingTree = null;/);
+  // renderTree 非强制帧 + 树内 input/textarea 持焦 → 暂存返回，不重画
+  assert.match(html, /function renderTree\(t, opts\) \{[\s\S]{0,500}otPendingTree = t;\s*\n\s*return;/);
+  assert.match(html, /ae\.tagName === 'INPUT' \|\| ae\.tagName === 'TEXTAREA'/);
+  // 本地意图（勾选/预览/弃单/落账回执）走 force 直画，守卫不拦
+  assert.match(html, /renderTree\(lastR\.orch\.tree, \{ force: true \}\)/);
+  // blur 彻底离开树才落暂存帧（树内输入互相跳不落）；force 落帧清暂存
+  assert.match(html, /panel\.addEventListener\('focusout'/);
+  assert.match(html, /e\.relatedTarget && treeEl\.contains\(e\.relatedTarget\)\) return;/);
+  assert.match(html, /otPendingTree = null;\s*\n\s*var html =/);
+});
+
 test('依赖连线坐标按容器实际像素量（滚动补偿，拿不到宽度不硬画）', () => {
+
   assert.match(html, /getBoundingClientRect\(\)/);
   assert.match(html, /host\.scrollLeft/);
   assert.match(html, /host\.scrollTop/);
