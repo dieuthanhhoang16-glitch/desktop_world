@@ -548,6 +548,31 @@ function ensureNotesIpc() {
       return { sessions: [] };
     }
   });
+  // agent 下拉数据源（v0.7.8）：开单条「派给谁」的候选 = agents/registry 注册表 ×
+  // prefs 的 integrationInstalled+enabled 判定——与派发闸门同一套 agent-gate 语义，
+  // 下拉里出现的闸门都该放行。只探测不连接：ACP 握手在真正派发（transition→信封）
+  // 那侧才发生，这里纯本地名单。prefs 读不到时不捏造环境结论：退回注册表全名单
+  // （detected 全 false），渲染层标注来源，手输自由保留，闸门终审照旧。
+  ipcMain.handle('world:orch:agents', (e) => {
+    if (!ok(e)) return { agents: [], source: 'blocked' };
+    try {
+      const { getAllAgents } = require('../../agents/registry');
+      const agentGate = require('../../src/agent-gate');
+      const snap = require('../orch/prefs-source').loadPrefs().snapshot;
+      const all = getAllAgents().map((a) => ({
+        id: a.id,
+        name: a.name || a.id,
+        detected: !!snap && agentGate.isAgentIntegrationInstalled(snap, a.id) && agentGate.isAgentEnabled(snap, a.id),
+      }));
+      const detected = all.filter((a) => a.detected);
+      return detected.length
+        ? { agents: detected, source: 'prefs' }
+        : { agents: all, source: snap ? 'registry-none-installed' : 'registry-no-prefs' };
+    } catch (err) {
+      console.error('[live] agent 名单探测失败：', err.message);
+      return { agents: [], source: 'error' };
+    }
+  });
   // M3 开单回路：拆单预览只读账不发号（不写盘）；commit 才落账。
   // 拆分/闸门/修依赖/写序全在 actions 层（与 CLI cmdPlan 同一套），handler 只做
   // 本窗守卫 + 入参白名单 + 成功后定向重推。plan 可能问判断层（P2）→ 异步，

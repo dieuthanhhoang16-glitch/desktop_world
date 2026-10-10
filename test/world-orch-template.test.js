@@ -25,6 +25,10 @@
 //      入类，靠它上色）曾命中裸 .orch 面板规则——绝对定位铺满树区、两行叠画在
 //      keeper 上、z-index 4 吞掉整面真实鼠标点击（el.click 不走命中测试，所以
 //      一度误判成"旧实例卡死"）。裸 .orch { 选择器列入禁规。
+//   ⑫ v0.7.8 开单条两修：预览头/尾钉住 + 候选列表 .pdrafts 自滚（8 张候选不再
+//      把「立单/弃单」挤出 max-height 裁切区）；agent 下拉 = registry × prefs
+//      installed+enabled（与闸门同套语义、只探不连），候选填充只动 datalist
+//      元素不整树重画（保住原生弹出层与打字焦点），手输自由保留。
 'use strict';
 
 const test = require('node:test');
@@ -64,6 +68,33 @@ test('v0.7.7 回归：面板几何/token 规则收敛 .tabpanel.orch，裸 .orch
   // 日志行仍然渲染频道类（上色语义不丢），且频道上色规则保持 .ot-log 局部
   assert.ok(html.includes("'<div class=\"r ' + esc(r.who) + '\">"), '日志行频道类渲染丢失');
   assert.match(html, /\.ot-log \.r\.orch \.who \{ color: var\(--ot-green2\); \}/);
+});
+
+test('v0.7.8 开单条两修：预览页脚钉住 + agent 下拉（只探不连、只填 datalist 不重画）', () => {
+  // ① 预览结构：候选包进自滚容器 .pdrafts，页脚带 pacts 钉住——8 张候选不再挤出立单按钮
+  assert.ok(html.includes("'<div class=\"pdrafts\">'"), '候选列表缺自滚容器');
+  assert.ok(html.includes('prow pacts'), '页脚立单/弃单缺钉住类');
+  assert.match(html, /\.ot-plan\.preview \{ display: flex; flex-direction: column; max-height: calc\(480px \* var\(--otscale/);
+  assert.match(html, /\.ot-plan\.preview \.nh, \.ot-plan\.preview \.prow2, \.ot-plan\.preview \.pacts \{ flex: none; \}/);
+  assert.match(html, /\.ot-plan \.pdrafts \{ flex: 1 1 auto; min-height: 0; overflow-y: auto;/);
+  // ② agent 下拉：input 接 datalist（建议不是白名单，仍是文本框可手输）
+  assert.match(html, /data-pagent list="otAgents"/);
+  assert.ok(html.includes('<datalist id="otAgents">'), 'datalist 容器缺失');
+  // 候选只拉一次；回来只填 datalist 元素——不整树重画（原生弹出层/打字焦点不被顶掉）
+  assert.match(html, /var otAgentOpts = null;/);
+  assert.match(html, /if \(!otAgentOpts && window\.__worldOrch\.agents\)/);
+  assert.match(html, /document\.getElementById\('otAgents'\)/);
+  assert.match(html, /dl\.innerHTML = otAgentOptsHtml\(\)/);
+  // 候选行转义：id 是闸门认的、label 给人看，全部过 esc
+  assert.ok(html.includes('\'<option value="\' + esc(a.id) + \'">\' + esc('), 'agent 候选行缺转义');
+  // 桥与主进程 handler：名单 = registry × agent-gate 的 installed+enabled（只探测不连接）
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'world', 'live', 'preload.js'), 'utf8');
+  assert.match(preload, /agents: \(\) => ipcRenderer\.invoke\('world:orch:agents'\)/);
+  const live = fs.readFileSync(path.join(__dirname, '..', 'world', 'live', 'live.js'), 'utf8');
+  assert.match(live, /ipcMain\.handle\('world:orch:agents'/);
+  assert.match(live, /require\('\.\.\/\.\.\/agents\/registry'\)/);
+  assert.match(live, /isAgentIntegrationInstalled\(snap, a\.id\) && agentGate\.isAgentEnabled\(snap, a\.id\)/);
+  assert.match(live, /require\('\.\.\/orch\/prefs-source'\)\.loadPrefs\(\)\.snapshot/);
 });
 
 test('依赖连线是静态贝塞尔：渲染时量一次坐标，不做逐帧 JS 动画', () => {

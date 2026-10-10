@@ -64,4 +64,5 @@ contextBridge.exposeInMainWorld('__worldOrch', {
   sessions: (ticketId) => ipcRenderer.invoke('world:orch:sessions', ticketId),
   plan: (goal, opts) => ipcRenderer.invoke('world:orch:plan', goal, opts),
   commitPlan: (tickets) => ipcRenderer.invoke('world:orch:commitPlan', tickets),
+  agents: () => ipcRenderer.invoke('world:orch:agents'),
 });

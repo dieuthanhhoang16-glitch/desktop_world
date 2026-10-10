@@ -288,6 +288,11 @@
      .orch 面板几何——绝对定位铺满树区、日志行两两叠画、z-index 4 吞掉整面真实
      鼠标点击（此前误判成"旧实例卡死"：el.click 不走命中测试）。面板几何与 token
      规则全部收敛到 .tabpanel.orch，裸 .orch 选择器列入测试禁规。
+     v0.7.8 开单条两修：①预览面板头/尾钉住（.pacts）、候选列表 .pdrafts 自滚——
+     8 张候选不再把「立单/弃单」挤出 max-height 裁切区；②agent 输入接 datalist：
+     候选 = registry × prefs 的 installed+enabled（与派发闸门同一套判定语义，
+     只探不连），只拉一次、回来只填 datalist 不重画（保住原生弹出层与打字焦点）；
+     datalist 是建议不是白名单，手输自由保留，闸门终审照旧。
      形态取舍：这个 tab 走"有底板"而不是动态桌面的无卡片化 widget —— 它是**工作面**
      （MAIN → JEV 判断层 → 工单层 → 收敛带），信息密度高、需要明确的区块分隔；
      早报那侧继续保持无卡片化。两者的取舍依据不同，不是同一套规则。
@@ -552,6 +557,11 @@
   .ot-plan .pdraft .pd-id { color: var(--ot-green2); flex: none; font-size: calc(0.85px * 10 * var(--otscale, 1)); }
   .ot-plan .pdraft .pd-meta { color: var(--ot-ink3); flex: none; font-size: calc(0.8px * 10 * var(--otscale, 1)); }
   .ot-plan .pdraft.off span { color: var(--ot-ink3); text-decoration: line-through; }
+  /* 预览面板结构（v0.7.8）：头部统计/判断意见与页脚立单/弃单钉住，候选列表自己滚——
+     8 张候选不再把页脚挤出 max-height 裁切区。max-height 与 otPlanMorph 终态同值 */
+  .ot-plan.preview { display: flex; flex-direction: column; max-height: calc(480px * var(--otscale, 1)); overflow: hidden; }
+  .ot-plan.preview .nh, .ot-plan.preview .prow2, .ot-plan.preview .pacts { flex: none; }
+  .ot-plan .pdrafts { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--ot-line2) transparent; }
   .tabpanel.orch.busy .ot-plan button { opacity: 0.45; pointer-events: none; }
 
   /* 开单条流体形变（v0.7.5）：输入态(胶囊) ⇄ 预览面板——圆角与高度沿同一条
@@ -1163,6 +1173,9 @@
   // 账本里不存在——确认前的候选单只是内存意图，落账后由主进程重推整树再清空）
   // morph：流体形变标记，只带一帧——otPlanHtml 读完即清，主进程重推的重画不重演入场
   var otPlan = { goal: '', agent: '', cwd: '', drafts: null, checks: [], jev: null, morph: '' };
+  // agent 下拉候选（v0.7.8）：null=还没拉 / []=拉过但空。只拉一次，回来后**只填
+  // datalist 元素**不整树重画——用户打开下拉/打字中，重画会把原生候选弹层顶掉。
+  var otAgentOpts = null;
   // 焦点守卫：主进程推送会整树 innerHTML 重画，正在打字的开单条/收敛输入框会丢焦点、
   // 点按可能被替换帧吞掉——推送帧若在树内输入框持焦时到达，暂存待渲（otPendingTree），
   // 焦点离开树才落；本地意图（勾选/预览/弃单）走 force 直画，不被守卫拦住。
@@ -1484,10 +1497,21 @@
     otPlan.morph = '';
     var html = '<div class="' + cls + '"><div class="nh"><span class="who">开单 · plan</span><span>打字立单 · 闸门照旧</span></div>';
     if (!otPlan.drafts) {
+      // agent 候选只拉一次；回来只填 datalist 元素不整树重画（下拉弹层会被重画顶掉）。
+      // datalist 是建议不是白名单——手输自由保留，闸门终审照旧。
+      if (!otAgentOpts && window.__worldOrch.agents) {
+        otAgentOpts = [];
+        window.__worldOrch.agents().then(function (res) {
+          otAgentOpts = (res && res.agents) || [];
+          var dl = document.getElementById('otAgents');
+          if (dl) dl.innerHTML = otAgentOptsHtml();
+        }).catch(function () { otAgentOpts = []; });
+      }
       html += '<div class="prow">' +
         '<input class="pgoal" data-pgoal placeholder="目标：先把 A 做完，然后补 B 的测试…" value="' + esc(otPlan.goal) + '">' +
         '<button class="tact go" data-plan="1">拆单预览</button></div>' +
-        '<div class="prow2">agent <input class="popt" data-pagent placeholder="claude-code" value="' + esc(otPlan.agent) + '">' +
+        '<div class="prow2">agent <input class="popt" data-pagent list="otAgents" placeholder="claude-code" value="' + esc(otPlan.agent) + '">' +
+        '<datalist id="otAgents">' + otAgentOptsHtml() + '</datalist>' +
         ' cwd <input class="popt" data-pcwd placeholder="cwd（闸门要用）" value="' + esc(otPlan.cwd) + '"></div>';
     } else {
       var on = otPlan.checks.filter(Boolean).length;
@@ -1497,6 +1521,9 @@
         html += '<div class="prow2 pjudge">⚖ ' + (otPlan.jev.source === 'jev' ? 'JEV 判断层' : '本地判断') +
           ' · ' + esc(otPlan.jev.reason) + '</div>';
       }
+      // 候选列表自带滚动容器（.pdrafts）：候选一多（8 张）页脚立单/弃单仍钉在
+      // 面板里不被 max-height 裁掉——此前页脚被挤出裁切区 = 看得到预览立不了单
+      html += '<div class="pdrafts">';
       otPlan.drafts.forEach(function (d, i) {
         var keep = otPlan.checks[i] !== false;
         var meta = (d.agent || '?') + ((d.dependsOn && d.dependsOn.length) ? ' ← ' + d.dependsOn.join('+') : '');
@@ -1506,10 +1533,19 @@
           '<span class="pd-id">' + esc(d.id) + '</span><span>' + esc(d.title) + '</span>' +
           '<span class="pd-meta">' + esc(meta) + '</span></label>';
       });
-      html += '<div class="prow"><button class="tact go" data-plan-commit="1">✔ 立单（' + on + '）</button>' +
+      html += '</div><div class="prow pacts"><button class="tact go" data-plan-commit="1">✔ 立单（' + on + '）</button>' +
         '<button class="tact warn" data-plan-cancel="1">✕ 弃掉预览</button></div>';
     }
     return html + '</div>';
+  }
+
+  // datalist 候选行：value 是闸门认的 agent id，行文字给人看；非 prefs 探测来源的标注一句
+  function otAgentOptsHtml() {
+    if (!otAgentOpts || !otAgentOpts.length) return '';
+    return otAgentOpts.map(function (a) {
+      var label = a.name && a.name !== a.id ? a.name + ' · ' + a.id : a.id;
+      return '<option value="' + esc(a.id) + '">' + esc(a.detected === false ? label + '（注册表）' : label) + '</option>';
+    }).join('');
   }
 
   function otRedrawTree() {
