@@ -55,8 +55,10 @@ contextBridge.exposeInMainWorld('__worldLive', {
   openSettings: () => ipcRenderer.invoke('world:live:open-settings'),
 });
 
-// 编排写入口（v0.7 M2/M3）：调度树上的工单动作 + 开单回路。所有方法返回 actions 层的
-// 错误协议 {ok:true,...}|{ok:false, problems:[{code,reason,fix}]}，渲染层原样上墙。
+// 编排写入口（v0.7 M2/M3 + v1.0 窗口协作）：调度树上的工单动作 + 开单回路 +
+// 五级窗口的回执提交/推进确认/roadmap 只读。所有方法返回裁定层错误协议
+// {ok:true,...}|{ok:false, problems:[{code,reason,fix}]}，渲染层原样上墙。
+// 阶段授权（stage-authorize）刻意不开桥——那是老大的人工关口，只走 CLI readline。
 contextBridge.exposeInMainWorld('__worldOrch', {
   transition: (id, action, payload) => ipcRenderer.invoke('world:orch:transition', id, action, payload),
   patch: (id, patch) => ipcRenderer.invoke('world:orch:patch', id, patch),
@@ -65,4 +67,7 @@ contextBridge.exposeInMainWorld('__worldOrch', {
   plan: (goal, opts) => ipcRenderer.invoke('world:orch:plan', goal, opts),
   commitPlan: (tickets) => ipcRenderer.invoke('world:orch:commitPlan', tickets),
   agents: () => ipcRenderer.invoke('world:orch:agents'),
+  submitReport: (payload) => ipcRenderer.invoke('world:orch:submitReport', payload),
+  advanceWindow: (payload) => ipcRenderer.invoke('world:orch:advanceWindow', payload),
+  roadmapRead: () => ipcRenderer.invoke('world:orch:roadmapRead'),
 });

@@ -21,6 +21,7 @@ const ticketsModel = require('./tickets');
 const blackboard = require('./blackboard');
 const mailbox = require('./mailbox');
 const scene = require('./scene-agents');
+const stageLead = require('./stage-lead');
 
 /**
  * 从 session snapshot 里挑出与工单相关的会话，按 agentId 归组。
@@ -145,10 +146,21 @@ function isOrchEmpty(view) {
   return !view || !view.active;
 }
 
+/**
+ * 五级窗口协作切片（UI 五态条 / 窗口卡 / 回执面板 / roadmap 带的唯一取数口）。
+ * 只读聚合：roadmap.json + 回执账本 + 工单聚合，全部现读不缓存。
+ * 没有 roadmap 或没有活跃窗口 → null，UI 四段整段静默（不渲染占位壳）。
+ */
+function buildRoadmapSlice(opts = {}) {
+  const root = opts.root || ORCH_DIR;
+  return stageLead.windowStatus({ root });
+}
+
 module.exports = {
   ORCH_DIR,
   indexSessions,
   matchSession,
   buildOrchView,
   isOrchEmpty,
+  buildRoadmapSlice,
 };

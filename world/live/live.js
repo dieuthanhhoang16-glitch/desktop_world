@@ -158,7 +158,7 @@ async function buildLiveReport(outDir, digest) {
   // 本模块已采集的 digest 会话（同样的 agent 维度），保证场景永远有工位可画。
   let orch;
   try {
-    const { buildOrchView } = require('../orch');
+    const { buildOrchView, buildRoadmapSlice } = require('../orch');
     const snap = sessionSnapshot || digestAsSnapshot(digest);
     orchSnapshot = snap; // 缓存给 world:orch:sessions：选择器与工位匹配用同一份会话名单
     orch = buildOrchView({ snapshot: snap });
@@ -167,7 +167,11 @@ async function buildLiveReport(outDir, digest) {
     if (orch) {
       const { buildTree } = require('../orch/tree-model');
       const decisions = require('../orch/decisions');
-      orch.tree = buildTree(orch, { decisions: decisions.list(orch.root, 20) });
+      // 五级窗口协作切片（v1.0）：roadmap+回执的只读投影；无 roadmap → null，四段 UI 静默
+      orch.tree = buildTree(orch, {
+        decisions: decisions.list(orch.root, 20),
+        roadmap: buildRoadmapSlice({ root: orch.root }),
+      });
     }
   } catch (e) {
     console.error('[live] 编排视图读取失败（忽略，不影响卡片）：', e.message);
@@ -261,11 +265,16 @@ function pushReport(report) {
 function refreshOrchView() {
   if (!lastReport) return;
   try {
-    const { buildOrchView } = require('../orch');
+    const { buildOrchView, buildRoadmapSlice } = require('../orch');
     const { buildTree } = require('../orch/tree-model');
     const decisions = require('../orch/decisions');
     const orch = buildOrchView({ snapshot: orchSnapshot });
-    if (orch) orch.tree = buildTree(orch, { decisions: decisions.list(orch.root, 20) });
+    if (orch) {
+      orch.tree = buildTree(orch, {
+        decisions: decisions.list(orch.root, 20),
+        roadmap: buildRoadmapSlice({ root: orch.root }),
+      });
+    }
     pushReport({ ...lastReport, orch });
   } catch (e) {
     console.error('[live] 编排视图定向刷新失败（忽略，下一次定时刷新会再试）：', e.message);
@@ -599,6 +608,40 @@ function ensureNotesIpc() {
     } catch (err) {
       console.error('[live] 立单失败：', err.message);
       return { ok: false, problems: [{ code: 'internal-error', reason: err.message, fix: 'actions 层本应吞掉异常——提 issue' }] };
+    }
+  });
+  // 五级窗口协作（v1.0）：回执提交 / 推进确认 / roadmap 只读。裁定与写序全在
+  // stage-lead.js（与 CLI 同一套），handler 只做本窗守卫 + 入参白名单 + 成功后重推。
+  // 阶段授权刻意没有桥——authorize 走 CLI readline，UI 永远碰不到授权闸门。
+  const stageLead = require('../orch/stage-lead');
+  ipcMain.handle('world:orch:submitReport', (e, payload) => {
+    if (!ok(e)) return orchBad();
+    try {
+      const p = payload && typeof payload === 'object' ? payload : {};
+      return orchDone(stageLead.submitReport(p));
+    } catch (err) {
+      console.error('[live] 回执提交失败：', err.message);
+      return { ok: false, problems: [{ code: 'internal-error', reason: err.message, fix: 'stage-lead 本应吞掉异常——提 issue' }] };
+    }
+  });
+  ipcMain.handle('world:orch:advanceWindow', (e, payload) => {
+    if (!ok(e)) return orchBad();
+    try {
+      const p = payload && typeof payload === 'object' ? payload : {};
+      // confirm 必须是显式 true——渲染层两步确认按钮的第二击才带它过来
+      return orchDone(stageLead.advanceWindow({ to: typeof p.to === 'string' ? p.to : undefined, confirm: p.confirm === true }));
+    } catch (err) {
+      console.error('[live] 窗口推进失败：', err.message);
+      return { ok: false, problems: [{ code: 'internal-error', reason: err.message, fix: 'stage-lead 本应吞掉异常——提 issue' }] };
+    }
+  });
+  ipcMain.handle('world:orch:roadmapRead', (e) => {
+    if (!ok(e)) return { slice: null };
+    try {
+      return { slice: stageLead.windowStatus({}) };
+    } catch (err) {
+      console.error('[live] roadmap 读取失败：', err.message);
+      return { slice: null };
     }
   });
 }
