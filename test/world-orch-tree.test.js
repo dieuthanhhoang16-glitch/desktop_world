@@ -234,6 +234,12 @@ test('buildTree：session log 最新在下、只留 logLimit 条、主体按 kin
   assert.deepStrictEqual(t.log[2].ticketIds, ['ORCH-014']);
 });
 
+test('buildTree：report 留痕归 gate 频道（回执/关口推进与 LLM 判断同频道色）', () => {
+  const facts = [{ kind: 'report', text: '窗口推进 A.a planning→execution（人确认）', at: 5000, ticketIds: [] }];
+  const t = tree.buildTree(viewOf({ facts }));
+  assert.strictEqual(t.log[0].who, 'gate');
+});
+
 test('buildTree：keeper 计数与发言优先级（环 > 阻塞 > 失败 > jev）', () => {
   const base = viewOf({
     tickets: [ticketOf('ORCH-001', { status: 'blocked' }), ticketOf('ORCH-002', { status: 'failed' })],
@@ -266,4 +272,82 @@ test('buildTree：确定性 —— 同一输入两次产出深度相等', () => 
     facts: [{ kind: 'fact', text: '立单 ORCH-001：x', at: 1 }],
   });
   assert.deepStrictEqual(tree.buildTree(v), tree.buildTree(v));
+});
+
+// ── 五级窗口协作投影（opts.roadmap = index.buildRoadmapSlice() 的形状）───────
+
+function roadmapSliceOf(over = {}) {
+  return {
+    header: { currentMilestone: 'm', currentWindowState: 'execution', soleGoal: '在范围内增量交付', nextAllowedState: 'review' },
+    window: { stageId: 'A', stageTitle: '阶段A', subtaskId: 'a', subtaskTitle: '子任务a', state: 'execution', ticketIds: ['ORCH-001'] },
+    windowId: 'A.a',
+    color: '#10b981',
+    stateLabel: '执行',
+    tickets: [{ id: 'ORCH-001', status: 'running', title: '工单一' }],
+    roadmap: [
+      { id: 'A', title: '阶段A', authorized: true, subtasks: [
+        { id: 'a', title: '子任务a', state: 'execution', active: true },
+        { id: 'b', title: '子任务b', state: 'planning', active: false },
+      ] },
+      { id: 'B', title: '阶段B', authorized: false, subtasks: [
+        { id: 'a', title: '子任务Ba', state: 'planning', active: false },
+      ] },
+    ],
+    milestone: 'm',
+    latestReport: { id: 'r-1', verdict: 'pass', checklist: [{ id: 'scope', passed: true, note: '' }] },
+    ...over,
+  };
+}
+
+test('buildTree：无 roadmap 时窗口三段全 null（四段 UI 整段静默的依据）', () => {
+  const t = tree.buildTree(viewOf({ tickets: [ticketOf('ORCH-001')] }));
+  assert.strictEqual(t.windowState, null);
+  assert.strictEqual(t.roadmapView, null);
+  assert.strictEqual(t.latestReport, null);
+  // roadmap:null / 缺 window 的脏切片同样不炸不编
+  const t2 = tree.buildTree(viewOf(), { roadmap: null });
+  assert.strictEqual(t2.windowState, null);
+  const t3 = tree.buildTree(viewOf(), { roadmap: { milestone: 'm' } });
+  assert.strictEqual(t3.roadmapView, null);
+});
+
+test('buildTree：roadmap 投影——windowState / strip 标记 / 阶段带子任务状态文案', () => {
+  const t = tree.buildTree(viewOf(), { roadmap: roadmapSliceOf() });
+  assert.strictEqual(t.windowState, 'execution');
+  const rv = t.roadmapView;
+  assert.strictEqual(rv.windowId, 'A.a');
+  assert.strictEqual(rv.stateLabel, '执行');
+  assert.strictEqual(rv.soleGoal, '在范围内增量交付');
+  assert.strictEqual(rv.nextAllowed, 'review');
+  // 五态条：当前格只有一格，前面的 reached、后面的没有
+  assert.strictEqual(rv.strip.length, 5);
+  assert.deepStrictEqual(rv.strip.map((s) => s.id), ['planning', 'execution', 'review', 'closeout', 'closed']);
+  assert.deepStrictEqual(rv.strip.filter((s) => s.current).map((s) => s.id), ['execution']);
+  assert.deepStrictEqual(rv.strip.map((s) => s.reached), [true, true, false, false, false]);
+  // 阶段带：授权旗标原样过，子任务状态 → 文案由 protocol 供
+  assert.strictEqual(rv.stages.length, 2);
+  assert.strictEqual(rv.stages[0].authorized, true);
+  assert.strictEqual(rv.stages[1].authorized, false);
+  assert.strictEqual(rv.stages[0].subtasks[0].stateLabel, '执行');
+  assert.strictEqual(rv.stages[0].subtasks[1].stateLabel, '规划');
+  assert.strictEqual(rv.stages[0].subtasks[0].active, true);
+  // 关联工单聚合投影原样搬运（缺一字段也不炸）
+  assert.deepStrictEqual(rv.tickets[0], { id: 'ORCH-001', status: 'running', title: '工单一' });
+});
+
+test('buildTree：latestReport 只挂活跃窗口有回执时（投影自由文本原样过，UI 侧 esc）', () => {
+  const withReport = tree.buildTree(viewOf(), { roadmap: roadmapSliceOf() });
+  assert.strictEqual(withReport.latestReport.verdict, 'pass');
+  assert.strictEqual(withReport.latestReport.checklist[0].id, 'scope');
+  const noReport = tree.buildTree(viewOf(), { roadmap: roadmapSliceOf({ latestReport: null }) });
+  assert.strictEqual(noReport.windowState, 'execution');
+  assert.strictEqual(noReport.latestReport, null);
+});
+
+test('buildTree：非法窗口状态脏切片 → 三段全 null（不假装状态成立）', () => {
+  const bad = roadmapSliceOf({ window: { state: 'half-done', stageTitle: '', subtaskTitle: '' }, windowId: 'A.a' });
+  const t = tree.buildTree(viewOf(), { roadmap: bad });
+  assert.strictEqual(t.windowState, null);
+  assert.strictEqual(t.roadmapView, null);
+  assert.strictEqual(t.latestReport, null);
 });

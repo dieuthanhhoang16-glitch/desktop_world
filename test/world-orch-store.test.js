@@ -196,6 +196,15 @@ test('blackboard：非法 kind 归一到 fact，非法 ticketIds 被丢', () => 
   assert.deepStrictEqual(e.ticketIds, ['ORCH-001']);
 });
 
+test('blackboard：report kind 存活（窗口回执/关口留痕不被归一到 fact）', () => {
+  const root = tmpRoot();
+  const f = blackboardFile(root);
+  blackboard.append(f, { text: '回执 A.a execution verdict=pass 边界 9/9', kind: 'report' });
+  assert.strictEqual(blackboard.list(f)[0].kind, 'report');
+  // listByKind 也认它（否则回执留痕从按类过滤里消失）
+  assert.strictEqual(blackboard.listByKind(f, 'report').length, 1);
+});
+
 test('blackboard：reportConvergence 写 convergence 条目并关联工单', () => {
   const root = tmpRoot();
   const f = blackboardFile(root);

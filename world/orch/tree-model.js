@@ -15,6 +15,8 @@
 //      failed / blocked 停在自己被卡住的那一格，由 UI 标色，不在逻辑层假装前进。
 'use strict';
 
+const protocol = require('./protocol'); // 纯函数零 IO：五态表/文案的唯一真相
+
 // ── 状态 → 进度映射 ─────────────────────────────────────────────
 // failed/blocked 是"停格"：停在出事前的位置，由模板标红/橙而不是继续走。
 const PROGRESS_BY_STATUS = Object.freeze({
@@ -42,6 +44,7 @@ const WHO_BY_KIND = Object.freeze({
   blocker: 'user',
   convergence: 'orch',
   correction: 'user',
+  report: 'gate', // 回执/关口推进留痕（stage-lead 写入）→ 走 gate 频道色
 });
 
 function progressOf(status) {
@@ -207,9 +210,56 @@ function logOf(facts, limit) {
 }
 
 /**
+ * 五级窗口协作投影（输入 = index.buildRoadmapSlice() 的输出，即 stage-lead.windowStatus 的形状）。
+ * 无 roadmap / 无活跃窗口 → null，UI 四段（五态条/窗口卡/回执面板/roadmap 带）整段静默。
+ * 这里只做搬运与打标：五态表、文案、颜色语义全部由 protocol 供给，不就地重述。
+ */
+function roadmapViewOf(slice) {
+  if (!slice || typeof slice !== 'object' || !slice.window) return null;
+  const state = String(slice.window.state || '');
+  if (!protocol.isWindowState(state)) return null;
+  const currentIdx = protocol.WINDOW_STATES.indexOf(state);
+  return {
+    milestone: String(slice.milestone || ''),
+    windowId: String(slice.windowId || ''),
+    stageTitle: String(slice.window.stageTitle || ''),
+    subtaskTitle: String(slice.window.subtaskTitle || ''),
+    state,
+    stateLabel: String(slice.stateLabel || protocol.WINDOW_STATE_LABELS[state] || state),
+    soleGoal: slice.header && slice.header.soleGoal ? String(slice.header.soleGoal) : '',
+    nextAllowed: slice.header && slice.header.nextAllowedState ? String(slice.header.nextAllowedState) : null,
+    tickets: (Array.isArray(slice.tickets) ? slice.tickets : []).map((t) => ({
+      id: String(t.id || ''),
+      status: String(t.status || 'missing'),
+      title: String(t.title || ''),
+    })),
+    // 五态条：reached = 已走过的格（含当前），current = 当前格
+    strip: protocol.WINDOW_STATES.map((s, i) => ({
+      id: s,
+      label: protocol.WINDOW_STATE_LABELS[s],
+      reached: i <= currentIdx,
+      current: i === currentIdx,
+    })),
+    stages: (Array.isArray(slice.roadmap) ? slice.roadmap : []).map((s) => ({
+      id: String(s.id || ''),
+      title: String(s.title || ''),
+      authorized: s.authorized === true,
+      subtasks: (Array.isArray(s.subtasks) ? s.subtasks : []).map((t) => ({
+        id: String(t.id || ''),
+        title: String(t.title || ''),
+        state: protocol.isWindowState(t.state) ? t.state : 'planning',
+        stateLabel: protocol.WINDOW_STATE_LABELS[t.state] || String(t.state || ''),
+        active: t.active === true,
+      })),
+    })),
+  };
+}
+
+/**
  * 组装调度树视图。
  * @param view  buildOrchView() 的输出（可以是空视图 {active:false}，返回全空骨架）
- * @param opts  { decisions: decisions.list() 的结果（可省）, logLimit }
+ * @param opts  { decisions: decisions.list() 的结果（可省）, logLimit,
+ *                roadmap: index.buildRoadmapSlice() 的输出（可省；五态窗口投影） }
  */
 function buildTree(view, opts = {}) {
   const v = view && typeof view === 'object' ? view : {};
@@ -264,8 +314,16 @@ function buildTree(view, opts = {}) {
   const summary = (v.summary && typeof v.summary === 'object') ? v.summary : {};
   const inbox = (Array.isArray(v.inbox) ? v.inbox : []).reduce((sum, i) => sum + (Number(i.unread) || 0), 0);
 
+  // 五级窗口协作切片（与工单树正交；无 roadmap 时三段全 null，模板整段静默）
+  const roadmapSlice = opts.roadmap && typeof opts.roadmap === 'object' ? opts.roadmap : null;
+  const roadmapView = roadmapViewOf(roadmapSlice);
+
   return {
     active: v.active === true && cards.length > 0,
+    // ── 窗口五态（v1.0；null = 没有活跃窗口，与 active 无关 —— 没有工单也可以有 roadmap） ──
+    windowState: roadmapView ? roadmapView.state : null,
+    roadmapView,
+    latestReport: roadmapView && roadmapSlice && roadmapSlice.latestReport ? roadmapSlice.latestReport : null,
     main: {
       goal: goalOf(facts),
       tickets: cards.length,
@@ -299,5 +357,6 @@ module.exports = {
   goalOf,
   judgmentOf,
   signalsOf,
+  roadmapViewOf,
   buildTree,
 };

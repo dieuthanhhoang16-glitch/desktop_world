@@ -312,7 +312,7 @@ npm run world:study -- --open                        # 打印 index.md 路径
 | `techstack/` | 定向学习：`config.js`（目标读写/关键词白名单/稳定 keyword id 0600）、`memory.js`（项目记忆聚合：专案+近7天日报）、`propose.js`（候选关键词：LLM 结合记忆 + 确定性词典兜底）、`techstack.js`（CLI） |
 | `study/` | 学习卡片：`index.js`（读写主入口/建档/回填/index 总览/CLI 入口）、`card.js`（卡片渲染与追加的纯函数，同日幂等与「只追加不覆盖」都在这里）、`scanner.js`（把日报结构化考点匹配回关键词，宁缺毋滥）、`cli.js`（`world:study` 的 --list/--sync/--ensure/--open） |
 | `garden/` | 生长世界：`state.js`（持久状态/结算/阶段表）、`scene.js`（确定性像素 SVG）、`index.js`（门面） |
-| `orch/` | 多智能体编排：`tickets.js`（工单模型 + id 发号 + 依赖图 + 状态机 + 确定性拆分器）、`store.js`（tickets.json 唯一写入口）、`blackboard.js`（共享事实，只追加）、`mailbox.js`（每 session 收件箱，只追加）、`dispatch.js`（派单可行性硬闸门）、`scene-agents.js`（工位场景，确定性像素 + 飞行信封路线）、`index.js`（只读视图门面）、`prefs-source.js`（纯 Node 读 clawd-prefs.json）、`cli.js`（`world:orch` 拆分/确认/派发/收敛）、`paths.js`（落盘根目录与常量） |
+| `orch/` | 多智能体编排：`tickets.js`（工单模型 + id 发号 + 依赖图 + 状态机 + 确定性拆分器）、`store.js`（tickets.json 唯一写入口）、`blackboard.js`（共享事实，只追加）、`mailbox.js`（每 session 收件箱，只追加）、`dispatch.js`（派单可行性硬闸门）、`scene-agents.js`（工位场景，确定性像素 + 飞行信封路线）、`index.js`（只读视图门面）、`prefs-source.js`（纯 Node 读 clawd-prefs.json）、`cli.js`（`world:orch` 拆分/确认/派发/收敛 + roadmap/回执/推进/提示词）、`paths.js`（落盘根目录与常量）。五级窗口协作：`protocol.js`（窗口五态机 + StageReport 校验，纯）、`boundary-check.js`（九项边界清单 + 机器抽查，纯）、`roadmap.js`（roadmap.json 唯一读写：阶段授权 + 活跃窗口 + 工单引用）、`reports.js`（回执账本归档/淘汰/投影）、`stage-lead.js`（老二裁定：submitReport 五道核验 / advanceWindow 七道关，永不抛）、`planning-window.js` / `execution-window.js` / `review-window.js`（三个任务窗口的确定性提示词模板，closeout 复用 review） |
 | `creature/` | 桌宠皮肤「芽芽」：`sprites.js`（23 状态像素精灵库）、`generate.js`（themes/sprout 生成器） |
 
 ## 多智能体编排（v0.7）：把已有会话当工位来编排
@@ -432,6 +432,35 @@ npm run world:orch -- facts               # 读黑板
 
 配置落 `~/.desktop-world/orch/`（`WORLD_ORCH_DIR` 可覆盖）。不跟 `outDir`：那是日报的产物目录，
 而编排状态是长期状态，与 `live.json` / `techstack.json` / `study/` 同源。
+
+### 五级窗口协作（v1.0）：roadmap 驱动 + 五态窗口状态机 + 结构化回执
+
+在工单体系之上叠加的一层**协作协议**：「老大统筹 / 老二裁定 / 三个任务窗口」是
+对话角色（人 + AI 对话窗口），代码提供协议载体——没有子进程、没有自动推进。
+
+- **窗口五态机**：`planning→execution→review→closeout→closed`，每态至多一条回边
+  （execution 可回 planning 重规划、review 可打回 execution、closeout 可回 review）；
+  每次推进 = 老二七道关裁定通过 + 人工 `y` 确认，缺一不可。
+- **roadmap.json**（`roadmap.js` 唯一读写，0600）：阶段表 + 子任务 + 唯一活跃窗口指针 +
+  阶段授权（`stage-authorize` 是老大的人工动作）。子任务以 `ticketIds[]` **引用**工单，
+  聚合永远在裁定时现读，不缓存（两套状态机正交，绝不共享状态）。
+- **结构化回执**（`protocol.js` 定义，`reports.js` 归档）：`stageState / verdict /
+  deliverable / evidence / risks / boundaryCheck / blockingDecision / recommendedNextStep`。
+  pass 系的回执必须 deliverable 非空 + 边界九项全过。
+- **九项边界检查**（`boundary-check.js`）：范围/越界/未授权启动/权威变更/第二事实源/
+  垃圾入库/掩盖式修复/旧污染/证据真实性。后三项机器可抽查（伪标证据、tmp 路径入库、
+  多份 roadmap 工件），前六项靠窗口自报 + 关口核对，代码不假装能判。
+- **老二裁定**（`stage-lead.js`，永不抛）：submitReport 五道核验（协议→状态错配→边界→机器
+  抽查→归档+黑板留痕）；advanceWindow 七道关（活跃窗口→迁移合法→回执新鲜 pass→边界
+  全过→关联工单聚合→阶段授权→readyForHuman），`confirm:false` 只读预演。
+- **窗口提示词**（`planning-window.js` / `execution-window.js` / `review-window.js`，
+  closeout 复用 review）：确定性生成——窗口头、职责、关联工单、越权红线、回执格式、
+  九项清单、升级规则。`npm run world:orch -- window-prompt` 取当前窗口提示词。
+- UI：动态桌面编排 tab 的五态状态条 / 窗口卡（soleGoal + 两步确认推进按钮）/
+  回执面板（九项 ✅/❌ 折叠）/ roadmap 带，颜色协议 `协议 protocol.WINDOW_STATE_COLORS`
+  单一真相 → CSS 变量 `--ot-ws-*`。
+
+CLI 全景与回执字段见根目录 `AGENT.md`。
 
 ## App 内集成
 

@@ -38,8 +38,18 @@ const dispatch = require('./dispatch');
 const scene = require('./scene-agents');
 const orch = require('./index');
 const { loadPrefs } = require('./prefs-source');
-const { ORCH_DIR, ticketsFile, blackboardFile, STATUSES, STATUS_LABELS, sanitizeSessionId } = require('./paths');
+const { ORCH_DIR, ticketsFile, blackboardFile, roadmapFile, STATUSES, STATUS_LABELS, sanitizeSessionId } = require('./paths');
 const { getAllAgents } = require('../../agents/registry');
+
+// 五级窗口协作（Stage B/C 新增）：roadmap 账本 + 老二裁定 + 窗口提示词。
+// cli 只是薄壳——全部判定逻辑都在可测模块里。
+const roadmap = require('./roadmap');
+const reports = require('./reports');
+const protocol = require('./protocol');
+const lead = require('./stage-lead');
+const planningWindow = require('./planning-window');
+const executionWindow = require('./execution-window');
+const reviewWindow = require('./review-window');
 
 const args = process.argv.slice(2);
 const flagVal = (name, dflt) => {
@@ -54,7 +64,7 @@ const ROOT = process.env.WORLD_ORCH_DIR || ORCH_DIR;
 // ---------------------------------------------------------------- 目标文本
 
 /** CLI 会消费掉的值型 flag —— 它们的下一个 token 不是目标文本。 */
-const VALUE_FLAGS = new Set(['--agent', '--cwd', '--to', '--summary', '--kind', '--confirm', '--dispatch', '--converge', '--note', '--goal']);
+const VALUE_FLAGS = new Set(['--agent', '--cwd', '--to', '--summary', '--kind', '--confirm', '--dispatch', '--converge', '--note', '--goal', '--state', '--file', '--milestone', '--window', '--stage']);
 
 /**
  * --plan / --note 的自由文本：--goal="…" 优先，否则取第一个"不是子命令、不是 flag、
@@ -477,7 +487,7 @@ function cmdFacts() {
     console.log('黑板还是空的。');
     return 0;
   }
-  const ICON = { fact: '·', decision: '⚖️', blocker: '🚧', convergence: '🌳', correction: '✏️' };
+  const ICON = { fact: '·', decision: '⚖️', blocker: '🚧', convergence: '🌳', correction: '✏️', report: '📋' };
   console.log(`共享事实（${facts.length} 条，最新在前）：`);
   for (const f of facts) {
     const stamp = new Date(f.at).toLocaleString();
@@ -509,6 +519,231 @@ function cmdScene() {
   return 0;
 }
 
+// ---------------------------------------------------------------- 五级窗口协作
+
+/** 示例 roadmap：本模块自己的五级重构路线（也是唯一随代码发的示例工件）。 */
+function exampleRoadmap() {
+  return {
+    version: 1,
+    milestone: 'multi-agent-refactor',
+    stages: [
+      {
+        id: 'A', title: '纯协议与边界', authorized: false,
+        subtasks: [
+          { id: 'a', title: 'protocol.js 五态机与 StageReport 校验', windowState: 'planning', ticketIds: [] },
+          { id: 'b', title: 'boundary-check.js 九项清单', windowState: 'planning', ticketIds: [] },
+        ],
+      },
+      {
+        id: 'B', title: '存储与裁定', authorized: false,
+        subtasks: [
+          { id: 'a', title: 'roadmap/reports 账本', windowState: 'planning', ticketIds: [] },
+          { id: 'b', title: 'stage-lead 老二裁定', windowState: 'planning', ticketIds: [] },
+        ],
+      },
+      {
+        id: 'C', title: 'CLI 与文档', authorized: false,
+        subtasks: [
+          { id: 'a', title: 'cli 子命令与窗口提示词', windowState: 'planning', ticketIds: [] },
+          { id: 'b', title: '交付文档（AGENT/README/回执）', windowState: 'planning', ticketIds: [] },
+        ],
+      },
+      {
+        id: 'D', title: 'UI 可视化', authorized: false,
+        subtasks: [
+          { id: 'a', title: '五态条与窗口卡', windowState: 'planning', ticketIds: [] },
+          { id: 'b', title: '回执面板与任务树', windowState: 'planning', ticketIds: [] },
+        ],
+      },
+    ],
+    activeWindow: { stageId: 'A', subtaskId: 'a' },
+  };
+}
+
+function printRoadmap(rm) {
+  const win = roadmap.windowOf(rm);
+  console.log(`══ Roadmap：${rm.milestone || '(未命名任务)'} ══  (账本：${roadmapFile(ROOT)})`);
+  if (win) {
+    console.log(`当前窗口：${win.stageId}.${win.subtaskId}「${win.subtaskTitle}」 状态=${win.state}`);
+  } else {
+    console.log('当前窗口：（未指定活跃窗口）');
+  }
+  for (const s of rm.stages) {
+    console.log(`\n${s.authorized ? '🟢' : '⚪'} 阶段 ${s.id}「${s.title}」${s.authorized ? '（已授权）' : '（未授权）'}`);
+    for (const t of s.subtasks) {
+      const mark = rm.activeWindow && rm.activeWindow.stageId === s.id && rm.activeWindow.subtaskId === t.id ? '▶' : ' ';
+      console.log(`  ${mark} ${s.id}.${t.id} [${protocol.WINDOW_STATE_LABELS[t.windowState] || t.windowState}] ${t.title}${t.ticketIds.length ? `  工单: ${t.ticketIds.join(', ')}` : ''}`);
+    }
+  }
+}
+
+function cmdRoadmap() {
+  const file = roadmapFile(ROOT);
+  if (has('init')) {
+    const existing = roadmap.load(file);
+    if (existing.stages.length) {
+      console.log(`⚠ 已有 roadmap（${existing.milestone || '(未命名)'}），不覆盖。要重来先手动删 ${file}`);
+      return 1;
+    }
+    roadmap.saveAll(file, has('--example') ? exampleRoadmap() : roadmap.emptyRoadmap());
+    console.log(`✅ roadmap 已初始化：${file}`);
+    if (has('--example')) console.log('   写入示例：multi-agent-refactor 五阶段 A–D');
+    console.log('   下一步：npm run world:orch -- stage-authorize A（人工授权）→ report submit --state planning --file <json>');
+    return 0;
+  }
+  if (has('link')) {
+    const i = args.indexOf('link');
+    const windowId = args[i + 1] || '';
+    const ticketIds = args.slice(i + 2).filter((a) => /^ORCH-\d{3,}$/.test(a));
+    const [stageId, subtaskId] = windowId.split('.');
+    if (!stageId || !subtaskId || !ticketIds.length) {
+      console.log('用法：npm run world:orch -- roadmap link <A.a> ORCH-001 [ORCH-002 …]');
+      return 1;
+    }
+    const ids = roadmap.upsertSubtaskTickets(file, stageId, subtaskId, ticketIds);
+    console.log(`🔗 ${windowId} 已关联工单：${ids.join(', ') || '(清空)'}`);
+    return 0;
+  }
+  const rm = roadmap.load(file);
+  if (!rm.stages.length) {
+    console.log('还没有 roadmap。先初始化：npm run world:orch -- roadmap init --example');
+    return 0;
+  }
+  if (has('--json')) {
+    console.log(JSON.stringify(rm, null, 2));
+    return 0;
+  }
+  printRoadmap(rm);
+  return 0;
+}
+
+async function cmdStageAuthorize() {
+  const stageId = flagVal('--stage', '') || args[1];
+  if (!stageId) {
+    console.log('用法：npm run world:orch -- stage-authorize <阶段id>');
+    return 1;
+  }
+  const rm = roadmap.load(roadmapFile(ROOT));
+  const stage = roadmap.findStage(rm, stageId);
+  if (!stage) {
+    console.log(`❌ roadmap 里没有阶段 ${stageId}。现有：${rm.stages.map((s) => s.id).join(', ') || '(空)'}`);
+    return 1;
+  }
+  if (stage.authorized) {
+    console.log(`阶段 ${stageId}「${stage.title}」已授权，无需重复。`);
+    return 0;
+  }
+  // 人工关口：授权不是代码能自决的事，必须有人敲下这个 y
+  console.log(`阶段 ${stageId}「${stage.title}」包含 ${stage.subtasks.length} 个子任务：`);
+  for (const t of stage.subtasks) console.log(`  - ${stageId}.${t.id} ${t.title}`);
+  const reader = createLineReader(process.stdin, process.stdout);
+  try {
+    const answer = await reader.ask(`确认授权启动阶段 ${stageId}？[y/N] > `);
+    if (answer !== 'y' && answer !== 'yes') {
+      console.log('未授权（默认拒绝，什么都不写）。');
+      return 0;
+    }
+  } finally {
+    reader.close();
+  }
+  roadmap.authorizeStage(roadmapFile(ROOT), stageId);
+  console.log(`🟢 阶段 ${stageId} 已授权。窗口开工（planning→execution）的闸门已开。`);
+  return 0;
+}
+
+function cmdReportSubmit() {
+  const file = flagVal('--file', '');
+  if (!file) {
+    console.log('用法：npm run world:orch -- report submit --state <五态> --file <receipt.json> [--window A.a] [--milestone m]');
+    return 1;
+  }
+  let json;
+  try {
+    json = JSON.parse(require('fs').readFileSync(path.resolve(file), 'utf8'));
+  } catch (err) {
+    console.log(`❌ 回执文件读不出来：${err.message}`);
+    return 1;
+  }
+  const state = flagVal('--state', '');
+  const report = { ...(json || {}) };
+  if (state) {
+    if (report.stageState && report.stageState !== state) {
+      console.log(`❌ 回执 stageState=${report.stageState} 与 --state ${state} 不一致——裁定只认文件里的，两者必须相同`);
+      return 1;
+    }
+    report.stageState = state;
+  }
+  const r = lead.submitReport(
+    { windowId: flagVal('--window', ''), milestone: flagVal('--milestone', ''), report },
+    { root: ROOT },
+  );
+  if (!r.ok) {
+    console.log(`❌ 回执被拒收：\n${dispatch.formatProblems(r.problems)}`);
+    return 1;
+  }
+  console.log(`📋 回执已归档（${r.id}） 窗口=${r.windowId}  verdict=${r.verdict}`);
+  console.log('   推进窗口：npm run world:orch -- stage-advance');
+  return 0;
+}
+
+async function cmdStageAdvance() {
+  const to = flagVal('--to', '');
+  const dry = lead.advanceWindow({ confirm: false, to: to || undefined }, { root: ROOT });
+  const a = dry.adjudication;
+  if (!a.current) {
+    console.log(`❌ ${dry.problems.map((p) => p.reason).join('；') || '没有活跃窗口'}`);
+    return 1;
+  }
+  console.log(`══ 老二裁定（只读预演）窗口 ${a.current.windowId}「${a.current.subtaskTitle}」 ══`);
+  console.log(`  当前状态：${a.current.state} → 目标：${a.next || '(无处可去)'}`);
+  console.log(`  最新回执 verdict：${a.verdict || '(无)'}`);
+  console.log(`  边界九项：${a.boundary.passed} 过${a.boundary.failed.length ? `，未过: ${a.boundary.failed.join(', ')}` : ''}`);
+  console.log(`  关联工单：${a.tickets.linked.length ? a.tickets.linked.join(', ') : '(无)'}${a.tickets.offending.length ? `  卡点: ${a.tickets.offending.map((o) => `${o.id}(${o.status})`).join(', ')}` : ''}`);
+  if (dry.problems.length) {
+    console.log(`\n❌ 裁定未过，不得推进：\n${dispatch.formatProblems(dry.problems)}`);
+    return 1;
+  }
+  console.log('\n裁定通过 ✅  readyForHuman=true');
+  const reader = createLineReader(process.stdin, process.stdout);
+  try {
+    const answer = await reader.ask(`确认推进 ${a.current.windowId} ${a.current.state} → ${a.next}？[y/N] > `);
+    if (answer !== 'y' && answer !== 'yes') {
+      console.log('已取消（什么都没写）。');
+      return 0;
+    }
+  } finally {
+    reader.close();
+  }
+  const r = lead.advanceWindow({ confirm: true, to: to || undefined }, { root: ROOT });
+  if (!r.ok) {
+    console.log(`❌ 落地被拒：\n${dispatch.formatProblems(r.problems)}`);
+    return 1;
+  }
+  console.log(`✅ 已推进：${r.from.windowId} ${r.from.state} → ${r.to}`);
+  if (r.nextWindow) console.log(`   下一窗口自动激活：${r.nextWindow.windowId}「${r.nextWindow.stageTitle}」（planning）`);
+  return 0;
+}
+
+function cmdWindowPrompt() {
+  const ws = lead.windowStatus({ root: ROOT });
+  const state = flagVal('--state', '') || (ws ? ws.window.state : 'planning');
+  if (!protocol.isWindowState(state) || state === 'closed') {
+    console.log(`❌ --state 必须是 ${protocol.WINDOW_STATES.filter((s) => s !== 'closed').join(' / ')}（closed 不开新窗口）`);
+    return 1;
+  }
+  const header = ws ? ws.header : protocol.windowHeader({ windowState: state });
+  const ctx = {
+    header,
+    stageTitle: ws ? ws.window.stageTitle : '',
+    subtaskTitle: ws ? ws.window.subtaskTitle : '',
+    tickets: ws ? ws.tickets : [],
+    closeout: state === 'closeout',
+  };
+  const mod = state === 'planning' ? planningWindow : state === 'execution' ? executionWindow : reviewWindow;
+  console.log(mod.buildPrompt(ctx));
+  return 0;
+}
+
 // ---------------------------------------------------------------- 分发
 
 async function main() {
@@ -524,6 +759,17 @@ async function main() {
   if (cmd === 'scene') return cmdScene();
   if (cmd === 'check') return cmdCheck();
   if (cmd === 'agents') return cmdAgents();
+  if (cmd === 'roadmap') return cmdRoadmap();
+  if (cmd === 'stage-authorize') return cmdStageAuthorize();
+  if (cmd === 'report') return has('submit') ? cmdReportSubmit() : (console.log('用法：npm run world:orch -- report submit --state <五态> --file <json>'), 1);
+  if (cmd === 'stage-advance') return cmdStageAdvance();
+  if (cmd === 'window-prompt') return cmdWindowPrompt();
+  if (cmd === 'reports') {
+    for (const e of reports.list(ROOT, { limit: 20 })) {
+      console.log(`  📋 [${new Date(e.at).toLocaleString()}] ${e.window ? `${e.window.stageId}.${e.window.subtaskId}` : '?'} ${e.verdict} 边界 ${e.boundarySummary ? `${e.boundarySummary.passed}/${e.boundarySummary.checked}` : '-'} ${e.milestone}`);
+    }
+    return 0;
+  }
   if (cmd === 'list' || !cmd) return cmdList();
 
   console.log('用法：');
@@ -533,6 +779,13 @@ async function main() {
   console.log('  dispatch <ORCH-xxx> --to <sessionId>');
   console.log('  converge <ORCH-xxx> --summary "结论"');
   console.log('  note "一条共享事实"');
+  console.log('  ── 五级窗口协作 ──');
+  console.log('  roadmap [--json] | roadmap init [--example] | roadmap link A.a ORCH-001…');
+  console.log('  stage-authorize <阶段id>              # 人工授权阶段（关口）');
+  console.log('  report submit --state <五态> --file <回执.json> [--window A.a]');
+  console.log('  stage-advance [--to <目标态>]          # 先打印老二裁定，再 y 确认推进');
+  console.log('  window-prompt [--state <五态>]         # 打印当前/指定状态的窗口提示词');
+  console.log('  reports                               # 回执账本一览');
   return 1;
 }
 

@@ -17,7 +17,7 @@ const path = require('path');
 const { blackboardFile } = require('./paths');
 
 const MAX_ENTRIES = 500;
-const ENTRY_KINDS = new Set(['fact', 'decision', 'blocker', 'convergence', 'correction']);
+const ENTRY_KINDS = new Set(['fact', 'decision', 'blocker', 'convergence', 'correction', 'report']);
 
 // 条目内容全是自由文本（agent 写的结论、标题），进 UI 前必须收掉会破坏结构的字符。
 // 换行尤其关键：一条 entry 若能带换行，就能伪造出第二条 entry（伪造"不存在的事实"）。

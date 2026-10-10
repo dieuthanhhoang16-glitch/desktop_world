@@ -18,6 +18,8 @@ const ORCH_DIR = process.env.WORLD_ORCH_DIR || path.join(CONFIG_DIR, 'orch');
 const TICKETS_FILE = 'tickets.json';
 const BLACKBOARD_FILE = 'blackboard.json';
 const MAILBOX_DIR = 'mailbox';
+const ROADMAP_FILE = 'roadmap.json';
+const REPORTS_DIR = 'reports';
 
 // 工单状态机。顺序即看板列顺序（draft 之后才是真正在跑的）。
 const STATUSES = Object.freeze(['draft', 'confirmed', 'dispatched', 'running', 'done', 'failed', 'blocked']);
@@ -43,6 +45,12 @@ function blackboardFile(root = ORCH_DIR) {
 function mailboxDir(root = ORCH_DIR) {
   return path.join(root, MAILBOX_DIR);
 }
+function roadmapFile(root = ORCH_DIR) {
+  return path.join(root, ROADMAP_FILE);
+}
+function reportsDir(root = ORCH_DIR) {
+  return path.join(root, REPORTS_DIR);
+}
 /** sessionId 是外部来的（session snapshot / hook payload），必须先消毒再拼路径。 */
 function mailboxFile(sessionId, root = ORCH_DIR) {
   return path.join(mailboxDir(root), `${sanitizeSessionId(sessionId)}.json`);
@@ -63,11 +71,15 @@ module.exports = {
   TICKETS_FILE,
   BLACKBOARD_FILE,
   MAILBOX_DIR,
+  ROADMAP_FILE,
+  REPORTS_DIR,
   STATUSES,
   STATUS_LABELS,
   ticketsFile,
   blackboardFile,
   mailboxDir,
   mailboxFile,
+  roadmapFile,
+  reportsDir,
   sanitizeSessionId,
 };

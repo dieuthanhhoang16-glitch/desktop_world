@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "milestone": "multi-agent-refactor",
+  "stages": [
+    {
+      "id": "A",
+      "title": "纯协议与边界",
+      "authorized": false,
+      "subtasks": [
+        {
+          "id": "a",
+          "title": "protocol.js 五态机与 StageReport 校验",
+          "windowState": "planning",
+          "ticketIds": []
+        },
+        {
+          "id": "b",
+          "title": "boundary-check.js 九项清单",
+          "windowState": "planning",
+          "ticketIds": []
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "title": "存储与裁定",
+      "authorized": false,
+      "subtasks": [
+        {
+          "id": "a",
+          "title": "roadmap/reports 账本",
+          "windowState": "planning",
+          "ticketIds": []
+        },
+        {
+          "id": "b",
+          "title": "stage-lead 老二裁定",
+          "windowState": "planning",
+          "ticketIds": []
+        }
+      ]
+    },
+    {
+      "id": "C",
+      "title": "CLI 与文档",
+      "authorized": false,
+      "subtasks": [
+        {
+          "id": "a",
+          "title": "cli 子命令与窗口提示词",
+          "windowState": "planning",
+          "ticketIds": []
+        },
+        {
+          "id": "b",
+          "title": "交付文档（AGENT/README/回执）",
+          "windowState": "planning",
+          "ticketIds": []
+        }
+      ]
+    },
+    {
+      "id": "D",
+      "title": "UI 可视化",
+      "authorized": false,
+      "subtasks": [
+        {
+          "id": "a",
+          "title": "五态条与窗口卡",
+          "windowState": "planning",
+          "ticketIds": []
+        },
+        {
+          "id": "b",
+          "title": "回执面板与任务树",
+          "windowState": "planning",
+          "ticketIds": []
+        }
+      ]
+    }
+  ],
+  "activeWindow": {
+    "stageId": "A",
+    "subtaskId": "a"
+  },
+  "updatedAt": null
+}
