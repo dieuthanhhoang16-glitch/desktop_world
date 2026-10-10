@@ -326,6 +326,10 @@
     --ot-ink: #e2e7e2; --ot-ink2: #98a19c; --ot-ink3: #5f6866;
     --ot-green: #5eead4; --ot-green2: #34d399; --ot-cyan: #67d6e8;
     --ot-vio: #a78bfa; --ot-gold: #e8c15a; --ot-red: #f87171; --ot-org: #fb923c;
+    /* 窗口五态色（v1.0）：protocol.WINDOW_STATE_COLORS 是单一真相，这里只落同名镜像——
+       蓝 planning / 绿 execution / 琥珀 review / 紫 closeout / 灰 closed */
+    --ot-ws-planning: #3b82f6; --ot-ws-execution: #10b981; --ot-ws-review: #f59e0b;
+    --ot-ws-closeout: #8b5cf6; --ot-ws-closed: #6b7280;
   }
 
   /* ① roster 带：图例即真相（几何 = 设计稿 px × --otscale，下同） */
@@ -592,6 +596,7 @@
     .ot-picker .pk, .ot-picker .pk h4, .ot-picker .pkrow { animation: none; }
     .ot-plan.preview.morphin, .ot-plan.fold, .ot-plan.preview.morphin .pdraft { animation: none; }
     .tabpanel.orch.busy .ot-plan .tact.go::after { animation: none; }
+    .ot-win.ws-execution::before { animation: none; } /* 窗口卡流光同纪律：静止时靠常驻淡描边 */
   }
 
   /* ④ session log：黑板即日志，最新在下（终端语义，设计稿 118px 高） */
@@ -618,6 +623,112 @@
   .ot-status b { color: var(--ot-ink); font-weight: 600; }
   .ot-status .bad { color: var(--ot-red); font-weight: 700; }
   .ot-status .cur { flex: 1; }
+
+  /* ---------- 五级窗口协作（v1.0）：五态条 / 窗口卡 / 回执面板 / roadmap 带 ----------
+     数据 = tree-model 的 roadmapView 投影（stage-lead.windowStatus），渲染层零裁定。
+     静默纪律：无 roadmap 数据时四段一个像素都不出（条与带默认 hidden 且基类不自带
+     display——.ot-picker 事故：撰者 display 会盖过 [hidden]；窗口卡/回执面板干脆不渲染）。
+     几何守 px × --otscale；状态色全部走 --ot-ws-* token，不就地写 hex。 */
+  /* 五态条（roster 之下、工作面之上）：五段胶囊，走过的格点亮，当前格外描边 + 弥散光。
+     0.3s 过渡与 .tact 同一动效纪律（纯 transition，无关键帧）。 */
+  .ot-wstrip:not([hidden]) {
+    flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: calc(5px * var(--otscale, 1));
+    padding: calc(6px * var(--otscale, 1)) calc(16px * var(--otscale, 1)); border-bottom: 1px solid var(--ot-line);
+    font-size: calc(0.88px * 10 * var(--otscale, 1));
+  }
+  .ot-wstrip .wttl { color: var(--ot-ink3); letter-spacing: 0.12em; font-size: calc(0.82px * 10 * var(--otscale, 1)); }
+  .ot-wstrip .seg {
+    display: flex; align-items: center; gap: calc(5px * var(--otscale, 1));
+    padding: calc(2px * var(--otscale, 1)) calc(9px * var(--otscale, 1));
+    border: 1px solid var(--ot-line2); border-radius: calc(999px * var(--otscale, 1)); color: var(--ot-ink3);
+    transition: border-color 0.3s, color 0.3s, background 0.3s, box-shadow 0.3s;
+  }
+  .ot-wstrip .seg i { width: calc(6px * var(--otscale, 1)); height: calc(6px * var(--otscale, 1)); border-radius: 50%; background: currentColor; opacity: 0.35; transition: opacity 0.3s, background 0.3s; flex: none; }
+  .ot-wstrip .sep { color: var(--ot-ink3); opacity: 0.55; }
+  .ot-wstrip .seg.ws-planning, .ot-win.ws-planning, .ot-road .sub.ws-planning { --ws: var(--ot-ws-planning); }
+  .ot-wstrip .seg.ws-execution, .ot-win.ws-execution, .ot-road .sub.ws-execution { --ws: var(--ot-ws-execution); }
+  .ot-wstrip .seg.ws-review, .ot-win.ws-review, .ot-road .sub.ws-review { --ws: var(--ot-ws-review); }
+  .ot-wstrip .seg.ws-closeout, .ot-win.ws-closeout, .ot-road .sub.ws-closeout { --ws: var(--ot-ws-closeout); }
+  .ot-wstrip .seg.ws-closed, .ot-win.ws-closed, .ot-road .sub.ws-closed { --ws: var(--ot-ws-closed); }
+  .ot-wstrip .seg.reached { color: var(--ot-ink2); border-color: color-mix(in srgb, var(--ws) 45%, transparent); }
+  .ot-wstrip .seg.reached i { opacity: 1; background: var(--ws); }
+  .ot-wstrip .seg.current {
+    color: var(--ws); border-color: var(--ws);
+    background: color-mix(in srgb, var(--ws) 12%, transparent);
+    box-shadow: 0 0 calc(9px * var(--otscale, 1)) color-mix(in srgb, var(--ws) 32%, transparent);
+  }
+  .ot-wstrip .wms { color: var(--ot-ink3); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 窗口卡（树主面：JEV 与 spawn 之间）——当前活跃窗口的 soleGoal + 关联工单 + 关口行。
+     执行中的窗口带旋转流光描边（复用 otGlowSpin，与 tcard 弥散光晕同一纪律）。 */
+  .ot-win { width: calc(470px * var(--otscale, 1)); border-color: color-mix(in srgb, var(--ws) 45%, var(--ot-line2)); margin-bottom: calc(2px * var(--otscale, 1)); }
+  .ot-win .nh .who { color: var(--ws); }
+  .ot-win .wstate {
+    color: var(--ws); border: 1px solid var(--ws); border-radius: calc(999px * var(--otscale, 1));
+    padding: 0 calc(7px * var(--otscale, 1)); font-weight: 700; font-size: calc(0.82px * 10 * var(--otscale, 1));
+  }
+  .ot-win .goal { font-size: calc(1.05px * 10 * var(--otscale, 1)); color: var(--ot-ink); line-height: 1.5; margin: calc(5px * var(--otscale, 1)) 0 calc(6px * var(--otscale, 1)); word-break: break-word; }
+  .ot-win .tks { display: flex; flex-wrap: wrap; gap: calc(4px * var(--otscale, 1)); }
+  .ot-win .chip, .ot-road .sub {
+    border: 1px solid var(--ot-line2); border-radius: calc(4px * var(--otscale, 1));
+    padding: 0 calc(5px * var(--otscale, 1)); font-size: calc(0.82px * 10 * var(--otscale, 1)); line-height: 1.7;
+  }
+  .ot-win .chip.s-draft { color: #94a3b8; } .ot-win .chip.s-confirmed { color: var(--ot-cyan); }
+  .ot-win .chip.s-dispatched { color: var(--ot-vio); } .ot-win .chip.s-running { color: var(--ot-green2); }
+  .ot-win .chip.s-done { color: var(--ot-gold); } .ot-win .chip.s-failed { color: var(--ot-red); }
+  .ot-win .chip.s-blocked { color: var(--ot-org); } .ot-win .chip.s-missing { color: var(--ot-ink3); }
+  .ot-win .gate-line {
+    display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--otscale, 1));
+    margin-top: calc(7px * var(--otscale, 1)); padding-top: calc(6px * var(--otscale, 1));
+    border-top: 1px dashed var(--ot-line); font-size: calc(0.85px * 10 * var(--otscale, 1)); color: var(--ot-ink3);
+  }
+  .ot-win .ws-adv { border-color: color-mix(in srgb, var(--ws) 60%, transparent); color: var(--ws); }
+  .ot-win .ws-adv:hover { border-color: var(--ws); }
+  .ot-win .ws-adv.armed { background: color-mix(in srgb, var(--ws) 18%, transparent); color: var(--ot-ink); }
+  .ot-win.ws-execution { --ot-glow: var(--ws); }
+  .ot-win.ws-execution::before {
+    content: ''; position: absolute; inset: calc(-1px * var(--otscale, 1)); pointer-events: none;
+    border-radius: calc(9px * var(--otscale, 1)); padding: calc(1px * var(--otscale, 1));
+    background:
+      conic-gradient(from var(--ot-a), transparent 0 238deg, var(--ot-glow) 302deg, transparent 360deg),
+      linear-gradient(color-mix(in srgb, var(--ot-glow) 14%, transparent) 0 0);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: otGlowSpin 7s linear infinite;
+  }
+
+  /* 回执面板（keeper 栏内）：最近一份 StageReport —— 九项边界 ✅/❌ + 证据计数 +
+     风险/阻断判定 + 下一步。折叠只翻 .fold class 不重渲染（开合态存 otReportFold）。 */
+  .ot-report { border: 1px solid var(--ot-line2); border-radius: calc(8px * var(--otscale, 1)); background: var(--ot-panel2); margin: calc(8px * var(--otscale, 1)) 0; }
+  .ot-report .rh { display: flex; align-items: center; gap: calc(5px * var(--otscale, 1)); padding: calc(6px * var(--otscale, 1)) calc(8px * var(--otscale, 1)); cursor: pointer; font-size: calc(0.85px * 10 * var(--otscale, 1)); color: var(--ot-ink3); }
+  .ot-report .rh .v { font-weight: 700; }
+  .ot-report .rh .v.pass, .ot-report .rh .v.pwnb { color: var(--ot-green2); }
+  .ot-report .rh .v.fail, .ot-report .rh .v.blocked { color: var(--ot-red); }
+  .ot-report .rh .sp { flex: 1; }
+  .ot-report .rh .chev { flex: none; }
+  .ot-report .bd { padding: calc(4px * var(--otscale, 1)) calc(8px * var(--otscale, 1)) calc(8px * var(--otscale, 1)); border-top: 1px dashed var(--ot-line); }
+  .ot-report.fold .bd { display: none; }
+  .ot-report .brow { display: flex; gap: calc(6px * var(--otscale, 1)); line-height: 1.7; font-size: calc(0.88px * 10 * var(--otscale, 1)); color: var(--ot-ink2); }
+  .ot-report .brow .ok { color: var(--ot-green2); flex: none; } .ot-report .brow .no { color: var(--ot-red); flex: none; }
+  .ot-report .brow .note { color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ot-report .blk { border: 1px solid #4d2b2b; border-radius: calc(6px * var(--otscale, 1)); background: #171010; color: var(--ot-red); padding: calc(5px * var(--otscale, 1)) calc(7px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); font-size: calc(0.85px * 10 * var(--otscale, 1)); line-height: 1.5; word-break: break-word; }
+  .ot-report .nx { color: var(--ot-gold); font-size: calc(0.85px * 10 * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); line-height: 1.5; word-break: break-word; }
+  .ot-report .meta { color: var(--ot-ink3); font-size: calc(0.8px * 10 * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); line-height: 1.6; word-break: break-word; }
+
+  /* roadmap 带（session log 与状态行之间）：阶段 → 子任务五态芯片 + 授权旗标。
+     与五态条共享 --ws 绑定；活跃子任务芯片提亮描边。 */
+  .ot-road:not([hidden]) {
+    flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: calc(7px * var(--otscale, 1));
+    padding: calc(5px * var(--otscale, 1)) calc(14px * var(--otscale, 1)); border-top: 1px solid var(--ot-line);
+    background: var(--ot-panel); font-size: calc(0.88px * 10 * var(--otscale, 1)); color: var(--ot-ink2);
+  }
+  .ot-road .ms { color: var(--ot-gold); font-weight: 700; letter-spacing: 0.05em; }
+  .ot-road .stg { display: flex; align-items: center; gap: calc(4px * var(--otscale, 1)); }
+  .ot-road .stg .sid { color: var(--ot-ink); font-weight: 700; }
+  .ot-road .stg .lock { color: var(--ot-ink3); font-size: calc(0.78px * 10 * var(--otscale, 1)); }
+  .ot-road .stg .lock.ok { color: var(--ot-green2); }
+  .ot-road .sub { color: var(--ws); opacity: 0.75; }
+  .ot-road .sub.on { opacity: 1; border-color: var(--ws); color: var(--ot-ink); background: color-mix(in srgb, var(--ws) 14%, transparent); }
 
 
   /* ---------- 番茄钟（v0.7，仅 live 组件；烘焙壁纸完全不含此板块）---------- */
@@ -861,11 +972,15 @@
       <span class="sp"></span>
       <span class="sum" id="orchSum"></span>
     </div>
+    <!-- 窗口五态条（v1.0）：有 roadmap 活跃窗口才亮；无数据永远 hidden 不占行 -->
+    <div class="ot-wstrip" id="orchWstrip" hidden></div>
     <div class="ot-mid">
       <aside class="ot-keeper" id="orchKeeper"></aside>
       <div class="ot-tree" id="orchTree"></div>
     </div>
     <div class="ot-log" id="orchLog"></div>
+    <!-- roadmap 带（v1.0）：阶段→子任务五态芯片 + 授权旗标；无 roadmap 永远 hidden -->
+    <div class="ot-road" id="orchRoad" hidden></div>
     <div class="ot-status" id="orchStatus"></div>
     <!-- 派发会话选择器：点击工单卡「派发」才出现，backdrop/✕ 关闭 -->
     <div class="ot-picker" id="orchPicker" hidden><div class="pk" id="orchPickerBox"></div></div>
@@ -1180,6 +1295,10 @@
   // 点按可能被替换帧吞掉——推送帧若在树内输入框持焦时到达，暂存待渲（otPendingTree），
   // 焦点离开树才落；本地意图（勾选/预览/弃单）走 force 直画，不被守卫拦住。
   var otPendingTree = null;
+  // v1.0 窗口协作的本地意图态：推进按钮两步武装的截止时刻（0=未武装）/ 回执面板折叠态。
+  // 两个都要扛住推送帧整树重画——武装中或展开中被重画清掉，都是本地意图被远程帧吞掉。
+  var otWinArmUntil = 0;
+  var otReportFold = true;
 
   // 工单卡按状态出操作（与 world/orch/actions.js ACTIONS 对齐；done 无操作）
   var OT_ACTIONS = {
@@ -1250,6 +1369,8 @@
     renderTree(t);
     renderLog(t);
     renderStatus(t);
+    renderWstrip(t);
+    renderRoad(t);
   }
 
   // ② 守门员栏：三闸门 + 红线常驻。M2 起 additionally 承担写操作的 problems 上墙
@@ -1267,6 +1388,7 @@
         '<span>jev forks</span><b>' + (t.status.jev || 0) + '</b>' +
       '</div>' +
       otProblemsHtml() +
+      otReportHtml(t.latestReport) +
       '<div class="quiet">写入在树内闭环：确认 → 派发 → 收敛</div>' +
       '<div class="oath"><b>从不 spawn 进程。</b><br>派单只写信封；动不动手，那个 agent 自己定。</div>';
   }
@@ -1319,6 +1441,9 @@
     } else {
       html += '<div class="ot-node ot-jev local"><span class="who">JEV</span>judgment · local · 没问 Jev</div>';
     }
+
+    // 窗口卡（v1.0）：活跃窗口的五态卡——无 roadmapView 时整段不出（静默纪律）
+    html += otWinHtml(t);
 
     html += '<div class="ot-spawn-line">spawn · max 8 · <b>' + t.main.tickets + ' 张</b> · 按拓扑分列</div>';
 
@@ -1638,6 +1763,21 @@
       else otCardAction(tid, action);
       return;
     }
+    // 窗口推进（v1.0）：两步确认，第一击只武装
+    var adv = el.closest('[data-win-advance]');
+    if (adv) { otAdvance(); return; }
+    // 回执面板折叠：只翻 class 不重渲染（开合态存 otReportFold，推送帧不抢本地意图）
+    var rpt = el.closest('[data-report-toggle]');
+    if (rpt) {
+      otReportFold = !otReportFold;
+      var rp = rpt.closest('.ot-report');
+      if (rp) {
+        rp.classList.toggle('fold', otReportFold);
+        var chev = rpt.querySelector('.chev');
+        if (chev) chev.textContent = otReportFold ? '▸' : '▾';
+      }
+      return;
+    }
     var prob = el.closest('[data-prob-tid]');
     if (prob) { otLocate(prob.getAttribute('data-prob-tid')); return; }
     var pick = el.closest('[data-pick-sid]');
@@ -1742,6 +1882,122 @@
       '<span class="' + (s.cycles ? 'bad' : '') + '">cycles [<b>' + (s.cycles || 0) + '</b>]</span>' +
       '<span>jev [<b>' + (s.jev || 0) + '</b>]</span>' +
       '<span class="cur"></span><span class="prompt">▊</span>';
+  }
+
+  // ---------- 五级窗口协作（v1.0）：数据全部来自 t.roadmapView / t.latestReport ----------
+  // （tree-model 投影自 stage-lead.windowStatus）。渲染层不裁定、不读盘、不存状态机——
+  // 唯一写动作是「推进」两步确认，裁定七道关全在主进程 stage-lead（与 CLI 同一套）。
+
+  // 下一态的显示文案：roadmapView.strip 里按 id 查 label（五态文案的唯一来源是 protocol）
+  function otNextStateLabel(rv) {
+    if (!rv || !rv.nextAllowed) return '';
+    for (var i = 0; i < rv.strip.length; i++) if (rv.strip[i].id === rv.nextAllowed) return rv.strip[i].label;
+    return rv.nextAllowed;
+  }
+
+  // 五态条：走过的格点亮、当前格外描边 + 弥散光；无活跃窗口 → 整条 hidden 不占行
+  function renderWstrip(t) {
+    var el = document.getElementById('orchWstrip');
+    var rv = t && t.roadmapView;
+    if (!rv) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<span class="wttl">窗口五态</span>' + rv.strip.map(function (s, i) {
+      var cls = 'seg ws-' + s.id + (s.reached ? ' reached' : '') + (s.current ? ' current' : '');
+      return (i ? '<span class="sep">›</span>' : '') + '<span class="' + cls + '"><i></i>' + esc(s.label) + '</span>';
+    }).join('') + (rv.milestone ? '<span class="wms">' + esc(rv.milestone) + '</span>' : '');
+  }
+
+  // 窗口卡（JEV 与 spawn 之间）：soleGoal + 关联工单芯片 + 关口行（两步确认推进按钮）。
+  // 无 roadmapView → 空串（一个像素不出）；已到 closed → 关口行换提示，不再给按钮。
+  function otWinHtml(t) {
+    var rv = t && t.roadmapView;
+    if (!rv) return '';
+    var chips = (rv.tickets || []).map(function (tk) {
+      return '<span class="chip s-' + esc(tk.status) + '" title="' + esc(tk.title) + '">' + esc(tk.id) + '</span>';
+    }).join('') || '<span class="chip s-missing">未关联工单</span>';
+    var gate = rv.nextAllowed
+      ? '<span>关口：回执 pass + 人确认</span>' +
+        '<button class="tact ws-adv' + (Date.now() < otWinArmUntil ? ' armed' : '') + '" data-win-advance="1">' +
+        esc('推进 ' + rv.stateLabel + ' → ' + otNextStateLabel(rv)) + '</button>'
+      : '<span>终态——下个任务回 roadmap 开新窗口（cli: roadmap link）</span>';
+    return '<div class="ot-node ot-win ws-' + esc(rv.state) + '">' +
+      '<div class="nh"><span class="who">窗口 · ' + esc(rv.windowId) + '</span><span class="wstate">' + esc(rv.stateLabel) + '</span></div>' +
+      '<div class="goal">' + esc(rv.soleGoal || '（soleGoal 缺失——回执协议要求每态给出唯一目标）') + '</div>' +
+      '<div class="tks">' + chips + '</div>' +
+      '<div class="gate-line">' + gate + '</div></div>';
+  }
+
+  // 回执面板（keeper 栏内）：最近一份 StageReport 的九项边界 ✅/❌ + 证据计数 + 风险/阻断
+  // 判定 + 下一步。折叠只翻 .fold class——开合是本地意图，不进重渲染（推送帧读 otReportFold）。
+  function otReportHtml(rep) {
+    if (!rep) return '';
+    var vcls = rep.verdict === 'pass' ? 'pass' : rep.verdict === 'pass-with-non-blocker' ? 'pwnb'
+      : rep.verdict === 'fail' ? 'fail' : 'blocked';
+    var rows = (rep.checklist || []).map(function (c) {
+      return '<div class="brow"><span class="' + (c.passed ? 'ok">✅' : 'no">❌') + '</span>' +
+        '<span>' + esc(c.id) + '</span>' + (c.note ? '<span class="note">' + esc(c.note) + '</span>' : '') + '</div>';
+    }).join('');
+    var risks = rep.risks || {};
+    var blk = [];
+    if ((risks.blocker || []).length) blk.push('<div class="blk">blocker：' + esc(risks.blocker.join('；')) + '</div>');
+    var bd = rep.blockingDecision || {};
+    if (bd.blocksStageClose === true || bd.blocksNextStage === true) {
+      blk.push('<div class="blk">阻断：' + esc(bd.blocker || '（未说明）') + '</div>');
+    }
+    return '<div class="ot-report' + (otReportFold ? ' fold' : '') + '">' +
+      '<div class="rh" data-report-toggle="1"><span>📋</span>' +
+      '<span class="v ' + vcls + '">' + esc(rep.verdict || '?') + '</span>' +
+      '<span>' + esc(rep.windowId || '') + ' · ' + esc(rep.windowState || '') + '</span>' +
+      '<span class="sp"></span><span class="chev">' + (otReportFold ? '▸' : '▾') + '</span></div>' +
+      '<div class="bd">' + rows +
+      '<div class="meta">证据 ' + (Number(rep.evidenceCount) || 0) + ' 条 · ' + otTime(rep.at) +
+      ((risks.nonBlocker || []).length ? ' · 非阻塞风险 ' + risks.nonBlocker.length : '') + '</div>' +
+      blk.join('') +
+      (rep.recommendedNextStep ? '<div class="nx">→ ' + esc(rep.recommendedNextStep) + '</div>' : '') +
+      '</div></div>';
+  }
+
+  // roadmap 带：阶段 → 子任务五态芯片 + 授权旗标（未授权明说，不装作已开工）。
+  // 无 roadmap 或无阶段 → 整条 hidden。
+  function renderRoad(t) {
+    var el = document.getElementById('orchRoad');
+    var rv = t && t.roadmapView;
+    if (!rv || !rv.stages || !rv.stages.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<span class="ms">roadmap · ' + esc(rv.milestone || '未命名') + '</span>' +
+      rv.stages.map(function (s) {
+        return '<span class="stg"><span class="sid">' + esc(s.id) + '</span>' +
+          '<span class="lock' + (s.authorized ? ' ok' : '') + '">' + (s.authorized ? '已授权' : '未授权') + '</span>' +
+          s.subtasks.map(function (u) {
+            return '<span class="sub ws-' + esc(u.state) + (u.active ? ' on' : '') + '" title="' + esc(u.title) + '">' +
+              esc(s.id + '.' + u.id) + '·' + esc(u.stateLabel) + '</span>';
+          }).join('') + '</span>';
+      }).join('');
+  }
+
+  // 推进两步确认：第一击武装 3s（按钮变 armed 亮文），第二击才发 confirm:true。
+  // 武装态存 otWinArmUntil（模块级）——推送帧整树重画不清武装；超时自动回原样。
+  function otAdvance() {
+    var now = Date.now();
+    if (now < otWinArmUntil) {
+      otWinArmUntil = 0;
+      otCall(function () { return window.__worldOrch.advanceWindow({ confirm: true }); });
+      return;
+    }
+    otWinArmUntil = now + 3000;
+    var btn = document.querySelector('#orchTree [data-win-advance]');
+    if (btn) { btn.classList.add('armed'); btn.textContent = '再点一次确认推进'; }
+    setTimeout(function () {
+      if (otWinArmUntil && Date.now() >= otWinArmUntil) {
+        otWinArmUntil = 0;
+        var b2 = document.querySelector('#orchTree [data-win-advance]');
+        if (b2 && lastR && lastR.orch && lastR.orch.tree && lastR.orch.tree.roadmapView) {
+          var rv = lastR.orch.tree.roadmapView;
+          b2.classList.remove('armed');
+          b2.textContent = '推进 ' + rv.stateLabel + ' → ' + otNextStateLabel(rv);
+        }
+      }
+    }, 3100);
   }
 
   function render(R) {

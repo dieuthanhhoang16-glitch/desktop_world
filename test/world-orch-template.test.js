@@ -321,3 +321,79 @@ test('树区布局几何 px 化：不得残留会压字的 vmin 尺寸（外壳�
     .map((l) => l.trim());
   assert.deepEqual(lines, [], `树区几何残留 vmin：${lines.join(' | ')}`);
 });
+test('v1.0 五级窗口协作 UI：四挂载点静默纪律 + 两步推进 + 授权不开 UI 口', () => {
+  // ① 颜色协议：--ot-ws-* 与 protocol.WINDOW_STATE_COLORS 同值（protocol 是唯一真相）
+  const protocol = require('../world/orch/protocol');
+  for (const [st, hex] of Object.entries(protocol.WINDOW_STATE_COLORS)) {
+    assert.ok(html.includes('--ot-ws-' + st + ': ' + hex + ';'), `缺五态 token ${st}`);
+  }
+  // ② 条与带默认 hidden；基类不得自带 display（[hidden] 失效 = .ot-picker 事故重演）
+  assert.match(html, /<div class="ot-wstrip" id="orchWstrip" hidden>/);
+  assert.match(html, /<div class="ot-road" id="orchRoad" hidden>/);
+  const wstripBase = html.match(/\.ot-wstrip \{([^}]*)\}/);
+  assert.ok(!wstripBase || !/display\s*:/.test(wstripBase[1] || ''), '.ot-wstrip 基类自带 display 会让 hidden 失效');
+  const roadBase = html.match(/\.ot-road \{([^}]*)\}/);
+  assert.ok(!roadBase || !/display\s*:/.test(roadBase[1] || ''), '.ot-road 基类自带 display 会让 hidden 失效');
+  assert.match(html, /\.ot-wstrip:not\(\[hidden\]\) \{[\s\S]*?display: flex;/);
+  assert.match(html, /\.ot-road:not\(\[hidden\]\) \{[\s\S]*?display: flex;/);
+  // ③ 静默纪律：无数据整段不出（早退清 hidden / 返空串）
+  const wstripFn = html.slice(html.indexOf('function renderWstrip(t)'));
+  assert.match(wstripFn.slice(0, 280), /if \(!rv\) \{ el\.hidden = true; el\.innerHTML = ''; return; \}/);
+  assert.match(html.slice(html.indexOf('function otWinHtml(t)'), html.indexOf('function otWinHtml(t)') + 160), /if \(!rv\) return '';/);
+  assert.match(html.slice(html.indexOf('function otReportHtml(rep)'), html.indexOf('function otReportHtml(rep)') + 140), /if \(!rep\) return '';/);
+  const roadFn = html.slice(html.indexOf('function renderRoad(t)'));
+  assert.match(roadFn.slice(0, 320), /el\.hidden = true; el\.innerHTML = ''; return;/);
+  // ④ 装配：renderOrch 挂两段渲染；窗口卡在 JEV 与 spawn 之间；回执面板进 keeper
+  const renderOrch = html.slice(html.indexOf('function renderOrch(o) {'), html.indexOf('function renderOrch(o) {') + 1600);
+  assert.ok(renderOrch.includes('renderWstrip(t);') && renderOrch.includes('renderRoad(t);'), 'renderOrch 缺五态条/roadmap 带渲染');
+  const treeFn = html.slice(html.indexOf('function renderTree(t, opts) {'), html.indexOf('function tcardHtml('));
+  const winIdx = treeFn.indexOf('html += otWinHtml(t);');
+  assert.ok(winIdx > treeFn.indexOf('ot-jev local') && winIdx < treeFn.indexOf('ot-spawn-line'), '窗口卡必须挂在 JEV 与 spawn 之间');
+  assert.ok(html.slice(html.indexOf('function renderKeeper(t)'), html.indexOf('function otProblemsHtml()')).includes('otReportHtml(t.latestReport)'), 'keeper 缺回执面板');
+  // ⑤ 唯一写动作 = 推进，两步确认（武装 3s），不用阻塞式 confirm
+  assert.ok(!html.includes('window.confirm'), '不得用阻塞式 window.confirm');
+  assert.match(html, /var otWinArmUntil = 0;/);
+  assert.ok(html.includes('再点一次确认推进'), '两步确认缺武装文案');
+  assert.match(html, /__worldOrch\.advanceWindow\(\{ confirm: true \}\)/);
+  // 授权是老大的人工关口，永不开 UI 写入口（channel/桥方法/交互属性三处都没有；
+  // 只读展示 s.authorized 授权旗标是 design，不在禁列）
+  assert.ok(!html.includes('world:orch:stage-authorize') && !html.includes('data-stage-authorize'), '渲染层不得出现授权入口');
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'world', 'live', 'preload.js'), 'utf8');
+  assert.ok(!/ipcRenderer\.invoke\('world:orch:(stage-)?authorize/.test(preload), 'preload 不得开授权桥');
+  // 三桥 + 三 handler + 两处数据装配点（buildLiveReport / refreshOrchView）
+  const live = fs.readFileSync(path.join(__dirname, '..', 'world', 'live', 'live.js'), 'utf8');
+  for (const ch of ['world:orch:submitReport', 'world:orch:advanceWindow', 'world:orch:roadmapRead']) {
+    assert.ok(preload.includes(ch), `preload 缺桥 ${ch}`);
+    assert.ok(live.includes(ch), `live.js 缺 handler ${ch}`);
+  }
+  assert.equal((live.match(/roadmap: buildRoadmapSlice\(\{ root: orch\.root \}\)/g) || []).length, 2, '两处装配点都要注入 roadmap 切片');
+  // ⑥ 新区块零输入框（焦点守卫不接管它们——这是设计：回执证据输入只走 CLI）
+  const winBlock = html.slice(html.indexOf('function otWinHtml(t)'), html.indexOf('function otReportHtml(rep)'));
+  assert.ok(!winBlock.includes('<input'), '窗口卡不得含输入框');
+  const repBlock = html.slice(html.indexOf('function otReportHtml(rep)'), html.indexOf('function renderRoad(t)'));
+  assert.ok(!repBlock.includes('<input'), '回执面板不得含输入框');
+  // ⑦ 折叠只翻 class 不重渲染；开合态是模块变量（推送帧不抢本地意图）
+  assert.match(html, /var otReportFold = true;/);
+  assert.match(html, /rp\.classList\.toggle\('fold', otReportFold\)/);
+  // ⑧ 回执面板：九项 ✅/❌ 行 + 自由文本全转义
+  assert.ok(repBlock.includes('ok">✅') && repBlock.includes('no">❌'), '回执缺 ✅/❌ 行');
+  for (const e of ['esc(rep.verdict ||', 'esc(c.id)', 'esc(rep.recommendedNextStep)', 'esc(bd.blocker ||']) {
+    assert.ok(repBlock.includes(e), `回执缺转义 ${e}`);
+  }
+  // ⑨ 五态条/窗口卡/roadmap 带自由文本全转义
+  for (const e of ['esc(s.label)', 'esc(rv.soleGoal', 'esc(rv.stateLabel)', 'esc(u.stateLabel)', 'esc(rv.milestone']) {
+    assert.ok(html.includes(e), `缺转义 ${e}`);
+  }
+  // ⑩ 执行中窗口卡复用弥散光晕（同一关键帧），reduced-motion 进第二块静止列表
+  assert.match(html, /\.ot-win\.ws-execution \{ --ot-glow: var\(--ws\); \}/);
+  assert.match(html, /\.ot-win\.ws-execution::before \{[\s\S]*?animation: otGlowSpin 7s linear infinite;/);
+  const mid = html.indexOf('@media (prefers-reduced-motion: reduce)');
+  const mid2 = html.indexOf('@media (prefers-reduced-motion: reduce)', mid + 10);
+  assert.ok(html.slice(mid2, mid2 + 900).includes('.ot-win.ws-execution::before { animation: none; }'), '窗口卡流光缺 reduced-motion 静止');
+  // ⑪ 五态条 0.3s 过渡 + 当前格弥散光（0.3s 与 .tact 同纪律）
+  assert.match(html, /\.ot-wstrip \.seg \{[\s\S]*?transition: border-color 0\.3s, color 0\.3s, background 0\.3s, box-shadow 0\.3s;/);
+  assert.match(html, /\.ot-wstrip \.seg\.current \{[\s\S]*?box-shadow: 0 0 calc\(9px \* var\(--otscale/);
+  // ⑫ 事件代理两个新分支（推进 / 回执折叠）
+  assert.match(html, /el\.closest\('\[data-win-advance\]'\)/);
+  assert.match(html, /el\.closest\('\[data-report-toggle\]'\)/);
+});
