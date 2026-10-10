@@ -21,6 +21,10 @@
 //   ⑩ v0.7.5 流体胶囊形变 + 弥散光晕：选择器/开单条水滴式开合、分配中的
 //      工单卡带旋转流光描边 + 底部呼吸背光——全部纯 CSS 关键帧（无逐帧 JS），
 //      几何守 px×--otscale 纪律，reduced-motion 下全部静止。
+//   ⑪ v0.7.7 面板规则收敛 .tabpanel.orch：session log 行 class="r orch"（频道名
+//      入类，靠它上色）曾命中裸 .orch 面板规则——绝对定位铺满树区、两行叠画在
+//      keeper 上、z-index 4 吞掉整面真实鼠标点击（el.click 不走命中测试，所以
+//      一度误判成"旧实例卡死"）。裸 .orch { 选择器列入禁规。
 'use strict';
 
 const test = require('node:test');
@@ -47,6 +51,19 @@ test('tab 面板用 display:contents，不改变 .page 的 flex 排版', () => {
 test('编排面板定位是绝对定位，不挤进 flex 流', () => {
   assert.match(html, /\.orch \{[\s\S]*?position: absolute;/);
   assert.match(html, /\.tabbar \{[\s\S]*?position: absolute;/);
+});
+
+test('v0.7.7 回归：面板几何/token 规则收敛 .tabpanel.orch，裸 .orch 面板选择器不得复活', () => {
+  // 背景：session log 行渲染 class="r orch"（频道名入类）。裸 .orch 规则曾命中日志行：
+  // position:absolute + inset 把行撑成 854×482 巨层铺满树区、两行同 rect 叠画、
+  // z-index:4 把整面真实鼠标点击吃掉（el.click 绕过命中测试故长期漏网）。
+  assert.ok(!/^\s*\.orch \{/m.test(html), '裸 .orch { 面板规则复活');
+  // 几何块与 token 块两块都必须带 .tabpanel 限定（display:none + inset 面板放置 / --ot-* token 声明）
+  assert.match(html, /\.tabpanel\.orch \{\s*\n\s*display: none;\s*\/\* 由下面 body\.live 规则打开/);
+  assert.match(html, /\.tabpanel\.orch \{\s*\n\s*--ot-line: #222832;/);
+  // 日志行仍然渲染频道类（上色语义不丢），且频道上色规则保持 .ot-log 局部
+  assert.ok(html.includes("'<div class=\"r ' + esc(r.who) + '\">"), '日志行频道类渲染丢失');
+  assert.match(html, /\.ot-log \.r\.orch \.who \{ color: var\(--ot-green2\); \}/);
 });
 
 test('依赖连线是静态贝塞尔：渲染时量一次坐标，不做逐帧 JS 动画', () => {
