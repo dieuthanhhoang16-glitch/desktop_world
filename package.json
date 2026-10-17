@@ -13,6 +13,7 @@
     "world:techstack": "node world/techstack/techstack.js",
     "world:study": "node world/study/cli.js",
     "world:orch": "node world/orch/cli.js",
+    "world:roles": "node world/roles/cli.js",
     "world:live": "electron world/live/preview.js",
     "start": "node launch.js",
     "build": "electron-builder --win",
