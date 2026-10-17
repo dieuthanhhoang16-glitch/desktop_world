@@ -1,6 +1,6 @@
 // world/project/index.js
-// desktop-world · 项目注册层流程编排：add（注册+只读检查）、list（账本读出）、checkAll。
-// CLI 是薄壳，桌面徽标走 badge.js；这里是三条命令背后的主流程，全部可单测。
+// desktop-world · 项目注册层流程编排：add（注册+只读检查一气呵成）、list（注册表 × manifest 成行读出）。
+// CLI 是薄壳：重查在 check.js、桌面徽标在 badge.js、首启扫描在 scan.js；这里是 add/list 的主流程门面，全部可单测。
 'use strict';
 
 const path = require('path');

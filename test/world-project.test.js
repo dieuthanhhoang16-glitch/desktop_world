@@ -19,30 +19,26 @@ function makeTmp(t, prefix = 'world-project-') {
   return dir;
 }
 
+function writeRel(dir, rel, text) {
+  const abs = path.join(dir, ...rel.split('/'));
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, text, 'utf8');
+}
+
+/** 六个标记的铺法只有这一处——makeProject 与 makeMarkerFile 共用，防两份清单漂移。 */
+const MARKER_WRITERS = {
+  issueTracker: (dir) => writeRel(dir, 'docs/agents/issue-tracker.md', '# issue tracker\n'),
+  domainDocs: (dir) => writeRel(dir, 'docs/agents/domain.md', '# domain\n'),
+  triageLabels: (dir) => writeRel(dir, 'docs/agents/triage-labels.md', '# triage\n'),
+  adrDir: (dir) => writeRel(dir, 'docs/adr/0001-x.md', '# adr\n'),
+  glossary: (dir) => writeRel(dir, 'GLOSSARY.md', '# glossary\n'),
+  agentSkillsBlock: (dir) => writeRel(dir, 'CLAUDE.md', '# hi\n\n## Agent skills\n\n### Issue tracker\n'),
+};
+
 /** 造一个"marker 任选"的项目夹具：given 一组标记键，铺出对应文件。 */
 function makeProject(t, present = []) {
   const dir = makeTmp(t, 'world-project-proj-');
-  const has = (k) => present.includes(k);
-  if (has('issueTracker')) {
-    fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'issue-tracker.md'), '# issue tracker\n', 'utf8');
-  }
-  if (has('domainDocs')) {
-    fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'domain.md'), '# domain\n', 'utf8');
-  }
-  if (has('triageLabels')) {
-    fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'triage-labels.md'), '# triage\n', 'utf8');
-  }
-  if (has('adrDir')) {
-    fs.mkdirSync(path.join(dir, 'docs', 'adr'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'docs', 'adr', '0001-x.md'), '# adr\n', 'utf8');
-  }
-  if (has('glossary')) fs.writeFileSync(path.join(dir, 'GLOSSARY.md'), '# glossary\n', 'utf8');
-  if (has('agentSkillsBlock')) {
-    fs.writeFileSync(path.join(dir, 'CLAUDE.md'), '# hi\n\n## Agent skills\n\n### Issue tracker\n', 'utf8');
-  }
+  for (const k of present) MARKER_WRITERS[k](dir);
   return dir;
 }
 
@@ -225,13 +221,9 @@ test('check：标记补齐后再查，状态迁移 missing→initialized 且 las
   assert.ok(m2.lastCheckedAt >= m1.lastCheckedAt, 'lastCheckedAt 不后退');
 });
 
+/** 给已有项目补铺一个标记（状态迁移测试用），铺法与 makeProject 同源。 */
 function makeMarkerFile(proj, k) {
-  if (k === 'issueTracker') (fs.mkdirSync(path.join(proj, 'docs', 'agents'), { recursive: true }), fs.writeFileSync(path.join(proj, 'docs', 'agents', 'issue-tracker.md'), '# t\n'));
-  if (k === 'domainDocs') (fs.mkdirSync(path.join(proj, 'docs', 'agents'), { recursive: true }), fs.writeFileSync(path.join(proj, 'docs', 'agents', 'domain.md'), '# d\n'));
-  if (k === 'triageLabels') (fs.mkdirSync(path.join(proj, 'docs', 'agents'), { recursive: true }), fs.writeFileSync(path.join(proj, 'docs', 'agents', 'triage-labels.md'), '# l\n'));
-  if (k === 'adrDir') fs.mkdirSync(path.join(proj, 'docs', 'adr'), { recursive: true });
-  if (k === 'glossary') fs.writeFileSync(path.join(proj, 'GLOSSARY.md'), '# g\n');
-  if (k === 'agentSkillsBlock') fs.writeFileSync(path.join(proj, 'CLAUDE.md'), '# c\n\n## Agent skills\n');
+  MARKER_WRITERS[k](proj);
 }
 
 test('check：ensure 后续写入的 generatedFiles/lastEnsureAt 不被检查冲掉（合并语义）', (t) => {
@@ -253,19 +245,34 @@ test('check：ensure 后续写入的 generatedFiles/lastEnsureAt 不被检查冲
 
 const scan = require('../world/project/scan');
 
-test('scan：只收「目录 + 含 .git」的直接子项——普通目录/隐藏目录/压缩包/嵌套 .git 都不收', (t) => {
+test('scan：一级仓库与「分组/仓库」二级形态都收；普通目录/隐藏目录/压缩包不收', (t) => {
   const docs = makeTmp(t, 'world-project-docs-');
   const repoDir = path.join(docs, 'proj-a');
   fs.mkdirSync(path.join(repoDir, '.git'), { recursive: true });
   const wtDir = path.join(docs, 'proj-b-worktree');
   fs.mkdirSync(wtDir, { recursive: true });
   fs.writeFileSync(path.join(wtDir, '.git'), 'gitdir: /elsewhere\n', 'utf8'); // worktree 的 .git 是文件
+  const grouped = path.join(docs, 'work', 'repo-c');
+  fs.mkdirSync(path.join(grouped, '.git'), { recursive: true }); // Documents/<分组>/<仓库> 二级形态
   fs.mkdirSync(path.join(docs, 'plain-dir'), { recursive: true }); // 无 .git
   fs.mkdirSync(path.join(docs, '.hidden', '.git'), { recursive: true }); // 隐藏目录不收
   fs.writeFileSync(path.join(docs, '备份.zip'), 'PK', 'utf8'); // 压缩包不是目录
-  fs.mkdirSync(path.join(docs, 'nested', 'inner', '.git'), { recursive: true }); // 只看直接子项，不递归
   const found = scan.documents(docs);
-  assert.deepEqual(found, [repoDir, wtDir].sort());
+  assert.deepEqual(found, [repoDir, wtDir, grouped].sort());
+});
+
+test('scan：二层为止——三层仓库不下潜，node_modules 永不扫，遇 .git 目录不钻进去', (t) => {
+  const docs = makeTmp(t, 'world-project-docs-');
+  const repoDir = path.join(docs, 'proj-a');
+  fs.mkdirSync(path.join(repoDir, '.git'), { recursive: true });
+  fs.mkdirSync(path.join(repoDir, 'vendored', 'inner', '.git'), { recursive: true }); // 仓库内部不另立项目
+  fs.mkdirSync(path.join(docs, 'a', 'b', 'c', '.git'), { recursive: true }); // 三层太深
+  fs.mkdirSync(path.join(docs, 'node_modules', 'pkg-repo', '.git'), { recursive: true }); // 依赖目录永不扫
+  const twoDeep = path.join(docs, 'group', 'repo-d');
+  fs.mkdirSync(path.join(twoDeep, '.git'), { recursive: true });
+  fs.mkdirSync(path.join(docs, 'group', 'node_modules', 'pkg2', '.git'), { recursive: true }); // 二级里的依赖目录也不收
+  const found = scan.documents(docs);
+  assert.deepEqual(found, [repoDir, twoDeep].sort());
 });
 
 test('scan：Downloads 树不在扫描范围——默认根就是 Documents，传入的 Downloads 候选为空', (t) => {

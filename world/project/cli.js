@@ -6,7 +6,7 @@
 //   npm run world:project -- list [--json]   # 已注册项目：路径 / 状态 / 最近检查时间
 //   npm run world:project -- check [path]    # 重跑只读检查（默认全部已注册项目）
 //   npm run world:project -- init [--from <dir>] [-y|--yes]
-//                                            # 首启导入：扫 ~/Documents 下含 .git 的目录，逐个确认
+//                                            # 首启导入：扫 ~/Documents 下含 .git 的目录，默认逐个确认（-y 视为全部确认）
 //   npm run world:project -- badge [--json]  # 打印动态桌面同源的「未初始化」徽标数据
 //
 // 边界：检查只写 <项目>/.world/project.json，不创建/修改任何标准文件
@@ -21,10 +21,14 @@ const registry = require('./registry');
 const check = require('./check');
 const scan = require('./scan');
 const badge = require('./badge');
+const { REQUIRED_KEYS } = require('./markers');
 const { STATUS_LABELS, MARKER_LABELS, add: flowAdd, list: flowList } = require('./index');
 
 const args = process.argv.slice(2);
 const has = (...names) => names.some((n) => args.includes(n));
+// 与 orch/cli.js 的同名 helper 是全仓唯二的两份拷贝（刻意不互相 import，见 createLineReader 注）。
+// 有意漂移一处：orch 版只拒 `--` 开头的值，这里拒一切 `-` 开头——本 CLI 的值既可能是路径也可能是
+// flag，`--from -y` 把 `-y` 当目录收下才是真事故。第三次出现同款解析时，抽 world 级公共件。
 const flagVal = (name, dflt) => {
   const hit = args.find((a) => a.startsWith(`${name}=`));
   if (hit) return hit.slice(name.length + 1);
@@ -42,8 +46,12 @@ function printMarkers(markers) {
 }
 
 function printManifestStatus(m) {
-  const missingCount = Object.values(m.markers).filter((v) => !v).length;
-  console.log(`  初始化状态：${STATUS_LABELS[m.status] || m.status}（缺 ${missingCount}/6 项）`);
+  // triageLabels 是可选项，不进「缺 N」计数——否则六项缺它的已初始化项目也会被报成缺项。
+  const missingRequired = REQUIRED_KEYS.filter((k) => !m.markers[k]);
+  let head = `  初始化状态：${STATUS_LABELS[m.status] || m.status}`;
+  if (missingRequired.length) head += `（缺 ${missingRequired.length}/${REQUIRED_KEYS.length} 项必需）`;
+  if (!m.markers.triageLabels) head += '（可选 triageLabels 未配置）';
+  console.log(head);
   printMarkers(m.markers);
   console.log(`  manifest：${path.join(m.project, P.MANIFEST_REL)}（只读检查，未写其他文件）`);
 }
@@ -227,7 +235,7 @@ async function main() {
   console.log('  add <项目路径>          注册（幂等）并只读检查');
   console.log('  list [--json]           路径 / 状态 / 最近检查时间');
   console.log('  check [项目路径]        重跑只读检查（默认全部已注册）');
-  console.log('  init [--from <dir>] [--yes]   首启导入 ~/Documents 下含 .git 的目录，逐个确认');
+  console.log('  init [--from <dir>] [-y|--yes]   首启导入 ~/Documents 含 .git 目录（默认逐个确认；-y 视为全确认）');
   console.log('  badge [--json]          未初始化徽标数据（动态桌面同源）');
   return cmd ? 1 : 0;
 }

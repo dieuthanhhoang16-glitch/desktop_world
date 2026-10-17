@@ -313,6 +313,7 @@ npm run world:study -- --open                        # 打印 index.md 路径
 | `study/` | 学习卡片：`index.js`（读写主入口/建档/回填/index 总览/CLI 入口）、`card.js`（卡片渲染与追加的纯函数，同日幂等与「只追加不覆盖」都在这里）、`scanner.js`（把日报结构化考点匹配回关键词，宁缺毋滥）、`cli.js`（`world:study` 的 --list/--sync/--ensure/--open） |
 | `garden/` | 生长世界：`state.js`（持久状态/结算/阶段表）、`scene.js`（确定性像素 SVG）、`index.js`（门面） |
 | `orch/` | 多智能体编排：`tickets.js`（工单模型 + id 发号 + 依赖图 + 状态机 + 确定性拆分器）、`store.js`（tickets.json 唯一写入口）、`blackboard.js`（共享事实，只追加）、`mailbox.js`（每 session 收件箱，只追加）、`dispatch.js`（派单可行性硬闸门）、`scene-agents.js`（工位场景，确定性像素 + 飞行信封路线）、`index.js`（只读视图门面）、`prefs-source.js`（纯 Node 读 clawd-prefs.json）、`cli.js`（`world:orch` 拆分/确认/派发/收敛 + roadmap/回执/推进/提示词）、`paths.js`（落盘根目录与常量）。五级窗口协作：`protocol.js`（窗口五态机 + StageReport 校验，纯）、`boundary-check.js`（九项边界清单 + 机器抽查，纯）、`roadmap.js`（roadmap.json 唯一读写：阶段授权 + 活跃窗口 + 工单引用）、`reports.js`（回执账本归档/淘汰/投影）、`stage-lead.js`（老二裁定：submitReport 五道核验 / advanceWindow 七道关，永不抛）、`planning-window.js` / `execution-window.js` / `review-window.js`（三个任务窗口的确定性提示词模板，closeout 复用 review） |
+| `project/` | 项目注册 + 初始化标记检查：`paths.js`（WORLD_PROJECT_DIR 根与 manifest 常量）、`markers.js`（六标记只读评估，triageLabels 可选）、`registry.js`（注册表幂等记账 0600）、`manifest.js`（`.world/project.json` 契约，合并语义）、`check.js`（只读检查的唯一写入口）、`scan.js`（首启导入候选：Documents 有界二层含 .git 扫描）、`badge.js`（桌面徽标只读活评估，永不写盘）、`index.js`（add/list 主流程 + 状态文案）、`cli.js`（`world:project` add/list/check/init/badge） |
 | `creature/` | 桌宠皮肤「芽芽」：`sprites.js`（23 状态像素精灵库）、`generate.js`（themes/sprout 生成器） |
 
 ## 多智能体编排（v0.7）：把已有会话当工位来编排
