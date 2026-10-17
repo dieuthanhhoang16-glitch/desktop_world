@@ -177,6 +177,15 @@ async function buildLiveReport(outDir, digest) {
     console.error('[live] 编排视图读取失败（忽略，不影响卡片）：', e.message);
   }
 
+  // 项目注册「未初始化」徽标（agent system ticket 03）：badge.js 只读活评估标记，
+  // 这里绝不写盘（manifest 的 lastCheckedAt/status 只由 CLI check/add 写）。
+  let projects;
+  try {
+    projects = require('../project/badge').build({});
+  } catch (e) {
+    console.error('[live] 项目注册徽标读取失败（忽略，不影响卡片）：', e.message);
+  }
+
   return {
     meta: {
       date: digest.date,
@@ -196,6 +205,7 @@ async function buildLiveReport(outDir, digest) {
     techTips: latest.techTips,
     pomo: pomoView, // 番茄钟快照：面板渲染 + 看板任务累计时长角标（模板据此标 s._pomoMs）
     orch, // 编排工单看板（v0.7）：工位场景 + 工单列 + 收件箱概览 + 黑板事实
+    projects, // 项目注册「未初始化」徽标（ticket 03）：缺标记项目列表，模板据此显隐徽标区
     source: latest.source || 'fallback',
   };
 }

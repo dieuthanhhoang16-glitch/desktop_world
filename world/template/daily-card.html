@@ -263,6 +263,20 @@
   .study-card[data-st="settled"] .st { color: #f0b429; }
   .study .nohit { font-size: 1.2vmin; color: var(--ink-faint); margin-top: 0.5vmin; }
 
+  /* ---------- 项目注册「未初始化」徽标（agent system ticket 03）----------
+     缺 setup-matt-pocock-skills 标准标记的已注册项目在此亮徽标；标记齐全后由
+     renderProjects 收回（数据只看主进程注入的 R.projects，渲染层不算文件系统）。
+     仅 live 形态；bake 双保险；默认 hidden 由数据显隐。 */
+  body.bake .projects { display: none !important; }
+  .projects { margin-top: 1vmin; border-top: 1px dashed var(--card-edge); padding-top: 0.9vmin; }
+  .projects .label { font-size: 1.3vmin; color: var(--ink-faint); letter-spacing: 0.3em; }
+  .projects .label .hint { letter-spacing: 0.08em; opacity: 0.75; }
+  .proj-list { display: flex; flex-direction: column; gap: 0.5vmin; margin-top: 0.6vmin; }
+  .proj-row { display: flex; align-items: baseline; gap: 0.6vmin; font-size: 1.3vmin; color: var(--ink-dim); }
+  .proj-badge { flex: 0 0 auto; font-size: 1.15vmin; color: #f0b429; border: 1px solid rgba(240, 180, 41, 0.45); border-radius: 999px; padding: 0.2vmin 0.7vmin; }
+  .proj-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj-miss { flex: 0 0 auto; color: var(--ink-faint); font-size: 1.15vmin; }
+
   /* ---------- 工单调度树（v0.7，仅 live；bake 形态整个 tab 不存在）----------
      v0.7.1 字体与蒙版修正：① 树区文字按设计稿（dw-office-tree.html，980×620 下 9-13px）
      以 px 定死、只随 --otscale 一比例缩放（窗口拖大等比放大），不再随窗口 vmin 缩到 2-5px；
@@ -941,6 +955,10 @@
       <button class="tipchip" id="blockersChip" type="button"><span>🚧 今日卡点</span><span class="cnt"></span><span class="open">打开 md ↗</span></button>
       <button class="tipchip" id="tipsChip" type="button"><span>💡 技术总结</span><span class="cnt"></span><span class="open">打开 md ↗</span></button>
     </div>
+    <section class="projects" id="projectsSection" hidden>
+      <div class="label">🏷 未初始化项目 <span class="hint">标记补齐后徽标自动消失</span></div>
+      <div class="proj-list" id="projectsList"></div>
+    </section>
     <section class="notes" id="notesSection" hidden>
       <div class="label">随手记 NOTES <span class="hint">点这里直接写</span></div>
       <div class="notes-body" id="notesBody" contenteditable="plaintext-only" spellcheck="false"></div>
@@ -2000,6 +2018,29 @@
     }, 3100);
   }
 
+  // 项目注册「未初始化」徽标（agent system ticket 03）：数据只看主进程注入的
+  // R.projects（badge.js 在桌面刷新时活评估标记，渲染层不碰文件系统）。
+  // 有未初始化项目才亮区；齐全/空注册表都收回去。
+  var PROJECT_MARKER_LABELS = {
+    issueTracker: '工单规范', domainDocs: '领域文档', triageLabels: '分诊标签',
+    agentSkillsBlock: 'Agent skills 块', glossary: '术语表', adrDir: 'ADR 目录',
+  };
+  function renderProjects(p) {
+    var sec = document.getElementById('projectsSection');
+    if (!sec) return;
+    var list = (p && p.uninitialized) || [];
+    if (!LIVE || !list.length) { sec.hidden = true; return; }
+    sec.hidden = false;
+    document.getElementById('projectsList').innerHTML = list.map(function (it) {
+      var miss = (it.missing || []).map(function (k) { return PROJECT_MARKER_LABELS[k] || k; }).join('、');
+      return '<div class="proj-row">' +
+        '<span class="proj-badge">未初始化</span>' +
+        '<span class="proj-name">' + esc(it.name || it.path || '') + (it.gone ? '（目录已不存在）' : '') + '</span>' +
+        '<span class="proj-miss">缺 ' + esc(miss) + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
   function render(R) {
   lastR = R;
   curRenderDate = (R.meta && R.meta.date) || curRenderDate || todayKey();
@@ -2104,6 +2145,9 @@
       refreshStudyCards();
     }
   }
+
+  // 项目注册「未初始化」徽标：数据驱动显隐（每次热刷都重判，补齐标记即收回）
+  renderProjects(R.projects);
 
   // 工单看板（v0.7）：仅 live 显示，且只有真有工单时才亮 tab。热刷复用上次的 tab，
   // 不然每 15 分钟刷新会把人正在看的编排视图弹回早报。

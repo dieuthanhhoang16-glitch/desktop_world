@@ -12,6 +12,7 @@
     "world:watch": "node world/watch/watch.js",
     "world:techstack": "node world/techstack/techstack.js",
     "world:study": "node world/study/cli.js",
+    "world:project": "node world/project/cli.js",
     "world:orch": "node world/orch/cli.js",
     "world:live": "electron world/live/preview.js",
     "start": "node launch.js",
