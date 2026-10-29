@@ -35,14 +35,21 @@ function normalizePath(value) {
   return String(value || "").replace(/\\/g, "/").replace(/^\.\/+/, "");
 }
 
-function globToRegExp(glob) {
+function splitGlob(glob) {
   if (typeof glob !== "string" || !glob.trim()) {
     throw new TypeError("glob must be a non-empty string");
   }
   const input = normalizePath(glob);
-  if (input.startsWith("!")) {
-    throw new Error(`unsupported glob negation: ${glob}`);
+  const negated = input.startsWith("!");
+  const pattern = negated ? input.slice(1) : input;
+  if (!pattern) {
+    throw new Error(`glob has no pattern after "!": ${glob}`);
   }
+  return { negated, pattern };
+}
+
+function globToRegExp(glob) {
+  const { pattern: input } = splitGlob(glob);
   if (/[{}[\]]/.test(input)) {
     throw new Error(`unsupported glob brace or character-class syntax: ${glob}`);
   }
@@ -73,12 +80,23 @@ function globToRegExp(glob) {
   return new RegExp(`${source}$`);
 }
 
+// 单个 glob 的语义：命中模式本体即命中；带 ! 时取反（供 policy pathRules 这类单模式调用）。
 function matchesGlob(filePath, glob) {
-  return globToRegExp(glob).test(normalizePath(filePath));
+  const { negated, pattern } = splitGlob(glob);
+  const hit = globToRegExp(pattern).test(normalizePath(filePath));
+  return negated ? !hit : hit;
 }
 
+// 列表语义：按声明顺序逐条应用，「最后一条命中的规则获胜」（与 electron-builder / gitignore 一致）。
+// 不能退化成 some()：那会让 !pattern 对任何不在黑名单里的文件都返回 true。
 function matchesAnyGlob(filePath, globs) {
-  return (globs || []).some((glob) => matchesGlob(filePath, glob));
+  const normalized = normalizePath(filePath);
+  let matched = false;
+  for (const glob of globs || []) {
+    const { negated, pattern } = splitGlob(glob);
+    if (globToRegExp(pattern).test(normalized)) matched = !negated;
+  }
+  return matched;
 }
 
 function sha256File(filePath) {
@@ -296,14 +314,17 @@ function packageEntry(fullPath, sourcePath, packagePath, origin, asarUnpack) {
 }
 
 function buildSourcePackageManifest(repoRoot, build, revision) {
-  const buildFiles = stableSort(build.files || []);
-  const unpackGlobs = stableSort(build.asarUnpack || []);
-  for (const glob of [...buildFiles, ...unpackGlobs]) globToRegExp(glob);
+  // 匹配必须按 package.json 的声明顺序做（负向 glob 依赖顺序）；输出仍排序，保证清单可比对
+  const declaredBuildFiles = (build.files || []).map((glob) => normalizePath(glob));
+  const declaredUnpackGlobs = (build.asarUnpack || []).map((glob) => normalizePath(glob));
+  const buildFiles = stableSort(declaredBuildFiles);
+  const unpackGlobs = stableSort(declaredUnpackGlobs);
+  for (const glob of [...declaredBuildFiles, ...declaredUnpackGlobs]) globToRegExp(glob);
   const allFiles = walkFiles(repoRoot);
   const appSources = new Map();
 
   for (const file of allFiles) {
-    if (matchesAnyGlob(file.path, buildFiles)) appSources.set(file.path, file);
+    if (matchesAnyGlob(file.path, declaredBuildFiles)) appSources.set(file.path, file);
   }
 
   const implicitPackageJson = path.join(repoRoot, "package.json");
@@ -317,7 +338,7 @@ function buildSourcePackageManifest(repoRoot, build, revision) {
       file.path,
       `app/${file.path}`,
       "build.files",
-      matchesAnyGlob(file.path, unpackGlobs),
+      matchesAnyGlob(file.path, declaredUnpackGlobs),
     ));
 
   const extraResources = (build.extraResources || []).map((entry) => ({
@@ -926,6 +947,7 @@ module.exports = {
   findForeignNativeFiles,
   globToRegExp,
   inspectNativeBuffer,
+  matchesAnyGlob,
   matchesGlob,
   parseArgs,
   parseBatchObjectSizes,

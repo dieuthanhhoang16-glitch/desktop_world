@@ -30,6 +30,8 @@ describe("listIdleVisualOptions", () => {
       calico: ["calico-idle-follow.svg", "calico-idle.apng"],
       clawd: ["clawd-idle-follow.svg", "clawd-idle-look.svg", "clawd-idle-bubble.svg", "clawd-idle-reading.svg"],
       cloudling: ["cloudling-idle.svg", "cloudling-idle-reading.svg"],
+      girl: ["girl-idle.apng", "girl-idle-static.png", "girl-juggling.apng"],
+      sprout: ["sprout-idle.svg", "sprout-idle-happy.svg"],
       template: ["idle-follow.svg", "idle-look.gif"],
     };
     const themesDir = path.join(__dirname, "..", "themes");

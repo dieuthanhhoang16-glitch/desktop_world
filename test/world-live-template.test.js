@@ -72,41 +72,24 @@ test('胶囊摘要取现有 live 字段（世界等级 / 番茄数 / 考点数�
   assert.ok(!html.includes('点不到'), '不应再有穿透锁定相关文案');
 });
 
-// ---------- v0.7 工单调度树：五区结构守门 ----------
-// 调度树是工作面：roster 带 / 守门员栏 / 树主面 / session log / 状态行，缺一个就是结构回退。
+// ---------- 删单（ORCH-CONSOLE-R2 需求1）后的守门 ----------
+// 「单」的工单调度树 tab 已整棵移除，编排唯一入口是「编」（orchestra 台）。
+// 这里守：bake 形态 tab 栏整关、托盘入口仍在、__worldOrch 桥三层通道对刃
+// （「编」台 iframe 借父窗桥消费这些通道——删单只删视图层，桥不能跟着拆）。
 
-test('调度树五区骨架存在且 panel 默认 hidden；bake 双保险未被破坏', () => {
+test('删单后 bake 纪律：tab 栏整关，编排 DOM 与数据消费清零', () => {
   const html = fs.readFileSync(TEMPLATE, 'utf8');
-  assert.match(html, /<div class="tabpanel orch" id="panelOrch" hidden>/, '调度树 panel 必须默认 hidden');
-  for (const id of ['orchKeeper', 'orchTree', 'orchLog', 'orchStatus', 'orchSum']) {
-    assert.ok(html.includes(`id="${id}"`), `缺调度树区元素 #${id}`);
-  }
-  assert.match(html, /body\.bake \.tabbar,\s*body\.bake #panelOrch \{\s*display:\s*none\s*!important;\s*\}/, 'bake 隐藏双保险被改');
-  assert.ok(html.includes('class="ot-roster"'), '缺 roster 带');
-  assert.ok(html.includes('class="ot-mid"'), '缺 mid 容器（守门员栏 + 树主面）');
+  // bake（烘焙 PNG）是 IM 分享底稿，不得出现任何切换入口
+  assert.match(html, /body\.bake \.tabbar \{ display: none !important; \}/, 'bake tab 栏硬关规则被改');
+  // 「单」的面板与工单数据消费一律清零
+  assert.ok(!html.includes('panelOrch'), '编排面板残留');
+  assert.ok(!html.includes('R.orch'), '模板仍在消费 R.orch');
+  // 托盘「工单看板」主进程仍从 __worldSetTab 切进来（setTab 兜底未知 tab）
+  assert.ok(html.includes('window.__worldSetTab'), '缺主进程切 tab 入口 __worldSetTab');
 });
 
-test('调度树数据只走 R.orch.tree（tree-model），渲染层不算布局/clobber 旧看板已清', () => {
-  const html = fs.readFileSync(TEMPLATE, 'utf8');
-  assert.ok(html.includes('lastR.orch.tree'), '渲染层必须消费 R.orch.tree（主进程注入的 view-model）');
-  // 旧七列看板与飞行信封的残留一律不允许：它们与 tree-model 是两套世界观
-  for (const stale of ['ORCH_COLS', 'layoutEnvelopes', 'orch-scene', 'orch-env', 'orchCols', 'orchInbox', 'orchFacts']) {
-    assert.ok(!html.includes(stale), `旧看板残留：${stale}`);
-  }
-  // 红线上墙：守门员栏必须有「从不 spawn 进程」的常驻声明
-  assert.ok(html.includes('从不 spawn 进程'), '守门员红线宣言缺失');
-  // 双信号：stale（还没接活）是账本/引擎两盏灯分形的落点
-  assert.ok(html.includes('还没接活'), 'stale 旗标（还没接活）缺失');
-});
-
-// ---------- v0.7 M2/M3：树内写闭环 + 开单回路（出口：确认→派发→收敛→开单不出 tab） ----------
-
-test('M2/M3 写闭环只走 __worldOrch 桥：六个方法一个不缺且三层通道对刃', () => {
-  const html = fs.readFileSync(TEMPLATE, 'utf8');
-  for (const call of ['__worldOrch.transition', '__worldOrch.patch', '__worldOrch.remove', '__worldOrch.sessions', '__worldOrch.plan', '__worldOrch.commitPlan']) {
-    assert.ok(html.includes(call), `渲染层缺 ${call} 调用`);
-  }
-  // 桥必须真实暴露这六个通道（渲染层 invoke 的 channel 名与 preload 一一对应）
+test('__worldOrch 桥三层通道对刃：六个写闭环通道一个不缺', () => {
+  // 「编」台经父窗桥调这六个方法：桥必须真实暴露（channel 名 preload ↔ live.js 一一对应）
   const preload = fs.readFileSync(path.join(__dirname, '..', 'world', 'live', 'preload.js'), 'utf8');
   assert.ok(preload.includes("exposeInMainWorld('__worldOrch'"), 'preload 缺 __worldOrch 桥');
   const channels = ['world:orch:transition', 'world:orch:patch', 'world:orch:remove', 'world:orch:sessions', 'world:orch:plan', 'world:orch:commitPlan'];
@@ -118,40 +101,4 @@ test('M2/M3 写闭环只走 __worldOrch 桥：六个方法一个不缺且三层�
   for (const ch of channels) {
     assert.ok(live.includes(`ipcMain.handle('${ch}'`), `live.js 缺 handler ${ch}`);
   }
-});
-
-test('M2 交互元素齐备：卡片操作/会话选择器/收敛组合器/problems 上墙与定位', () => {
-  const html = fs.readFileSync(TEMPLATE, 'utf8');
-  // 工单卡按状态出操作：OT_ACTIONS 表 + data-tact 按钮（状态机七个状态全覆盖）
-  assert.ok(html.includes('var OT_ACTIONS = {'), '缺 OT_ACTIONS 状态→操作表');
-  assert.ok(html.includes('data-tact='), '工单卡缺 data-tact 操作按钮');
-  for (const st of ['draft', 'confirmed', 'dispatched', 'running', 'failed', 'blocked', 'done']) {
-    assert.ok(html.includes(st + ':'), `OT_ACTIONS 缺状态 ${st} 的映射`);
-  }
-  // 派发会话选择器
-  assert.ok(html.includes('id="orchPicker"'), '缺 #orchPicker 选择器容器');
-  assert.ok(html.includes('data-pick-sid'), '选择器缺 data-pick-sid 行');
-  // 收敛组合器：验收勾选 + 结论输入 + 写入按钮；CLI hint 已退场
-  assert.ok(html.includes('data-caccept='), '收敛带缺验收勾选');
-  assert.ok(html.includes('data-csum='), '收敛带缺结论输入');
-  assert.ok(html.includes('data-converge='), '收敛带缺「写入收敛」按钮');
-  assert.ok(!html.includes('chint'), 'M2 不得再留 CLI 收敛提示（chint）');
-  // problems 上墙 + 点击定位
-  assert.ok(html.includes('ot-problems'), '守门员栏缺 problems 容器类');
-  assert.ok(html.includes('data-prob-tid'), 'problems 行缺 data-prob-tid 定位属性');
-  assert.ok(html.includes('tcard.flash'), '缺定位闪烁样式');
-  // M1 文案下线，M2 闭环宣言上墙
-  assert.ok(!html.includes('写操作仍在 CLI'), 'M1「写操作仍在 CLI」文案必须下线');
-  assert.ok(html.includes('确认 → 派发 → 收敛'), '缺 M2 闭环宣言');
-});
-
-test('M2 写操作纪律：忙闸 + 空桥兜底 + bake 形态隐藏双保险仍在', () => {
-  const html = fs.readFileSync(TEMPLATE, 'utf8');
-  // 一次只许一个写操作在途（防双击双写账本）
-  assert.ok(html.includes('otSetBusy'), '缺写操作忙闸 otSetBusy');
-  assert.ok(html.includes('.busy .tact'), 'busy 态必须禁点操作按钮');
-  // 无桥（bake/老 preload）时动作层有兜底而不是 TypeError
-  assert.ok(html.includes('bridge-down'), '缺桥不可用的兜底 problem');
-  // bake 双保险还在（新交互全在 #panelOrch 内，panel 隐藏即全藏）
-  assert.match(html, /body\.bake \.tabbar,\s*body\.bake #panelOrch \{\s*display:\s*none\s*!important;\s*\}/, 'bake 隐藏双保险被改');
 });

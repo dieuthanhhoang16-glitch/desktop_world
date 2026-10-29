@@ -298,21 +298,21 @@ function orchState(sessionSnapshot) {
 }
 
 /**
- * 托盘「工单看板」：切到动态桌面的工单 tab。
+ * 托盘「工单看板」：切到动态桌面的编排 tab（「编」——删单后唯一编排入口）。
  *
- * 这一步**不开新窗口**（Stage A 刚把窗口数量问题解决掉）：编排视图长在现有
- * 动态桌面组件的第二个 tab 里。动态桌面没开时不开它——用户没要求第二个窗口。
+ * 这一步**不开新窗口**（Stage A 刚把窗口数量问题解决掉）：编排台长在现有
+ * 动态桌面组件里。动态桌面没开时不开它——用户没要求第二个窗口。
  */
 function showOrchBoard() {
   try {
     const live = require('./live/live');
     if (live.state() === 'closed') {
-      notify('动态桌面还没开', '工单看板是动态桌面里的第二个 tab；先点「启动动态桌面」');
+      notify('动态桌面还没开', '编排台是动态桌面里的「编」tab；先点「启动动态桌面」');
       return { ok: false, reason: 'live-closed' };
     }
     live.setActiveTab('orch');
     if (live.state() === 'hidden') live.show();
-    notify('工单看板 🎫', '开单/确认/派发/收敛都在树内闭环；CLI 等价口仍是 npm run world:orch');
+    notify('工单看板 🎫', '编排都在「编」台闭环；CLI 等价口仍是 npm run world:orch');
     return { ok: true };
   } catch (err) {
     console.error('[orch] 工单看板失败：', err.message);

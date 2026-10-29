@@ -521,44 +521,7 @@ function cmdScene() {
 
 // ---------------------------------------------------------------- 五级窗口协作
 
-/** 示例 roadmap：本模块自己的五级重构路线（也是唯一随代码发的示例工件）。 */
-function exampleRoadmap() {
-  return {
-    version: 1,
-    milestone: 'multi-agent-refactor',
-    stages: [
-      {
-        id: 'A', title: '纯协议与边界', authorized: false,
-        subtasks: [
-          { id: 'a', title: 'protocol.js 五态机与 StageReport 校验', windowState: 'planning', ticketIds: [] },
-          { id: 'b', title: 'boundary-check.js 九项清单', windowState: 'planning', ticketIds: [] },
-        ],
-      },
-      {
-        id: 'B', title: '存储与裁定', authorized: false,
-        subtasks: [
-          { id: 'a', title: 'roadmap/reports 账本', windowState: 'planning', ticketIds: [] },
-          { id: 'b', title: 'stage-lead 老二裁定', windowState: 'planning', ticketIds: [] },
-        ],
-      },
-      {
-        id: 'C', title: 'CLI 与文档', authorized: false,
-        subtasks: [
-          { id: 'a', title: 'cli 子命令与窗口提示词', windowState: 'planning', ticketIds: [] },
-          { id: 'b', title: '交付文档（AGENT/README/回执）', windowState: 'planning', ticketIds: [] },
-        ],
-      },
-      {
-        id: 'D', title: 'UI 可视化', authorized: false,
-        subtasks: [
-          { id: 'a', title: '五态条与窗口卡', windowState: 'planning', ticketIds: [] },
-          { id: 'b', title: '回执面板与任务树', windowState: 'planning', ticketIds: [] },
-        ],
-      },
-    ],
-    activeWindow: { stageId: 'A', subtaskId: 'a' },
-  };
-}
+// 示例 roadmap 的唯一来源是 roadmap.exampleRoadmap()（R2 起 IPC roadmapInit 也用它）。
 
 function printRoadmap(rm) {
   const win = roadmap.windowOf(rm);
@@ -585,7 +548,7 @@ function cmdRoadmap() {
       console.log(`⚠ 已有 roadmap（${existing.milestone || '(未命名)'}），不覆盖。要重来先手动删 ${file}`);
       return 1;
     }
-    roadmap.saveAll(file, has('--example') ? exampleRoadmap() : roadmap.emptyRoadmap());
+    roadmap.saveAll(file, has('--example') ? roadmap.exampleRoadmap() : roadmap.emptyRoadmap());
     console.log(`✅ roadmap 已初始化：${file}`);
     if (has('--example')) console.log('   写入示例：multi-agent-refactor 五阶段 A–D');
     console.log('   下一步：npm run world:orch -- stage-authorize A（人工授权）→ report submit --state planning --file <json>');
@@ -633,7 +596,8 @@ async function cmdStageAuthorize() {
     console.log(`阶段 ${stageId}「${stage.title}」已授权，无需重复。`);
     return 0;
   }
-  // 人工关口：授权不是代码能自决的事，必须有人敲下这个 y
+  // 人工关口：授权不是代码能自决的事，必须有人敲下这个 y。
+  // 判定/写盘与 UI 的 world:orch:authorize 同一份（stage-lead.authorize），不写两套规则。
   console.log(`阶段 ${stageId}「${stage.title}」包含 ${stage.subtasks.length} 个子任务：`);
   for (const t of stage.subtasks) console.log(`  - ${stageId}.${t.id} ${t.title}`);
   const reader = createLineReader(process.stdin, process.stdout);
@@ -646,7 +610,11 @@ async function cmdStageAuthorize() {
   } finally {
     reader.close();
   }
-  roadmap.authorizeStage(roadmapFile(ROOT), stageId);
+  const authorized = lead.authorize({ stageId, approve: true }, { root: ROOT });
+  if (!authorized.ok) {
+    console.log(`❌ 授权被拒：\n${dispatch.formatProblems(authorized.problems)}`);
+    return 1;
+  }
   console.log(`🟢 阶段 ${stageId} 已授权。窗口开工（planning→execution）的闸门已开。`);
   return 0;
 }

@@ -18,6 +18,7 @@ const roadmap = require('./roadmap');
 const reportsMod = require('./reports');
 const store = require('./store');
 const blackboard = require('./blackboard');
+const milestonePrompt = require('../cleanup/milestone-prompt');
 
 function problem(code, reason, fix) {
   return { code, reason, fix };
@@ -270,7 +271,79 @@ function advanceWindow(payload = {}, deps = {}) {
       }
     }
     note(blackboardFile(root), `窗口推进 ${windowIdOf(win)} ${win.state}→${to}（人确认）`, win.ticketIds || []);
-    return { ok: true, from: { windowId: windowIdOf(win), state: win.state }, to, nextWindow, adjudication };
+    let cleanupPrompts = [];
+    if (to === 'closed') {
+      try {
+        const rmNow = roadmap.load(rmFile);
+        cleanupPrompts = milestonePrompt.evaluateClose({
+          orchRoot: root,
+          roadmap: rmNow,
+          stageId: win.stageId,
+          subtaskId: win.subtaskId,
+          projectPath: payload.projectPath || deps.projectPath,
+          root: deps.cleanupRoot,
+          now: typeof deps.now === 'function' ? deps.now : undefined,
+        });
+      } catch {
+        // 清理提示失败不影响关窗本身
+      }
+    }
+    return { ok: true, from: { windowId: windowIdOf(win), state: win.state }, to, nextWindow, adjudication, cleanupPrompts, cleanupPrompt: cleanupPrompts[0] || null };
+  } catch (err) {
+    return { ok: false, problems: [problem('stage-lead-error', `内部异常：${err && err.message ? err.message : err}`, '保留现场提 issue')] };
+  }
+}
+
+/**
+ * ④ 阶段授权（非交互入口，R2 起 CLI readline 与 UI 两步确认共用）。
+ *
+ * 原来这段判定只有 CLI 有（cmdStageAuthorize：校验阶段 → 问 y → authorizeStage），
+ * UI 永远碰不到授权闸门；R2 按用户要求开桥。本函数收掉全部判定（阶段存在性 /
+ * 已授权幂等 / 写盘 / 黑板留痕），各端壳只负责「人确认」这一次敲击：
+ * CLI 的 readline y 与 UI 的两步确认第二击都翻译成 payload.approve===true。
+ *
+ * @param payload {approve:boolean, note?:string, stageId?:string}
+ *   stageId 缺省：取当前裁定被授权问题卡住的阶段（adjudicate 的 authorization.nextStageId），
+ *   没有待授权裁定则回落「活跃窗口所在且未授权的阶段」。
+ * @param deps {root}
+ * @returns {ok:true, stageId, stageTitle, authorized:boolean, alreadyAuthorized?:boolean}
+ *        | {ok:false, problems[]}
+ *   approve!==true = 拒绝路：与 CLI「默认拒绝，什么都不写」同义——不写盘、不留痕。
+ */
+function authorize(payload = {}, deps = {}) {
+  const root = deps.root || ORCH_DIR;
+  try {
+    const rmFile = roadmapFile(root);
+    let stageId = typeof payload.stageId === 'string' && payload.stageId ? payload.stageId : '';
+    if (!stageId) {
+      const { adjudication } = adjudicate({ ...deps, root });
+      if (adjudication && adjudication.authorization && adjudication.authorization.nextStageId) {
+        stageId = adjudication.authorization.nextStageId;
+      }
+    }
+    if (!stageId) {
+      const rm0 = roadmap.load(rmFile);
+      const win = roadmap.windowOf(rm0);
+      const active = win && roadmap.findStage(rm0, win.stageId);
+      if (active && active.authorized !== true) stageId = active.id;
+    }
+    if (!stageId) {
+      return { ok: false, problems: [problem('stage-none-pending', '现在没有待授权的阶段', 'roadmap 里没有活跃窗口，或当前阶段的授权闸门已开——npm run world:orch -- roadmap 核对')] };
+    }
+    const rm = roadmap.load(rmFile);
+    const stage = roadmap.findStage(rm, stageId);
+    if (!stage) {
+      return { ok: false, problems: [problem('stage-unknown', `roadmap 里没有阶段 ${stageId}`, `npm run world:orch -- roadmap 查看阶段表，现有：${rm.stages.map((s) => s.id).join(', ') || '(空)'}`)] };
+    }
+    if (stage.authorized === true) {
+      return { ok: true, stageId, stageTitle: stage.title, authorized: true, alreadyAuthorized: true };
+    }
+    if (payload.approve !== true) {
+      return { ok: true, stageId, stageTitle: stage.title, authorized: false };
+    }
+    roadmap.authorizeStage(rmFile, stageId);
+    note(blackboardFile(root), `阶段 ${stageId}「${stage.title}」已授权${payload.note ? `（${String(payload.note)}）` : ''}`);
+    return { ok: true, stageId, stageTitle: stage.title, authorized: true };
   } catch (err) {
     return { ok: false, problems: [problem('stage-lead-error', `内部异常：${err && err.message ? err.message : err}`, '保留现场提 issue')] };
   }
@@ -317,4 +390,4 @@ function windowStatus(deps = {}) {
   }
 }
 
-module.exports = { submitReport, advanceWindow, windowStatus };
+module.exports = { submitReport, advanceWindow, authorize, windowStatus };

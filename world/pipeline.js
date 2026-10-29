@@ -141,6 +141,23 @@ async function runDaily({ outDir, noLlm = false, reuseReport = false, onStep = (
   const mdFiles = writeDayNotes(outDir, report);
   if (mdFiles.length) onStep(`随笔 md：${mdFiles.map((f) => path.basename(f)).join('、')}`);
 
+  // 学习卡片（v0.7）：把当天的八股考点按关键词回填进长期累积的卡片。
+  // 与 writeDayNotes 是**两种东西**：随笔 md 一天一份、随日报重写；卡片一个关键词一份、
+  // 只追加不覆盖。没配 techstack 时 study.scanAndAppend 直接返回 null，全链路零副作用。
+  try {
+    const { scanAndAppend } = require('./study');
+    const st = scanAndAppend(report);
+    if (st) {
+      const hit = st.written.length;
+      if (st.created.length) onStep(`学习卡片：建档 ${st.created.length} 张（${path.basename(st.indexFile)}）`);
+      if (hit) onStep(`学习卡片：${hit} 张卡片回填了今天的实证`);
+      if (!hit && !st.created.length) onStep(`学习卡片：${st.cards.length} 张已存在，今天的考点没匹配上（宁可留白不硬凑）`);
+    }
+  } catch (err) {
+    // 学习卡片是增量功能，绝不能因为它把每日流水线打断
+    console.warn('[world] 学习卡片回填失败（日报照常产出）：', err.message);
+  }
+
   onStep('渲染早报 PNG…');
   const pngPath = await bakePng({ report, outDir });
   onStep(`早报 PNG 已生成（不设壁纸）：${pngPath}`);

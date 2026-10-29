@@ -25,6 +25,48 @@ function emptyRoadmap() {
   return { version: VERSION, milestone: '', stages: [], activeWindow: null, updatedAt: null };
 }
 
+/**
+ * 示例 roadmap：本模块自己的五级重构路线（唯一随代码发的示例工件）。
+ * 原来只在 cli.js 里，R2 起 world:orch:roadmapInit 也要用 —— 收进本模块保持单源。
+ */
+function exampleRoadmap() {
+  return {
+    version: VERSION,
+    milestone: 'multi-agent-refactor',
+    stages: [
+      {
+        id: 'A', title: '纯协议与边界', authorized: false,
+        subtasks: [
+          { id: 'a', title: 'protocol.js 五态机与 StageReport 校验', windowState: 'planning', ticketIds: [] },
+          { id: 'b', title: 'boundary-check.js 九项清单', windowState: 'planning', ticketIds: [] },
+        ],
+      },
+      {
+        id: 'B', title: '存储与裁定', authorized: false,
+        subtasks: [
+          { id: 'a', title: 'roadmap/reports 账本', windowState: 'planning', ticketIds: [] },
+          { id: 'b', title: 'stage-lead 老二裁定', windowState: 'planning', ticketIds: [] },
+        ],
+      },
+      {
+        id: 'C', title: 'CLI 与文档', authorized: false,
+        subtasks: [
+          { id: 'a', title: 'cli 子命令与窗口提示词', windowState: 'planning', ticketIds: [] },
+          { id: 'b', title: '交付文档（AGENT/README/回执）', windowState: 'planning', ticketIds: [] },
+        ],
+      },
+      {
+        id: 'D', title: 'UI 可视化', authorized: false,
+        subtasks: [
+          { id: 'a', title: '五态条与窗口卡', windowState: 'planning', ticketIds: [] },
+          { id: 'b', title: '回执面板与任务树', windowState: 'planning', ticketIds: [] },
+        ],
+      },
+    ],
+    activeWindow: { stageId: 'A', subtaskId: 'a' },
+  };
+}
+
 function sanitizeText(value, max = 200) {
   return String(value == null ? '' : value)
     .replace(/\r\n?|\n/g, ' ')
@@ -224,6 +266,7 @@ function upsertSubtaskTickets(file = roadmapFile(), stageId, subtaskId, ticketId
 module.exports = {
   VERSION,
   emptyRoadmap,
+  exampleRoadmap,
   normalizeRoadmap,
   load,
   saveAll,

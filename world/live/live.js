@@ -612,7 +612,8 @@ function ensureNotesIpc() {
   });
   // 五级窗口协作（v1.0）：回执提交 / 推进确认 / roadmap 只读。裁定与写序全在
   // stage-lead.js（与 CLI 同一套），handler 只做本窗守卫 + 入参白名单 + 成功后重推。
-  // 阶段授权刻意没有桥——authorize 走 CLI readline，UI 永远碰不到授权闸门。
+  // 阶段授权（R2 起按用户要求开桥）：authorize 经 world:orch:authorize 走 stage-lead
+  // 非交互共享入口——UI 两步确认等同 CLI readline 的 y，判定与写盘仍在 stage-lead。
   const stageLead = require('../orch/stage-lead');
   ipcMain.handle('world:orch:submitReport', (e, payload) => {
     if (!ok(e)) return orchBad();
@@ -644,6 +645,133 @@ function ensureNotesIpc() {
       return { slice: null };
     }
   });
+  // 编排台 R2 其余通道（console 快照 / run·steer / 产物 / 日志 / reveal / note /
+  // roadmap 写 / 阶段授权 / 回执账本 / 角色卡 / 学习卡）收在独立模块，同一 ok 守卫
+  // 与 refreshOrchView 重推——模块本身懒建执行器，此处只负责接线。
+  const { registerOrchConsoleIpc } = require('./orch-console-ipc');
+  registerOrchConsoleIpc({ ipcMain, ok, refresh: refreshOrchView });
+}
+
+// 维护 tab（v0.8）：项目徽标 / 如何学习 / 清理与配置审批 / 里程碑提示 / 指标。
+// 渲染层只传项目路径与勾选项；注册校验、扫描、两轮复核、写盘全在主进程。
+// 项目路径必须来自 registry——渲染层是不可信输入，不允许借维护面板操作任意目录。
+let maintenanceIpcReady = false;
+
+function ensureMaintenanceIpc() {
+  if (maintenanceIpcReady) return;
+  maintenanceIpcReady = true;
+  const maintenance = require('./maintenance');
+  const { ORCH_DIR } = require('../orch/paths');
+  const ok = (e) => win && !win.isDestroyed() && e.sender === win.webContents;
+  const bad = (reason, message) => ({ ok: false, reason, message });
+  const projectArg = (value) => (typeof value === 'string' && value ? value : null);
+  const registered = (projectPath) => {
+    if (!projectPath) return bad('missing-project', '缺少项目路径。');
+    if (!maintenance.isRegisteredProject({ projectPath })) {
+      return bad('unregistered-project', '只能操作已注册的项目。先在设置里添加该项目。');
+    }
+    return null;
+  };
+  const selected = (value) => (Array.isArray(value) ? value.filter((p) => typeof p === 'string').slice(0, 2000) : []);
+  const guard = (e, fn) => {
+    if (!ok(e)) return bad('invalid-sender', '窗口已关闭。');
+    try {
+      return fn();
+    } catch (err) {
+      console.error('[live] 维护操作失败：', err.message);
+      return bad('internal-error', err.message);
+    }
+  };
+
+  ipcMain.handle('world:maintenance:overview', (e) => guard(e, () =>
+    maintenance.overview({ orchRoot: ORCH_DIR })
+  ));
+
+  ipcMain.handle('world:maintenance:project', (e, projectPath) => guard(e, () => {
+    const project = projectArg(projectPath);
+    const denied = registered(project);
+    if (denied) return denied;
+    return maintenance.loadProject({ projectPath: project });
+  }));
+
+  ipcMain.handle('world:maintenance:plan', async (e, projectPath) => {
+    if (!ok(e)) return bad('invalid-sender', '窗口已关闭。');
+    const project = projectArg(projectPath);
+    const denied = registered(project);
+    if (denied) return denied;
+    try {
+      return await maintenance.createLearningPlan({ projectPath: project });
+    } catch (err) {
+      console.error('[live] 学习计划生成失败：', err.message);
+      return bad('internal-error', err.message);
+    }
+  });
+
+  ipcMain.handle('world:maintenance:propose', async (e, projectPath) => {
+    if (!ok(e)) return bad('invalid-sender', '窗口已关闭。');
+    const project = projectArg(projectPath);
+    const denied = registered(project);
+    if (denied) return denied;
+    try {
+      return await maintenance.generateProposal({ projectPath: project });
+    } catch (err) {
+      console.error('[live] 清理提案生成失败：', err.message);
+      return bad('internal-error', err.message);
+    }
+  });
+
+  ipcMain.handle('world:maintenance:decide', (e, projectPath, paths, selectAll) => guard(e, () => {
+    const project = projectArg(projectPath);
+    const denied = registered(project);
+    if (denied) return denied;
+    return maintenance.saveProjectDecisions({ projectPath: project, selectedPaths: selected(paths), selectAll: selectAll === true });
+  }));
+
+  ipcMain.handle('world:maintenance:preview', (e, projectPath) => guard(e, () => {
+    const project = projectArg(projectPath);
+    const denied = registered(project);
+    if (denied) return denied;
+    return maintenance.previewProjectExecute({ projectPath: project });
+  }));
+
+  ipcMain.handle('world:maintenance:execute', (e, projectPath) => guard(e, () => {
+    const project = projectArg(projectPath);
+    const denied = registered(project);
+    if (denied) return denied;
+    return maintenance.runProjectExecute({ projectPath: project });
+  }));
+
+  ipcMain.handle('world:maintenance:restore', (e, projectPath) => guard(e, () => {
+    const project = projectArg(projectPath);
+    const denied = registered(project);
+    if (denied) return denied;
+    return maintenance.restoreProject({ projectPath: project });
+  }));
+
+  ipcMain.handle('world:maintenance:config-load', (e) => guard(e, () => maintenance.loadConfig({})));
+
+  ipcMain.handle('world:maintenance:config-propose', (e) => guard(e, () => maintenance.proposeConfig({})));
+
+  ipcMain.handle('world:maintenance:config-decide', (e, paths, selectAll) => guard(e, () =>
+    maintenance.saveConfigDecisions({ selectedPaths: selected(paths), selectAll: selectAll === true })
+  ));
+
+  ipcMain.handle('world:maintenance:config-preview', (e) => guard(e, () =>
+    maintenance.executeConfigForUi({ dryRun: true })
+  ));
+
+  ipcMain.handle('world:maintenance:config-execute', (e) => guard(e, () =>
+    maintenance.executeConfigForUi({ dryRun: false })
+  ));
+
+  ipcMain.handle('world:maintenance:config-restore', (e) => guard(e, () =>
+    maintenance.restoreConfigForUi({})
+  ));
+
+  ipcMain.handle('world:maintenance:ack', (e, key) => guard(e, () => {
+    if (typeof key !== 'string' || !key) return bad('missing-key', '缺少提示标识。');
+    return maintenance.acknowledgeMilestonePrompt({ orchRoot: ORCH_DIR, key });
+  }));
 }
 
 /**
@@ -672,6 +800,7 @@ async function open(outDir, opts = {}) {
   pomoFile = path.join(outDir, 'pomodoro.json');
   liveOutDirRef = outDir;
   ensureNotesIpc();
+  ensureMaintenanceIpc();
   const bounds = resolveOpenBounds(cfg);
 
   visMode = 'open';

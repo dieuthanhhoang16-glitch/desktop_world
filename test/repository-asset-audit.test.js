@@ -11,6 +11,7 @@ const {
   buildExtractedPackageManifest,
   buildSourcePackageManifest,
   inspectNativeBuffer,
+  matchesAnyGlob,
   matchesGlob,
   parseArgs,
   parseBatchObjectSizes,
@@ -156,11 +157,31 @@ describe("repository asset audit", () => {
     assert.strictEqual(matchesGlob("assets/source/a.png", "assets/icons/**/*"), false);
   });
 
-  it("fails closed on glob syntax the audit engine does not implement", () => {
-    assert.throws(
-      () => matchesGlob("src/x.map", "!**/*.map"),
-      /unsupported glob negation/,
+  it("applies negated globs in declaration order (last match wins)", () => {
+    assert.strictEqual(matchesGlob("src/x.map", "!**/*.map"), false);
+    assert.strictEqual(matchesGlob("src/x.js", "!**/*.map"), true);
+    assert.strictEqual(
+      matchesAnyGlob("world/out/a.js", ["world/**/*", "!world/out/**/*"]),
+      false,
+      "后面的负向模式必须能排除前面的正向模式",
     );
+    assert.strictEqual(
+      matchesAnyGlob("world/live/a.js", ["world/**/*", "!world/out/**/*"]),
+      true,
+    );
+    assert.strictEqual(
+      matchesAnyGlob("world/out/a.js", ["!world/out/**/*", "world/**/*"]),
+      true,
+      "顺序决定结果：负向在前会被后面的正向重新命中",
+    );
+    assert.strictEqual(
+      matchesAnyGlob("src/x.map", ["!**/*.map"]),
+      false,
+      "只有排除项时默认不包含",
+    );
+  });
+
+  it("fails closed on glob syntax the audit engine does not implement", () => {
     assert.throws(
       () => matchesGlob("a.png", "*.{png,gif}"),
       /unsupported glob brace/,
@@ -499,8 +520,8 @@ describe("repository asset audit", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "asset-audit-glob-"));
     try {
       assert.throws(
-        () => buildSourcePackageManifest(root, { files: ["!**/*.map"] }, "abc"),
-        /unsupported glob negation/,
+        () => buildSourcePackageManifest(root, { files: ["assets/*.{png,gif}"] }, "abc"),
+        /unsupported glob brace/,
       );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });

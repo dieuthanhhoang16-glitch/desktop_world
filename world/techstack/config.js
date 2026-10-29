@@ -39,6 +39,40 @@ function cleanKeywords(list) {
   return out;
 }
 
+// FNV-1a 32 位哈希（与 world/garden/scene.js 同一族算法，纯本地、确定性、跨平台一致）。
+// 对码点而非 UTF-16 码元取低位，中文关键词也能稳定散列（surrogate pair 会被整体跳过）。
+function fnv1a32(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i += 1) {
+    const code = str.codePointAt(i);
+    h = Math.imul(h ^ (code & 0xffff), 0x01000193) >>> 0;
+    if (code > 0xffff) i += 1; // 代理对只取一次，避免另一半重复参与
+  }
+  return h >>> 0;
+}
+
+/**
+ * 关键词 → 稳定 id（kw-<hash8>）。学习卡片用它做文件名，**绝不能用中文标题直接做文件名**：
+ * 标题里一个标点的增删就会改掉文件名，历史卡片直接失联。改标题 = 新考点（新的 id），
+ * 保留同标题的历史——这正是我们想要���语义。
+ * 大小写不敏感，与 cleanKeywords 的去重口径一致（同一个词只有一个 id）。
+ */
+function keywordId(keyword) {
+  const s = String(keyword == null ? '' : keyword).trim().toLowerCase();
+  if (!s) return null;
+  return `kw-${fnv1a32(s).toString(16).padStart(8, '0')}`;
+}
+
+// 关键词数组 → { keyword: id } 映射；已存在的 id 原样保留（冻结，避免将来换算法让老卡片漂移）
+function keywordIds(keywords, existing) {
+  const map = {};
+  for (const kw of cleanKeywords(keywords)) {
+    const prev = existing && existing[kw];
+    map[kw] = typeof prev === 'string' && /^kw-[0-9a-f]{8}$/.test(prev) ? prev : keywordId(kw);
+  }
+  return map;
+}
+
 function loadTechstack(file = TECHSTACK_FILE) {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -50,6 +84,8 @@ function loadTechstack(file = TECHSTACK_FILE) {
           id: String(g.id).slice(0, 40),
           direction: String(g.direction).slice(0, MAX_DIRECTION_LEN),
           keywords: cleanKeywords(g.keywords),
+          // v0.7：老配置没有 kwIds，读时按现算法补齐（内存里补，不为迁移去写用户的盘）
+          kwIds: keywordIds(g.keywords, g.kwIds),
           createdAt: g.createdAt || null,
         }))
         .slice(0, MAX_GOALS),
@@ -82,12 +118,20 @@ function addGoal({ direction, keywords }, file = TECHSTACK_FILE) {
   if (cfg.goals.some((g) => g.direction === dir)) {
     // 同方向 = 改关键词，幂等覆盖而不是堆重复目标
     const g = cfg.goals.find((g) => g.direction === dir);
+    // kwIds 要跟着更新，但保留仍然存在的旧词的 id（历史卡片不搬家）
+    g.kwIds = keywordIds(kws, g.kwIds);
     g.keywords = kws;
     saveTechstack(cfg, file);
     return { goals: cfg.goals, goal: g, updated: true };
   }
   if (cfg.goals.length >= MAX_GOALS) throw new Error(`目标太多（上限 ${MAX_GOALS}），先 --remove 几个`);
-  const goal = { id: `t${Date.now().toString(36)}`, direction: dir, keywords: kws, createdAt: new Date().toISOString() };
+  const goal = {
+    id: `t${Date.now().toString(36)}`,
+    direction: dir,
+    keywords: kws,
+    kwIds: keywordIds(kws),
+    createdAt: new Date().toISOString(),
+  };
   cfg.goals.push(goal);
   saveTechstack(cfg, file);
   return { goals: cfg.goals, goal, updated: false };
@@ -111,6 +155,8 @@ module.exports = {
   KEYWORD_RE,
   validKeyword,
   cleanKeywords,
+  keywordId,
+  keywordIds,
   loadTechstack,
   saveTechstack,
   addGoal,

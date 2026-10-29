@@ -75,7 +75,125 @@ test('renderAgentScene：输出是合法 SVG 字符串（以 <svg 开头 </svg> 
   const { svg } = scene.renderAgentScene(items);
   assert.ok(svg.startsWith('<svg '));
   assert.ok(svg.endsWith('</svg>'));
-  assert.match(svg, /viewBox="0 0 320 96"/);
+  // viewBox 从常量推导而不是写死数字 —— v0.7 把画布从 160×48 放大到 240×72、
+  // CELL 从 2 提到 3，写死的断言会在这里炸，而且下一个人改尺寸就可能忘了改它。
+  assert.match(svg, new RegExp(`viewBox="0 0 ${scene.GW * scene.CELL} ${scene.GH * scene.CELL}"`));
+});
+
+test('renderAgentScene：v0.7 放大后画布与工位规模（防回退）', () => {
+  // 这几个数是"放大画板"这个需求的直接体现，写死是为了让任何人把它改回去时
+  // 得 consciously 决定，而不是无意中缩水。
+  assert.strictEqual(scene.GW, 240, '画布宽应为 240 格（v0.6 是 160）');
+  assert.strictEqual(scene.GH, 72, '画布高应为 72 格（v0.6 是 48）');
+  assert.strictEqual(scene.CELL, 3, '像素块应为 3px（v0.6 是 2）');
+  assert.strictEqual(scene.MAX_STATIONS, 12, '工位应能摆 12 个（v0.6 是 8）');
+  assert.strictEqual(scene.ROWS * scene.COLS >= scene.MAX_STATIONS, true, '行列数要能容纳全部工位');
+});
+
+test('renderAgentScene：满员 12 工位时**全部**在画布内（含桌腿与头顶信号）', () => {
+  // 只断言 st.x/st.y 在界内是不够的：工位自身还向下画到 y+9（桌腿）、向上画到
+  // y-3（头顶信号点）。v0.7 第一次改尺寸时正是这里出了界（foot=73 > GH=72），
+  // 而 st.y 本身是合法的 —— 所以必须按工位的真实占位来断言。
+  const full = Array.from({ length: scene.MAX_STATIONS }, (_, i) => ({
+    id: `ORCH-${String(i + 1).padStart(3, '0')}`,
+    title: ['读代码并给结论', '实现改动', '跑测试验证', '整理归档'][i % 4],
+    status: ['draft', 'running', 'done', 'blocked'][i % 4],
+    sessionId: `s${i}`,
+    state: ['running', 'thinking', 'idle', 'notification'][i % 4],
+  }));
+  const out = scene.renderAgentScene(full);
+  assert.strictEqual(out.stations.length, scene.MAX_STATIONS);
+  for (const st of out.stations) {
+    assert.ok(st.x - 1 >= 0, `${st.id} 桌子左沿出界：x=${st.x}`);
+    assert.ok(st.x + 8 < scene.GW, `${st.id} 桌子右沿出界：x+8=${st.x + 8} >= GW=${scene.GW}`);
+    assert.ok(st.y - 3 >= 0, `${st.id} 头顶信号出界：y-3=${st.y - 3}`);
+    assert.ok(st.y + 9 < scene.GH, `${st.id} 桌腿出界：y+9=${st.y + 9} >= GH=${scene.GH}`);
+  }
+});
+
+test('renderAgentScene：工位都站在自己的地板上（分层地板，v0.7）', () => {
+  const full = Array.from({ length: scene.MAX_STATIONS }, (_, i) => ({
+    id: `ORCH-${String(i + 1).padStart(3, '0')}`, title: `任务 ${i}`, status: 'draft',
+  }));
+  for (const st of scene.renderAgentScene(full).stations) {
+    // 桌腿画到 y+8/y+9，脚下那条地板线应正好落在那里（分层地板，v0.7）
+    const foot = st.y + scene.DESK_DROP;
+    const line = scene.floorLineForRow(Math.round((scene.FLOOR_Y - foot) / scene.ROW_H));
+    assert.ok(
+      Math.abs(foot - line) <= 1,
+      `${st.id} 悬空：桌腿 y=${foot}，最近的地板线 y=${line}（差 ${Math.abs(foot - line)}）`,
+    );
+  }
+});
+
+test('floorLineForRow / floorYForRow：三层地板线严格递减且都在画布内', () => {
+  const lines = [];
+  for (let r = 0; r < scene.ROWS; r += 1) lines.push(scene.floorLineForRow(r));
+  for (let r = 1; r < lines.length; r += 1) {
+    assert.ok(lines[r] < lines[r - 1], `第 ${r} 排地板线必须高于第 ${r - 1} 排（远排更靠上）：${lines}`);
+  }
+  for (const l of lines) {
+    assert.ok(l >= 0 && l < scene.GH, `地板线出界：${l}`);
+  }
+  // 三条硬约束（写在 scene-agents.js 的尺寸注释里，这里是可执行的版本）
+  const topStation = scene.floorYForRow(scene.ROWS - 1);
+  assert.ok(topStation - 3 >= 0, '最远排头顶不能出画布');
+  assert.ok(scene.floorYForRow(0) + 9 < scene.GH, '最近排桌腿不能出画布');
+  assert.ok(scene.WALL_H >= 14, `墙要留得住天花板，当前 ${scene.WALL_H}`);
+});
+
+test('renderAgentScene：12 个工位互不重叠', () => {
+  const full = Array.from({ length: scene.MAX_STATIONS }, (_, i) => ({
+    id: `ORCH-${String(i + 1).padStart(3, '0')}`,
+    title: ['读代码', '实现改动', '跑测试', '整理归档'][i % 4],
+    status: 'draft',
+  }));
+  const sts = scene.renderAgentScene(full).stations;
+  for (let i = 0; i < sts.length; i += 1) {
+    for (let j = i + 1; j < sts.length; j += 1) {
+      const dx = Math.abs(sts[i].x - sts[j].x);
+      const dy = Math.abs(sts[i].y - sts[j].y);
+      // 工位占位约 9 宽 × 11 高（含头顶信号与桌腿）
+      assert.ok(dx >= 9 || dy >= 11, `${sts[i].id} 与 ${sts[j].id} 重叠（dx=${dx} dy=${dy}）`);
+    }
+  }
+});
+
+test('renderAgentScene：放大后地板缝跟着变多（不会显得空旷）', () => {
+  // 缝数跟每条地板带的面积走：固定数量在放大后的地板上会明显稀疏
+  const count = (svg) => (svg.match(/#37304f/g) || []).length;
+  const out = scene.renderAgentScene([{ id: 'ORCH-001', title: 'x', status: 'draft' }]);
+  assert.ok(count(out.svg) >= 12, `三层地板的缝合计应≥12，实际 ${count(out.svg)} 条`);
+});
+
+test('renderAgentScene：工位绘制顺序是「远先近后」（近的才能挡住远的）', () => {
+  // SVG 后画覆盖先画，顺序错了远处工位会糊在近处上面。
+  // 表现：最前排（y 最大）的工位，其颜色像素应出现在 SVG 靠后位置。
+  const items = [
+    { id: 'ORCH-001', title: 'a', status: 'draft' }, // row 0，最近
+    { id: 'ORCH-002', title: 'b', status: 'draft' },
+    { id: 'ORCH-003', title: 'c', status: 'draft' },
+    { id: 'ORCH-004', title: 'd', status: 'draft' },
+    { id: 'ORCH-005', title: 'e', status: 'draft' }, // row 1
+    { id: 'ORCH-006', title: 'f', status: 'draft' },
+    { id: 'ORCH-007', title: 'g', status: 'draft' },
+    { id: 'ORCH-008', title: 'h', status: 'draft' },
+    { id: 'ORCH-009', title: 'i', status: 'draft' }, // row 2，最远
+    { id: 'ORCH-010', title: 'j', status: 'draft' },
+    { id: 'ORCH-011', title: 'k', status: 'draft' },
+    { id: 'ORCH-012', title: 'l', status: 'draft' },
+  ];
+  const { svg, stations } = scene.renderAgentScene(items);
+  const near = stations.find((s) => s.id === 'ORCH-001');
+  const far = stations.find((s) => s.id === 'ORCH-009');
+  assert.ok(near.y > far.y, 'ORCH-001 应更靠下（更近）');
+  // 找两个工位身体色块（#8ab4f8）的第一次出现位置，比较先后
+  const bodyIdx = (id) => {
+    const st = stations.find((s) => s.id === id);
+    // 身体画在 (x+2, y+3)，找它之后最近的 body 色
+    return svg.indexOf('#8ab4f8', svg.indexOf(`<rect x="${(st.x + 2) * scene.CELL}" y="${(st.y + 3) * scene.CELL}"`));
+  };
+  assert.ok(bodyIdx('ORCH-009') < bodyIdx('ORCH-001'), '最远的工位应先画（出现在 SVG 更靠前处）');
 });
 
 test('renderAgentScene：工位越少画面越简单（不是画一堆装饰）', () => {

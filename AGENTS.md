@@ -2,6 +2,8 @@
 
 This file is the entry point for coding agents working in this repository. Keep it short and operational. Durable architecture lives in `docs/project/`; `docs/plans/` and `docs/investigations/` are historical evidence unless this file explicitly links them.
 
+**命名先读 `CONTEXT.md`**：新增任何标识符（文件 / 函数 / 类 / IPC 通道 / 配置键）前先看词汇契约；提交前跑 `npm run verify:naming`，把「词汇 diff」贴进 PR。
+
 ## Project Overview
 
 Clawd 是一个 Electron 桌宠：通过 hook、日志轮询、plugin 和 extension 感知 AI coding agent 的工作状态，并播放像素风动画。当前支持 Claude Code、Codex CLI、Copilot CLI、Gemini CLI、Antigravity CLI (agy)、Cursor Agent、CodeBuddy、WorkBuddy、Grok Build、Kiro CLI、Kimi Code CLI (Kimi-CLI)、Qwen Code、ZCode、CodeWhale、opencode、MiMo Code、Pi、OpenClaw、Hermes Agent、Qoder、QoderWork、QwenWork (千问办公)、Reasonix、DeepSeek Harness、TraeCode (Trae CN)、MiniMax Code；内置 Clawd / Calico / Cloudling 三套主题，支持用户主题，并可经 Settings 从独立 `rullerzhou-afk/clawd-themes` 仓库下载可选官方主题（Hash Sage、Whale-chan，external theme 权限、可卸载）；平台覆盖 Windows、macOS、Linux，UI 支持 en / zh / zh-TW / ko / ja / pt-BR / es。

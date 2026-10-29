@@ -18,9 +18,6 @@
     --amber: #fbbf24;
     --amber-soft: rgba(251, 191, 36, 0.12);
     --blue: #7dd3fc;
-    /* 工单树文字缩放：1 = 设计稿（dw-office-tree.html）980px 宽窗口的 px 原寸；
-       由 setOrchScale() 按窗口宽等比写（clamp .82–1.6），只缩放文字，不动几何。 */
-    --otscale: 1;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -51,7 +48,7 @@
     display: flex; gap: 0.6vmin; -webkit-app-region: no-drag;
   }
   .tabbar .tab {
-    font: inherit; font-size: calc(1.3px * 10 * var(--otscale, 1)); cursor: pointer; /* 设计稿 tab 13px */
+    font: inherit; font-size: 13px; cursor: pointer;
     padding: 0.5vmin 1.2vmin; border-radius: 999px;
     background: rgba(7, 11, 26, 0.42); border: 1px solid rgba(255, 255, 255, 0.12);
     color: var(--ink-dim);
@@ -263,473 +260,221 @@
   .study-card[data-st="settled"] .st { color: #f0b429; }
   .study .nohit { font-size: 1.2vmin; color: var(--ink-faint); margin-top: 0.5vmin; }
 
-  /* ---------- 工单调度树（v0.7，仅 live；bake 形态整个 tab 不存在）----------
-     v0.7.1 字体与蒙版修正：① 树区文字按设计稿（dw-office-tree.html，980×620 下 9-13px）
-     以 px 定死、只随 --otscale 一比例缩放（窗口拖大等比放大），不再随窗口 vmin 缩到 2-5px；
-     ② 派发选择器蒙版（.ot-picker 的 rgba(6,8,10,.72) 全屏遮罩）取消——
-     工作面上不盖黑布，选择器退成树主面右上角的小浮层。
-     v0.7.2 几何 px 化：字号锁 px 后 vmin 几何不放大、字在容器里互相压叠——
-     树区全部宽度/行高/padding/gap 按设计稿 980×620 的 px 值改写为
-     calc(Npx * var(--otscale))，与字号同比例缩放；只有面板外壳（.orch 的
-     inset 窗口放置）保留 vmin。
-     v0.7.3 M3 开单条（.ot-plan）：工单层与收敛带之间的 dashed 意图区——
-     打字目标 → 拆单预览 → 勾选 → 立单，全走 __worldOrch 桥发意图；
-     勾选只是本地意图不过桥（不整树重画，不丢滚动位）。
-     v0.7.4 P2 判断层：开单预览时若问过判断层，意见以 ⚖ 金色行摆在预览头部
-     （建议级，与 keeper advice 同语义；决策权永远在勾选的人）。
-     v0.7.5 流体胶囊形变 + 弥散光晕：选择器/开单条以水滴式开合——尺寸与圆角
-     沿高阻尼曲线（无回弹）无缝过渡，不生硬弹窗；分配中的工单卡
-     （dispatched/running，账本状态）带缓慢旋转的渐变流光微边框 + 底部呼吸
-     弥散背光（卡片背后沁出的柔光）。全部纯 CSS 关键帧，无逐帧 JS；
-     reduced-motion 下流光静止、形变直出。
-     v0.7.6 焦点守卫：推送帧撞上树内输入框持焦时暂存待渲（otPendingTree），
-     focusout 彻底离树才 force 落帧；本地意图帧直画不拦。
-     v0.7.7 修复面板规则撞名：session log 行 class="r orch"（频道入类）吃到了裸
-     .orch 面板几何——绝对定位铺满树区、日志行两两叠画、z-index 4 吞掉整面真实
-     鼠标点击（此前误判成"旧实例卡死"：el.click 不走命中测试）。面板几何与 token
-     规则全部收敛到 .tabpanel.orch，裸 .orch 选择器列入测试禁规。
-     v0.7.8 开单条两修：①预览面板头/尾钉住（.pacts）、候选列表 .pdrafts 自滚——
-     8 张候选不再把「立单/弃单」挤出 max-height 裁切区；②agent 输入接 datalist：
-     候选 = registry × prefs 的 installed+enabled（与派发闸门同一套判定语义，
-     只探不连），只拉一次、回来只填 datalist 不重画（保住原生弹出层与打字焦点）；
-     datalist 是建议不是白名单，手输自由保留，闸门终审照旧。
-     形态取舍：这个 tab 走"有底板"而不是动态桌面的无卡片化 widget —— 它是**工作面**
-     （MAIN → JEV 判断层 → 工单层 → 收敛带），信息密度高、需要明确的区块分隔；
-     早报那侧继续保持无卡片化。两者的取舍依据不同，不是同一套规则。
-     配色是调度树自己的一套暗色工作面（.ot-* 局部 token），不污染早报侧。 */
-  body.bake .tabbar,
-  body.bake #panelOrch { display: none !important; }
-  body.bake .tabpanel { display: contents; }
-  /* 面板规则必须收敛到 .tabpanel.orch：session log 行渲染成 class="r orch"（频道名入类，
-     .ot-log .r.orch .who 靠它上色），裸 .orch 会让日志行继承整块面板几何——绝对定位
-     铺满树区、两行叠画、z-index 4 把所有真实鼠标点击全吃掉（el.click 绕过命中测试查不出） */
-  .tabpanel.orch {
-    display: none; /* 由下面 body.live 规则打开；bake/非 live 一律不出 */
-    position: absolute; inset: 6.5vmin 5vmin 4.5vmin; z-index: 4;
-    overflow: hidden;
-    -webkit-app-region: no-drag;
+  /* ---------- 项目学习卡（R2 需求6）----------
+     与「学习卡片」区的分工：那边按定向关键词沉淀，这边直列 world/learn 扫到的
+     项目文档（共识/设计/ADR/工单/交接/约定/术语），grill 共识组置顶。 */
+  body.bake .learn { display: none !important; }
+  .learn { display: none; }
+  body.live .learn {
+    display: block; margin-top: 1vmin;
+    border-top: 1px dashed var(--card-edge); padding-top: 0.9vmin;
   }
-  body.live .tabpanel.orch:not([hidden]) {
+  .learn .label { font-size: 1.3vmin; color: var(--ink-faint); letter-spacing: 0.3em; }
+  .learn .label .hint { letter-spacing: 0.08em; opacity: 0.75; }
+  .learn-kind { font-size: 1.15vmin; color: var(--ink-faint); margin: 0.55vmin 0 0.3vmin; }
+  .learn-cards { display: flex; flex-wrap: wrap; gap: 0.5vmin; }
+  .learn-card {
+    font-size: 1.3vmin; padding: 0.3vmin 0.8vmin; border-radius: 0.8vmin; cursor: pointer;
+    border: 1px solid var(--card-edge); color: var(--ink-dim);
+    display: inline-flex; align-items: baseline; gap: 0.5vmin; max-width: 100%;
+  }
+  .learn-card:hover { color: var(--ink); border-color: rgba(125, 211, 252, 0.45); }
+  .learn-card .ttl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .learn-card .meta { flex: 0 0 auto; color: var(--ink-faint); font-size: 1.1vmin; }
+  /* 共识组（grill）是本期主角：描边用学习蓝的强态，视觉上先于其他组被看见 */
+  .learn-card[data-kind="grill"] { border-color: rgba(125, 211, 252, 0.45); color: var(--ink); }
+  .learn .nohit { font-size: 1.2vmin; color: var(--ink-faint); margin-top: 0.5vmin; }
+
+  /* ---------- 维护 tab（v0.8）：项目 / 学习 / 清理 / 配置 / 指标 ----------
+     工作面走有底板的暗色面板；规则只收敛在 .tabpanel.maint。 */
+  .tabpanel.maint {
+    display: none;
+    position: absolute; inset: 6.5vmin 5vmin 4.5vmin; z-index: 4;
+    overflow: hidden; -webkit-app-region: no-drag;
+    --mt-line: #222832; --mt-line2: #2c3442;
+    --mt-panel: #101318; --mt-panel2: #131720;
+    --mt-ink: #e2e7e2; --mt-ink2: #98a19c; --mt-ink3: #5f6866;
+    --mt-green: #5eead4; --mt-cyan: #67d6e8; --mt-gold: #e8c15a;
+    --mt-red: #f87171; --mt-org: #fb923c; --mt-vio: #a78bfa;
+  }
+  body.live .tabpanel.maint:not([hidden]) {
     display: flex; flex-direction: column;
     background: #0d0f12; border: 1px solid #2c3442; border-radius: 1vmin;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    color: #e2e7e2;
+    color: var(--mt-ink); font-size: 1.45vmin;
   }
-  body.live .tabpanel.orch { display: none; }
+  body.live .tabpanel.maint { display: none; }
+  body.bake .tabpanel.maint { display: none !important; }
+
+  /* ---------- 编 tab（R2）：编排台 orchestra.html iframe，定位规格与维护 tab 同款 ---------- */
+  .tabpanel.bandview {
+    display: none;
+    position: absolute; inset: 6.5vmin 5vmin 4.5vmin; z-index: 4;
+    overflow: hidden; -webkit-app-region: no-drag;
+  }
+  body.live .tabpanel.bandview:not([hidden]) {
+    display: flex; flex-direction: column;
+    background: #0d0f12; border: 1px solid #2c3442; border-radius: 1vmin;
+  }
+  body.live .tabpanel.bandview { display: none; }
+  body.bake .tabpanel.bandview { display: none !important; }
+  .bandview iframe { flex: 1 1 auto; width: 100%; height: 100%; border: 0; background: #0d0f12; border-radius: 1vmin; }
+
+  .mt-head {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 1.2vmin;
+    padding: 1.3vmin 2vmin; border-bottom: 1px solid var(--mt-line);
+  }
+  .mt-ttl { font-weight: 700; letter-spacing: 0.08em; }
+  .mt-sub { color: var(--mt-ink3); font-size: 1.15vmin; }
+  .mt-sp { flex: 1; }
+  .mt-body { flex: 1; overflow-y: auto; padding: 1.2vmin 2vmin 4vmin; }
+  .mt-body::-webkit-scrollbar { width: 6px; }
+  .mt-body::-webkit-scrollbar-thumb { background: #2c3442; border-radius: 3px; }
+
+  .mt-sec { padding: 1.5vmin 0; border-bottom: 1px dashed var(--mt-line); }
+  .mt-sec:last-child { border-bottom: none; }
+  .mt-sec h3 {
+    margin: 0 0 1vmin; font-size: 1.3vmin; letter-spacing: 0.14em;
+    color: var(--mt-gold); font-weight: 700;
+  }
+  .mt-sec h3 .hint { color: var(--mt-ink3); letter-spacing: 0; font-weight: 400; margin-left: 0.9vmin; }
+
+  .mt-btn {
+    background: transparent; color: var(--mt-ink2); border: 1px solid var(--mt-line2);
+    border-radius: 0.6vmin; padding: 0.35vmin 0.9vmin; cursor: pointer;
+    font: inherit; font-size: 1.1vmin; white-space: nowrap;
+  }
+  .mt-btn:hover:not(:disabled) { color: var(--mt-ink); border-color: var(--mt-cyan); }
+  .mt-btn.primary { color: var(--mt-cyan); border-color: rgba(103, 214, 232, 0.5); background: rgba(103, 214, 232, 0.08); }
+  .mt-btn.danger { color: var(--mt-red); border-color: rgba(248, 113, 113, 0.45); }
+  .mt-btn:disabled { opacity: 0.38; cursor: default; }
+
+  .mt-proj {
+    display: flex; align-items: center; gap: 0.9vmin; flex-wrap: wrap;
+    padding: 0.8vmin 1vmin; margin-bottom: 0.7vmin;
+    border: 1px solid var(--mt-line); border-radius: 0.7vmin; background: var(--mt-panel);
+  }
+  .mt-proj.sel { border-color: rgba(103, 214, 232, 0.55); background: var(--mt-panel2); }
+  .mt-proj .nm { font-weight: 700; }
+  .mt-proj .pth {
+    color: var(--mt-ink3); font-size: 1.05vmin; flex: 1 1 18vmin; min-width: 8vmin;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mt-badge {
+    font-size: 1vmin; padding: 0.1vmin 0.7vmin; border-radius: 999px;
+    border: 1px solid; white-space: nowrap;
+  }
+  .mt-badge.warn { color: var(--mt-org); border-color: rgba(251, 146, 60, 0.5); background: rgba(251, 146, 60, 0.1); }
+  .mt-badge.info { color: var(--mt-cyan); border-color: rgba(103, 214, 232, 0.4); background: rgba(103, 214, 232, 0.08); }
+  .mt-note { color: var(--mt-ink3); font-size: 1.05vmin; }
+
+  .mt-detail { margin-top: 0.4vmin; }
+  .mt-empty { color: var(--mt-ink3); font-size: 1.15vmin; padding: 0.5vmin 0; line-height: 1.7; }
+  .mt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7vmin; margin-top: 1vmin; }
+  .mt-counts { display: flex; flex-wrap: wrap; gap: 0.6vmin; margin: 0.6vmin 0; }
+  .mt-counts span {
+    border: 1px solid var(--mt-line2); border-radius: 999px;
+    padding: 0.12vmin 0.8vmin; font-size: 1.05vmin; color: var(--mt-ink2);
+  }
+
+  .mt-plan-head { color: var(--mt-ink2); font-size: 1.15vmin; margin: 0.3vmin 0 0.8vmin; line-height: 1.7; }
+  .mt-plan-head b { color: var(--mt-ink); }
+  .mt-cards { display: flex; flex-direction: column; gap: 0.35vmin; }
+  .mt-pcard {
+    display: flex; align-items: baseline; gap: 0.9vmin;
+    padding: 0.55vmin 0.9vmin; background: rgba(255, 255, 255, 0.025);
+    border-left: 2px solid var(--mt-line2);
+  }
+  .mt-pcard .idx { color: var(--mt-ink3); flex: 0 0 2.4em; }
+  .mt-pcard .topic { font-weight: 600; }
+  .mt-pcard .pre { color: var(--mt-ink3); font-size: 1.05vmin; }
+  .mt-pcard .min { margin-left: auto; color: var(--mt-green); white-space: nowrap; }
+  .mt-days { color: var(--mt-ink2); font-size: 1.1vmin; margin-top: 0.8vmin; line-height: 1.7; }
+  .mt-diff {
+    margin-top: 0.9vmin; padding: 0.8vmin 1vmin; border: 1px dashed var(--mt-line2);
+    border-radius: 0.7vmin; color: var(--mt-ink2); font-size: 1.1vmin; line-height: 1.7;
+  }
+  .mt-diff b { color: var(--mt-ink); }
+  .mt-diff .add { color: var(--mt-green); }
+  .mt-diff .rem { color: var(--mt-red); }
+  .mt-diff .mv { color: var(--mt-gold); }
+
+  .mt-buckets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9vmin; margin-top: 0.9vmin; }
+  .mt-bucket { border: 1px solid var(--mt-line); border-radius: 0.8vmin; background: var(--mt-panel); min-width: 0; overflow: hidden; }
+  .mt-bucket .bh {
+    display: flex; align-items: center; gap: 0.6vmin; padding: 0.65vmin 0.9vmin;
+    border-bottom: 1px solid var(--mt-line); font-weight: 700; font-size: 1.1vmin;
+  }
+  .mt-bucket .bh .n { margin-left: auto; color: var(--mt-ink3); font-weight: 400; }
+  .mt-bucket.confirmed .bh { color: var(--mt-green); }
+  .mt-bucket.pending .bh { color: var(--mt-gold); }
+  .mt-bucket.keep .bh { color: var(--mt-ink3); }
+  .mt-bucket .bl { max-height: 32vmin; overflow-y: auto; }
+  .mt-item { border-bottom: 1px solid var(--mt-line); padding: 0.55vmin 0.9vmin; }
+  .mt-item:last-child { border-bottom: none; }
+  .mt-item summary { cursor: pointer; list-style: none; display: flex; align-items: flex-start; gap: 0.6vmin; }
+  .mt-item summary::-webkit-details-marker { display: none; }
+  .mt-item .path { word-break: break-all; font-size: 1.05vmin; color: var(--mt-ink); }
+  .mt-item .meta { color: var(--mt-ink3); font-size: 0.98vmin; margin-top: 0.2vmin; }
+  .mt-item .ev {
+    margin-top: 0.55vmin; padding-left: 0.7vmin; border-left: 1px solid var(--mt-line2);
+    color: var(--mt-ink2); font-size: 1.02vmin; line-height: 1.65; word-break: break-word;
+  }
+  .mt-item .ev div { margin-bottom: 0.15vmin; }
+  .mt-check { margin: 0.25vmin 0 0; accent-color: var(--mt-cyan); flex: none; }
+  .mt-row { display: flex; align-items: flex-start; gap: 0.6vmin; cursor: pointer; }
+  .mt-main { display: flex; flex-direction: column; gap: 0.15vmin; min-width: 0; flex: 1; }
+  .mt-ev > summary {
+    display: block; cursor: pointer; list-style: none;
+    color: var(--mt-ink3); font-size: 1vmin; margin-top: 0.3vmin;
+  }
+  .mt-ev > summary::-webkit-details-marker { display: none; }
+  .mt-ev > summary::before { content: "▸ "; }
+  .mt-ev[open] > summary::before { content: "▾ "; }
+  .mt-preview[hidden] { display: none; }
+
+  .mt-preview {
+    margin-top: 0.8vmin; border: 1px solid var(--mt-line2); border-radius: 0.7vmin;
+    padding: 0.7vmin 0.9vmin; max-height: 20vmin; overflow-y: auto;
+  }
+  .mt-preview .row { display: flex; gap: 0.7vmin; padding: 0.15vmin 0; font-size: 1.02vmin; color: var(--mt-ink2); }
+  .mt-preview .row b { color: var(--mt-ink); word-break: break-all; }
+  .mt-good { color: var(--mt-green); }
+  .mt-warn { color: var(--mt-org); }
+  .mt-bad { color: var(--mt-red); }
+
+  .mt-prompt {
+    border: 1px solid rgba(232, 193, 90, 0.4); background: rgba(232, 193, 90, 0.07);
+    border-radius: 0.7vmin; padding: 0.75vmin 1vmin; margin-bottom: 0.7vmin;
+  }
+  .mt-prompt .msg { color: var(--mt-ink); line-height: 1.6; }
+  .mt-prompt .meta { color: var(--mt-ink3); font-size: 1vmin; margin-top: 0.25vmin; }
+
+  .mt-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9vmin; }
+  .mt-metric { border: 1px solid var(--mt-line); border-radius: 0.7vmin; padding: 0.75vmin 1vmin; background: var(--mt-panel); }
+  .mt-metric .n { font-size: 2.1vmin; font-weight: 700; color: var(--mt-cyan); }
+  .mt-metric .l { color: var(--mt-ink3); font-size: 1.02vmin; }
+  .mt-metric ul { margin: 0.35vmin 0 0; padding-left: 1.5vmin; color: var(--mt-ink2); font-size: 1vmin; line-height: 1.6; }
+  .mt-msg {
+    flex: 0 0 auto; padding: 0.75vmin 2vmin; border-top: 1px solid var(--mt-line);
+    color: var(--mt-ink2); font-size: 1.08vmin; line-height: 1.5;
+  }
+  .mt-msg.warn { color: var(--mt-org); }
+  .mt-msg.good { color: var(--mt-green); }
+  .mt-msg.bad { color: var(--mt-red); }
+  .mt-msg[hidden] { display: none; }
+
+  @media (max-width: 760px) {
+    .mt-buckets, .mt-metrics { grid-template-columns: 1fr; }
+  }
+
+  /* R2 删单（需求1）：tab 栏服务 早报/编/维护 切换，「编」是唯一编排入口；
+     bake 形态整个 tab 栏硬关（早报 PNG 是 IM 分享底稿，不得出现任何切换入口）。 */
+  body.bake .tabbar { display: none !important; }
+  body.bake .tabpanel { display: contents; }
   /* tab 切换：非激活的 daily 面板整块隐藏（display:contents 无法隐藏，所以走 .page 的类） */
+  body.live.tab-maint #panelDaily { display: none; }
   body.live.tab-orch #panelDaily { display: none; }
-
-  /* 调度树局部 token（红橙黄绿青紫的语义与 mockup 锁定一致）——同样收敛到 .tabpanel.orch */
-  .tabpanel.orch {
-    --ot-line: #222832; --ot-line2: #2c3442;
-    --ot-panel: #101318; --ot-panel2: #131720;
-    --ot-ink: #e2e7e2; --ot-ink2: #98a19c; --ot-ink3: #5f6866;
-    --ot-green: #5eead4; --ot-green2: #34d399; --ot-cyan: #67d6e8;
-    --ot-vio: #a78bfa; --ot-gold: #e8c15a; --ot-red: #f87171; --ot-org: #fb923c;
-    /* 窗口五态色（v1.0）：protocol.WINDOW_STATE_COLORS 是单一真相，这里只落同名镜像——
-       蓝 planning / 绿 execution / 琥珀 review / 紫 closeout / 灰 closed */
-    --ot-ws-planning: #3b82f6; --ot-ws-execution: #10b981; --ot-ws-review: #f59e0b;
-    --ot-ws-closeout: #8b5cf6; --ot-ws-closed: #6b7280;
-  }
-
-  /* ① roster 带：图例即真相（几何 = 设计稿 px × --otscale，下同） */
-  .ot-roster {
-    flex: 0 0 auto; display: flex; align-items: center; gap: calc(18px * var(--otscale, 1));
-    padding: calc(9px * var(--otscale, 1)) calc(16px * var(--otscale, 1)); border-bottom: 1px solid var(--ot-line);
-    font-size: calc(1.15px * 10 * var(--otscale, 1));
-  }
-  .ot-roster .ttl { font-weight: 700; letter-spacing: 0.12em; color: var(--ot-ink); }
-  .ot-roster .lg { display: flex; align-items: center; gap: calc(6px * var(--otscale, 1)); color: var(--ot-ink2); }
-  .ot-roster .lg i { width: calc(8px * var(--otscale, 1)); height: calc(8px * var(--otscale, 1)); border-radius: calc(2px * var(--otscale, 1)); flex: none; }
-  .ot-roster .sp { flex: 1; }
-  .ot-roster .sum { color: var(--ot-ink3); }
-  .ot-roster .sum b { color: var(--ot-ink2); font-weight: 600; }
-
-  .ot-mid { flex: 1; display: flex; min-height: 0; }
-
-  /* ② 守门员栏：只在三个时刻发言；红线常驻（设计稿栏宽 212px） */
-  .ot-keeper {
-    flex: 0 0 calc(212px * var(--otscale, 1)); border-right: 1px solid var(--ot-line); background: var(--ot-panel);
-    padding: calc(12px * var(--otscale, 1)) calc(13px * var(--otscale, 1)); display: flex; flex-direction: column; overflow-y: auto;
-  }
-  .ot-keeper h3 { font-size: calc(1.1px * 10 * var(--otscale, 1)); letter-spacing: 0.18em; color: var(--ot-gold); margin: 0 0 calc(2px * var(--otscale, 1)); font-weight: 700; }
-  .ot-keeper .role { font-size: calc(0.95px * 10 * var(--otscale, 1)); color: var(--ot-ink3); margin-bottom: calc(10px * var(--otscale, 1)); }
-  .ot-keeper .mom { color: var(--ot-ink2); line-height: 1.65; margin: calc(8px * var(--otscale, 1)) 0; font-size: calc(1.05px * 10 * var(--otscale, 1)); }
-  .ot-keeper .mom .m { color: var(--ot-ink); }
-  .ot-keeper .advice {
-    border: 1px dashed var(--ot-line2); border-radius: calc(7px * var(--otscale, 1));
-    padding: calc(8px * var(--otscale, 1)) calc(9px * var(--otscale, 1)); color: var(--ot-gold); line-height: 1.6; margin: calc(10px * var(--otscale, 1)) 0; font-size: calc(1px * 10 * var(--otscale, 1));
-    word-break: break-word;
-  }
-  .ot-keeper .advice .al { display: block; color: var(--ot-ink3); font-size: calc(0.85px * 10 * var(--otscale, 1)); letter-spacing: 0.1em; margin-bottom: calc(4px * var(--otscale, 1)); }
-  .ot-keeper .counts { font-size: calc(0.95px * 10 * var(--otscale, 1)); color: var(--ot-ink2); display: grid; grid-template-columns: 1fr auto; gap: calc(3px * var(--otscale, 1)) calc(10px * var(--otscale, 1)); margin: calc(6px * var(--otscale, 1)) 0 calc(10px * var(--otscale, 1)); }
-  .ot-keeper .counts b { color: var(--ot-ink); font-weight: 600; text-align: right; }
-  .ot-keeper .counts b.bad { color: var(--ot-red); }
-  .ot-keeper .quiet { color: var(--ot-ink3); font-size: calc(0.95px * 10 * var(--otscale, 1)); }
-  .ot-keeper .oath { margin-top: auto; border-top: 1px solid var(--ot-line); padding-top: calc(9px * var(--otscale, 1)); color: var(--ot-ink3); font-size: calc(0.95px * 10 * var(--otscale, 1)); line-height: 1.7; }
-  .ot-keeper .oath b { color: var(--ot-red); font-weight: 600; }
-
-  /* ③ 树主面：MAIN → JEV → spawn → 工单层 → 收敛带（设计稿：MAIN 430px / JEV 470px） */
-  .ot-tree { flex: 1; min-width: 0; position: relative; overflow-y: auto; overflow-x: auto; display: flex; flex-direction: column; align-items: center; padding: calc(14px * var(--otscale, 1)) calc(18px * var(--otscale, 1)) calc(10px * var(--otscale, 1)); }
-  .ot-tree svg.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .ot-node {
-    position: relative; z-index: 1; background: var(--ot-panel2);
-    border: 1px solid var(--ot-line2); border-radius: calc(9px * var(--otscale, 1)); padding: calc(9px * var(--otscale, 1)) calc(12px * var(--otscale, 1)) calc(8px * var(--otscale, 1));
-  }
-  .ot-node .nh { display: flex; align-items: baseline; justify-content: space-between; gap: calc(12px * var(--otscale, 1)); font-size: calc(0.9px * 10 * var(--otscale, 1)); color: var(--ot-ink3); }
-  .ot-node .nh .who { color: var(--ot-green); font-weight: 700; letter-spacing: 0.08em; }
-  .ot-link { width: 1px; height: calc(26px * var(--otscale, 1)); background: var(--ot-line2); flex: none; }
-
-  .ot-main { width: calc(430px * var(--otscale, 1)); border-color: #2f4a44; }
-  .ot-main .goal { font-size: calc(1.25px * 10 * var(--otscale, 1)); color: var(--ot-ink); line-height: 1.5; margin: calc(4px * var(--otscale, 1)) 0 calc(7px * var(--otscale, 1)); word-break: break-word; }
-  .ot-main .goal .none { color: var(--ot-ink3); font-size: calc(1.05px * 10 * var(--otscale, 1)); }
-  .ot-pbar { height: calc(7px * var(--otscale, 1)); border-radius: calc(4px * var(--otscale, 1)); background: #1a2027; overflow: hidden; }
-  .ot-pbar i { display: block; height: 100%; background: var(--ot-green2); border-radius: calc(4px * var(--otscale, 1)) 0 0 calc(4px * var(--otscale, 1)); }
-  .ot-main .pmeta { display: flex; justify-content: space-between; font-size: calc(0.9px * 10 * var(--otscale, 1)); color: var(--ot-ink2); margin-top: calc(5px * var(--otscale, 1)); }
-
-  /* JEV 判断层：概率条 sharp 绿 / split 金 / no 灰；没有 judgment 数据时折叠一行 */
-  .ot-jev { width: calc(470px * var(--otscale, 1)); border-color: #363050; }
-  .ot-jev .nh .who { color: var(--ot-vio); }
-  .ot-jev .forks { color: var(--ot-ink3); }
-  .ot-jev.local { border-style: dashed; padding: calc(8px * var(--otscale, 1)) calc(12px * var(--otscale, 1)); color: var(--ot-ink3); font-size: calc(0.95px * 10 * var(--otscale, 1)); }
-  .ot-jev.local .who { color: var(--ot-vio); font-weight: 700; margin-right: calc(8px * var(--otscale, 1)); }
-  .ot-jrow { display: grid; grid-template-columns: calc(118px * var(--otscale, 1)) 1fr calc(74px * var(--otscale, 1)); align-items: center; gap: calc(10px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); font-size: calc(1px * 10 * var(--otscale, 1)); }
-  .ot-jrow .jl { color: var(--ot-ink2); font-size: calc(0.95px * 10 * var(--otscale, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ot-jbar { height: calc(9px * var(--otscale, 1)); background: #1a2027; border-radius: calc(3px * var(--otscale, 1)); overflow: hidden; }
-  .ot-jbar i { display: block; height: 100%; border-radius: calc(3px * var(--otscale, 1)) 0 0 calc(3px * var(--otscale, 1));
-    background-image: repeating-linear-gradient(90deg, currentColor 0 calc(3px * var(--otscale, 1)), transparent calc(3px * var(--otscale, 1)) calc(4px * var(--otscale, 1))); }
-  .ot-jrow .jv { font-size: calc(0.9px * 10 * var(--otscale, 1)); text-align: right; }
-  .ot-v-sharp { color: var(--ot-green2); } .ot-v-split { color: var(--ot-gold); } .ot-v-no { color: var(--ot-ink3); }
-  .ot-jev .legend { margin-top: calc(8px * var(--otscale, 1)); padding-top: calc(6px * var(--otscale, 1)); border-top: 1px dashed var(--ot-line2); font-size: calc(0.85px * 10 * var(--otscale, 1)); color: var(--ot-ink3); }
-
-  .ot-spawn-line { margin: 0 0 calc(8px * var(--otscale, 1)); font-size: calc(0.9px * 10 * var(--otscale, 1)); color: var(--ot-ink3); letter-spacing: 0.06em; flex: none; }
-  .ot-spawn-line b { color: var(--ot-cyan); font-weight: 600; }
-
-  .ot-lanes { display: flex; gap: calc(12px * var(--otscale, 1)); align-items: flex-start; z-index: 1; }
-  .ot-lane { display: flex; flex-direction: column; gap: calc(8px * var(--otscale, 1)); }
-  .tcard {
-    width: calc(152px * var(--otscale, 1)); background: var(--ot-panel2); border: 1px solid var(--ot-line2);
-    border-radius: calc(8px * var(--otscale, 1)); padding: calc(7px * var(--otscale, 1)) calc(9px * var(--otscale, 1)); font-size: calc(1px * 10 * var(--otscale, 1)); position: relative;
-  }
-  .tcard .tid { font-size: calc(0.85px * 10 * var(--otscale, 1)); color: var(--ot-ink3); display: flex; justify-content: space-between; align-items: center; gap: calc(6px * var(--otscale, 1)); }
-  .tcard .tid .st { font-weight: 700; }
-  .tcard .tname { color: var(--ot-ink); line-height: 1.45; margin: calc(3px * var(--otscale, 1)) 0 calc(5px * var(--otscale, 1)); font-size: calc(1px * 10 * var(--otscale, 1)); word-break: break-word; }
-  .tcard .tmeta { font-size: calc(0.8px * 10 * var(--otscale, 1)); color: var(--ot-ink3); display: flex; justify-content: space-between; gap: calc(6px * var(--otscale, 1)); }
-  .tcard .tdeps { font-size: calc(0.8px * 10 * var(--otscale, 1)); color: var(--ot-gold); opacity: 0.9; margin-top: calc(3px * var(--otscale, 1)); }
-  .tcard .ot-pbar { height: calc(5px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); }
-  .tcard .sig { margin-top: calc(5px * var(--otscale, 1)); font-size: calc(0.8px * 10 * var(--otscale, 1)); }
-  .tcard .sig .on { color: var(--ot-green2); } .tcard .sig .off { color: var(--ot-ink3); }
-  /* 工单卡操作列（M2）：按状态出按钮，全走 __worldOrch 桥；面板 busy 时整列禁点 */
-  .tcard .tacts { display: flex; flex-wrap: wrap; gap: calc(4px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); }
-  .tact {
-    font: inherit; font-size: calc(0.82px * 10 * var(--otscale, 1)); padding: calc(3px * var(--otscale, 1)) calc(7px * var(--otscale, 1)); border-radius: calc(5px * var(--otscale, 1));
-    border: 1px solid var(--ot-line2); background: transparent; color: var(--ot-ink2); cursor: pointer;
-    transition: border-color 0.2s, color 0.2s, transform 0.18s cubic-bezier(0.3, 1.2, 0.5, 1);
-  }
-  .tact:active { transform: scale(0.93); }
-  .tact:hover { border-color: var(--ot-cyan); color: var(--ot-cyan); }
-  .tact.go { border-color: #2f4a44; color: var(--ot-green); }
-  .tact.go:hover { border-color: var(--ot-green); }
-  .tact.warn:hover { border-color: var(--ot-red); color: var(--ot-red); }
-  .tabpanel.orch.busy .tact { opacity: 0.45; pointer-events: none; }
-  /* 守门员 problems 上墙（M2）：点击行定位到对应工单卡 */
-  .ot-problems { margin: calc(8px * var(--otscale, 1)) 0; display: flex; flex-direction: column; gap: calc(5px * var(--otscale, 1)); }
-  .ot-problems .prob { border: 1px solid #4d2b2b; border-radius: calc(6px * var(--otscale, 1)); padding: calc(5px * var(--otscale, 1)) calc(7px * var(--otscale, 1)); background: #171010; cursor: pointer; }
-  .ot-problems .prob .pc { color: var(--ot-red); font-weight: 700; font-size: calc(0.82px * 10 * var(--otscale, 1)); letter-spacing: 0.06em; }
-  .ot-problems .prob .pr { color: var(--ot-ink); font-size: calc(0.88px * 10 * var(--otscale, 1)); line-height: 1.45; margin-top: calc(2px * var(--otscale, 1)); }
-  .ot-problems .prob .pf { color: var(--ot-gold); font-size: calc(0.82px * 10 * var(--otscale, 1)); line-height: 1.45; }
-  /* 定位闪烁：problems 点击 → 目标工单卡金色脉冲两拍 */
-  @keyframes otFlash { 0%, 100% { box-shadow: none; } 25% { box-shadow: 0 0 0 calc(2px * var(--otscale, 1)) var(--ot-gold); } 55% { box-shadow: none; } 80% { box-shadow: 0 0 0 calc(2px * var(--otscale, 1)) var(--ot-gold); } }
-  .tcard.flash { animation: otFlash 1.2s ease-in-out; }
-  /* 调度树没有飞行/位移动画（连线是静态贝塞尔）。唯一动画是定位闪烁，
-     reduced-motion 下退成常驻金框，不做脉冲 */
-  @media (prefers-reduced-motion: reduce) {
-    .tcard.flash { animation: none; box-shadow: 0 0 0 calc(2px * var(--otscale, 1)) var(--ot-gold); }
-  }
-  /* v0.7.1：派发会话选择器 = 树主面右上角的非模态小浮层（同 agent+同 cwd 置顶），
-     不盖工作面、不误挡点击（点它自己的 ✕ 或再起一次派发即可关）。 */
-  .ot-picker { position: absolute; top: calc(12px * var(--otscale, 1)); right: calc(12px * var(--otscale, 1)); z-index: 30; pointer-events: none; }
-  .ot-picker .pk { width: calc(300px * var(--otscale, 1)); max-height: 60%; overflow-y: auto; pointer-events: auto; background: var(--ot-panel2); border: 1px solid var(--ot-line2); border-radius: calc(10px * var(--otscale, 1)); padding: calc(10px * var(--otscale, 1)) calc(12px * var(--otscale, 1)); box-shadow: 0 calc(5px * var(--otscale, 1)) calc(15px * var(--otscale, 1)) rgba(0, 0, 0, 0.5); }
-  .ot-picker .pk h4 { margin: 0 0 calc(6px * var(--otscale, 1)); font-size: calc(1px * 10 * var(--otscale, 1)); color: var(--ot-cyan); letter-spacing: 0.1em; display: flex; justify-content: space-between; align-items: center; }
-  .ot-picker .pk h4 .x { cursor: pointer; color: var(--ot-ink3); font-weight: 400; }
-  .ot-picker .pk h4 .x:hover { color: var(--ot-red); }
-  .ot-picker .pkrow { display: flex; flex-direction: column; gap: calc(2px * var(--otscale, 1)); padding: calc(5px * var(--otscale, 1)) calc(7px * var(--otscale, 1)); border: 1px solid var(--ot-line); border-radius: calc(6px * var(--otscale, 1)); margin-bottom: calc(5px * var(--otscale, 1)); cursor: pointer; }
-  .ot-picker .pkrow:hover { border-color: var(--ot-cyan); }
-  .ot-picker .pkrow .l1 { display: flex; justify-content: space-between; gap: calc(6px * var(--otscale, 1)); font-size: calc(0.95px * 10 * var(--otscale, 1)); color: var(--ot-ink); }
-  .ot-picker .pkrow .l2 { font-size: calc(0.82px * 10 * var(--otscale, 1)); color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ot-picker .pkrow .bdg { color: var(--ot-green); font-size: calc(0.78px * 10 * var(--otscale, 1)); margin-left: calc(5px * var(--otscale, 1)); }
-  .ot-picker .pkempty { color: var(--ot-ink3); font-size: calc(0.95px * 10 * var(--otscale, 1)); line-height: 1.65; }
-  /* 派发选择器入场 = 水滴自右上角延展成面板：胶囊圆角 → 面板圆角，
-     尺寸与圆角沿高阻尼曲线（无回弹）无缝过渡，内容行依次浮现（hidden 翻转天然重放动画） */
-  @keyframes otPkMorph {
-    from { opacity: 0; border-radius: calc(999px * var(--otscale, 1)); transform: scale(0.58, 0.4); }
-    60% { opacity: 1; }
-    to { opacity: 1; border-radius: calc(10px * var(--otscale, 1)); transform: scale(1, 1); }
-  }
-  .ot-picker .pk { transform-origin: top right; animation: otPkMorph 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
-  @keyframes otRowIn { from { opacity: 0; transform: translateY(calc(-5px * var(--otscale, 1))); } to { opacity: 1; transform: none; } }
-  .ot-picker .pk h4 { animation: otRowIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .ot-picker .pkrow { animation: otRowIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .ot-picker .pkrow:nth-of-type(2) { animation-delay: 45ms; }
-  .ot-picker .pkrow:nth-of-type(3) { animation-delay: 90ms; }
-  .ot-picker .pkrow:nth-of-type(4) { animation-delay: 135ms; }
-  .tcard .flag {
-    position: absolute; top: calc(-8px * var(--otscale, 1)); right: calc(8px * var(--otscale, 1)); font-size: calc(0.78px * 10 * var(--otscale, 1));
-    border-radius: calc(4px * var(--otscale, 1)); padding: calc(1px * var(--otscale, 1)) calc(6px * var(--otscale, 1)); line-height: 1.5;
-  }
-  .tcard .flag.stale { background: #2b1e10; color: var(--ot-org); border: 1px solid #4d3a2b; }
-  .tcard .flag.blocked { background: #2b1010; color: var(--ot-red); border: 1px solid #4d2b2b; }
-  .tcard.s-draft { border-color: #31383f; } .tcard.s-draft .ot-pbar i { background: #94a3b8; } .tcard.s-draft .st { color: #94a3b8; }
-  .tcard.s-confirmed { border-color: #2b3a4d; } .tcard.s-confirmed .ot-pbar i { background: var(--ot-cyan); } .tcard.s-confirmed .st { color: var(--ot-cyan); }
-  .tcard.s-dispatched { border-color: #363050; } .tcard.s-dispatched .ot-pbar i { background: var(--ot-vio); } .tcard.s-dispatched .st { color: var(--ot-vio); }
-  .tcard.s-running { border-color: #2f4a44; } .tcard.s-running .ot-pbar i { background: var(--ot-green2); } .tcard.s-running .st { color: var(--ot-green2); }
-  .tcard.s-done { border-color: #4a4023; } .tcard.s-done .ot-pbar i { background: var(--ot-gold); } .tcard.s-done .st { color: var(--ot-gold); }
-  .tcard.s-failed { border-color: #4d2b2b; background: #181010; } .tcard.s-failed .ot-pbar i { background: var(--ot-red); } .tcard.s-failed .st { color: var(--ot-red); }
-  .tcard.s-blocked { border-color: #4d3a2b; background: #171310; } .tcard.s-blocked .ot-pbar i { background: var(--ot-org); } .tcard.s-blocked .st { color: var(--ot-org); }
-
-  /* 弥散光晕（v0.7.5）：工单被分配工作（dispatched=已接活 / running=在做，账本状态）
-     的卡加两层光——① 缓慢旋转的渐变流光微边框（conic 流光绕边走一圈约 7s，
-     底色是同色 14% 的常驻淡描边，所以流光扫过是"提亮"不是"从无到有"）；
-     ② 底部呼吸弥散背光（z-index:-1 沁在卡片背后，径向渐变 + blur，opacity 呼吸）。
-     状态色直接沿用卡的 token（--ot-glow），不引入新语义色。纯 CSS，无逐帧 JS。 */
-  .tcard.s-dispatched { --ot-glow: var(--ot-vio); }
-  .tcard.s-running { --ot-glow: var(--ot-green2); }
-  @property --ot-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
-  @keyframes otGlowSpin { to { --ot-a: 360deg; } }
-  .tcard.s-dispatched::before, .tcard.s-running::before {
-    content: ''; position: absolute; inset: calc(-1px * var(--otscale, 1)); pointer-events: none;
-    border-radius: calc(9px * var(--otscale, 1)); padding: calc(1px * var(--otscale, 1));
-    background:
-      conic-gradient(from var(--ot-a), transparent 0 238deg, var(--ot-glow) 302deg, transparent 360deg),
-      linear-gradient(color-mix(in srgb, var(--ot-glow) 14%, transparent) 0 0);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude;
-    animation: otGlowSpin 7s linear infinite;
-  }
-  @keyframes otGlowBreath { from { opacity: 0.45; } to { opacity: 1; } }
-  .tcard.s-dispatched::after, .tcard.s-running::after {
-    content: ''; position: absolute; left: calc(6px * var(--otscale, 1)); right: calc(6px * var(--otscale, 1));
-    bottom: calc(-5px * var(--otscale, 1)); height: 55%; z-index: -1; pointer-events: none;
-    background: radial-gradient(62% 100% at 50% 100%, color-mix(in srgb, var(--ot-glow) 55%, transparent), transparent 72%);
-    border-radius: 45% 45% 50% 50%; filter: blur(calc(9px * var(--otscale, 1)));
-    animation: otGlowBreath 3.4s ease-in-out infinite alternate;
-  }
-
-  /* 收敛带（M2）：验收逐项可勾（patch acceptanceDone），结论输入 + 写入收敛在树内闭环 */
-  .ot-converge {
-    width: calc(470px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); border: 1px solid #2f4a44; border-radius: calc(9px * var(--otscale, 1));
-    background: var(--ot-panel2); padding: calc(8px * var(--otscale, 1)) calc(12px * var(--otscale, 1)) calc(9px * var(--otscale, 1)); z-index: 1; position: relative;
-  }
-  .ot-converge .nh { display: flex; justify-content: space-between; font-size: calc(0.9px * 10 * var(--otscale, 1)); color: var(--ot-ink3); }
-  .ot-converge .nh .who { color: var(--ot-green); font-weight: 700; }
-  .ot-crow { margin-top: calc(7px * var(--otscale, 1)); font-size: calc(0.95px * 10 * var(--otscale, 1)); padding-top: calc(6px * var(--otscale, 1)); border-top: 1px dashed var(--ot-line); }
-  .ot-crow:first-of-type { border-top: none; padding-top: 0; }
-  .ot-crow .chead { display: flex; align-items: baseline; gap: calc(8px * var(--otscale, 1)); }
-  .ot-crow .cid { color: var(--ot-green2); flex: none; }
-  .ot-crow .cchk { color: var(--ot-ink2); flex: none; }
-  .ot-crow .cacc { display: flex; align-items: baseline; gap: calc(5px * var(--otscale, 1)); margin-top: calc(4px * var(--otscale, 1)); color: var(--ot-ink2); font-size: calc(0.92px * 10 * var(--otscale, 1)); line-height: 1.5; cursor: pointer; }
-  .ot-crow .cacc input { margin: 0; accent-color: var(--ot-green2); flex: none; }
-  .ot-crow .cacc.done span { color: var(--ot-ink3); text-decoration: line-through; }
-  .ot-crow .cdo { display: flex; gap: calc(6px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); align-items: center; }
-  .ot-crow .csum {
-    flex: 1; background: var(--ot-panel); border: 1px solid var(--ot-line2); border-radius: calc(5px * var(--otscale, 1));
-    color: var(--ot-ink); font: inherit; font-size: calc(0.92px * 10 * var(--otscale, 1)); padding: calc(5px * var(--otscale, 1)) calc(8px * var(--otscale, 1)); outline: none;
-  }
-  .ot-crow .csum:focus { border-color: var(--ot-green2); }
-
-  /* 开单条（M3）：打字目标 → 拆单预览 → 勾选 → 立单（plan/commitPlan 全走 __worldOrch 桥）；
-     几何与设计稿同纪律（470px 工作带 × --otscale）。dashed 边 = 这是"还没进账本"的意图区 */
-  .ot-plan {
-    width: calc(470px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); border: 1px dashed var(--ot-line2); border-radius: calc(9px * var(--otscale, 1));
-    background: var(--ot-panel2); padding: calc(8px * var(--otscale, 1)) calc(12px * var(--otscale, 1)) calc(9px * var(--otscale, 1)); z-index: 1; position: relative;
-  }
-  .ot-plan .nh { display: flex; justify-content: space-between; font-size: calc(0.9px * 10 * var(--otscale, 1)); color: var(--ot-ink3); }
-  .ot-plan .nh .who { color: var(--ot-cyan); font-weight: 700; }
-  .ot-plan .prow { display: flex; gap: calc(6px * var(--otscale, 1)); margin-top: calc(7px * var(--otscale, 1)); align-items: center; }
-  .ot-plan input {
-    background: var(--ot-panel); border: 1px solid var(--ot-line2); border-radius: calc(5px * var(--otscale, 1));
-    color: var(--ot-ink); font: inherit; font-size: calc(0.92px * 10 * var(--otscale, 1)); padding: calc(5px * var(--otscale, 1)) calc(8px * var(--otscale, 1)); outline: none;
-  }
-  .ot-plan input:focus { border-color: var(--ot-cyan); }
-  .ot-plan .pgoal { flex: 1; min-width: 0; }
-  .ot-plan .popt { width: calc(96px * var(--otscale, 1)); }
-  .ot-plan .prow2 { display: flex; gap: calc(6px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); align-items: center; color: var(--ot-ink3); font-size: calc(0.85px * 10 * var(--otscale, 1)); }
-  /* 判断层意见（P2）：金色 = 建议级信息，与 keeper advice 同语义；只展示，不替他做决定 */
-  .ot-plan .pjudge { color: var(--ot-gold); }
-  .ot-plan .pdraft { display: flex; align-items: baseline; gap: calc(6px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); font-size: calc(0.92px * 10 * var(--otscale, 1)); color: var(--ot-ink); cursor: pointer; }
-  .ot-plan .pdraft input { margin: 0; accent-color: var(--ot-green2); flex: none; }
-  .ot-plan .pdraft .pd-id { color: var(--ot-green2); flex: none; font-size: calc(0.85px * 10 * var(--otscale, 1)); }
-  .ot-plan .pdraft .pd-meta { color: var(--ot-ink3); flex: none; font-size: calc(0.8px * 10 * var(--otscale, 1)); }
-  .ot-plan .pdraft.off span { color: var(--ot-ink3); text-decoration: line-through; }
-  /* 预览面板结构（v0.7.8）：头部统计/判断意见与页脚立单/弃单钉住，候选列表自己滚——
-     8 张候选不再把页脚挤出 max-height 裁切区。max-height 与 otPlanMorph 终态同值 */
-  .ot-plan.preview { display: flex; flex-direction: column; max-height: calc(480px * var(--otscale, 1)); overflow: hidden; }
-  .ot-plan.preview .nh, .ot-plan.preview .prow2, .ot-plan.preview .pacts { flex: none; }
-  .ot-plan .pdrafts { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--ot-line2) transparent; }
-  .tabpanel.orch.busy .ot-plan button { opacity: 0.45; pointer-events: none; }
-
-  /* 开单条流体形变（v0.7.5）：输入态(胶囊) ⇄ 预览面板——圆角与高度沿同一条
-     高阻尼曲线开合，收拢时反向复用同一关键帧；候选行仅在展开那帧交错浮现
-     （行延迟由模板按行号内联，只在 morphin 帧输出 style）。整树重画时
-     morph 标记只带一帧，重推不重演——详见 otPlanHtml。 */
-  @keyframes otPlanMorph {
-    from { border-radius: calc(999px * var(--otscale, 1)); max-height: calc(52px * var(--otscale, 1)); opacity: 0.5; }
-    to { border-radius: calc(9px * var(--otscale, 1)); max-height: calc(480px * var(--otscale, 1)); opacity: 1; }
-  }
-  .ot-plan.preview.morphin { overflow: hidden; animation: otPlanMorph 0.46s cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .ot-plan.fold { overflow: hidden; animation: otPlanMorph 0.36s cubic-bezier(0.5, 0, 0.75, 0) reverse both; }
-  @keyframes otDraftIn { from { opacity: 0; transform: translateY(calc(-4px * var(--otscale, 1))); } to { opacity: 1; transform: none; } }
-  .ot-plan.preview.morphin .pdraft { animation: otDraftIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
-  /* 拆单在途（busy）：胶囊主按钮上一缕流光扫过，等主进程拆完再延展成面板 */
-  @keyframes otSheen { from { background-position: 130% 0; } to { background-position: -130% 0; } }
-  .tabpanel.orch.busy .ot-plan .tact.go { position: relative; overflow: hidden; }
-  .tabpanel.orch.busy .ot-plan .tact.go::after {
-    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-    background: linear-gradient(100deg, transparent 32%, rgba(103, 214, 232, 0.32) 50%, transparent 68%);
-    background-size: 220% 100%; animation: otSheen 1.05s linear infinite;
-  }
-  /* reduced-motion 静止（第一块守定位闪烁，这块守本节的流光/形变）：
-     选择器与开单条直出静态终态；流光退成静态渐变描边，背光退成常驻柔光 */
-  @media (prefers-reduced-motion: reduce) {
-    .tcard.s-dispatched::before, .tcard.s-running::before { animation: none; }
-    .tcard.s-dispatched::after, .tcard.s-running::after { animation: none; opacity: 0.7; }
-    .ot-picker .pk, .ot-picker .pk h4, .ot-picker .pkrow { animation: none; }
-    .ot-plan.preview.morphin, .ot-plan.fold, .ot-plan.preview.morphin .pdraft { animation: none; }
-    .tabpanel.orch.busy .ot-plan .tact.go::after { animation: none; }
-    .ot-win.ws-execution::before { animation: none; } /* 窗口卡流光同纪律：静止时靠常驻淡描边 */
-  }
-
-  /* ④ session log：黑板即日志，最新在下（终端语义，设计稿 118px 高） */
-  .ot-log {
-    flex: 0 0 calc(118px * var(--otscale, 1)); border-top: 1px solid var(--ot-line); background: var(--ot-panel);
-    font-size: calc(0.95px * 10 * var(--otscale, 1)); padding: calc(7px * var(--otscale, 1)) calc(14px * var(--otscale, 1)) calc(6px * var(--otscale, 1)); overflow-y: auto;
-  }
-  .ot-log .lh { color: var(--ot-ink3); letter-spacing: 0.14em; font-size: calc(0.85px * 10 * var(--otscale, 1)); margin-bottom: calc(4px * var(--otscale, 1)); }
-  .ot-log .r { display: flex; gap: calc(10px * var(--otscale, 1)); line-height: 1.75; color: var(--ot-ink2); white-space: nowrap; }
-  .ot-log .r .ts { color: var(--ot-ink3); flex: none; }
-  .ot-log .r .who { width: calc(46px * var(--otscale, 1)); flex: none; font-weight: 700; }
-  .ot-log .r.jev .who { color: var(--ot-vio); } .ot-log .r.gate .who { color: var(--ot-cyan); }
-  .ot-log .r.orch .who { color: var(--ot-green2); } .ot-log .r.user .who { color: var(--ot-gold); }
-  .ot-log .r .tx { overflow: hidden; text-overflow: ellipsis; }
-  .ot-log .none { color: var(--ot-ink3); }
-
-  /* ⑤ 状态行 */
-  .ot-status {
-    flex: 0 0 auto; border-top: 1px solid var(--ot-line); background: #0e1116;
-    font-size: calc(0.95px * 10 * var(--otscale, 1)); color: var(--ot-ink2); padding: calc(6px * var(--otscale, 1)) calc(14px * var(--otscale, 1));
-    display: flex; gap: calc(16px * var(--otscale, 1)); align-items: center; white-space: nowrap; overflow: hidden;
-  }
-  .ot-status .prompt { color: var(--ot-green); font-weight: 700; }
-  .ot-status b { color: var(--ot-ink); font-weight: 600; }
-  .ot-status .bad { color: var(--ot-red); font-weight: 700; }
-  .ot-status .cur { flex: 1; }
-
-  /* ---------- 五级窗口协作（v1.0）：五态条 / 窗口卡 / 回执面板 / roadmap 带 ----------
-     数据 = tree-model 的 roadmapView 投影（stage-lead.windowStatus），渲染层零裁定。
-     静默纪律：无 roadmap 数据时四段一个像素都不出（条与带默认 hidden 且基类不自带
-     display——.ot-picker 事故：撰者 display 会盖过 [hidden]；窗口卡/回执面板干脆不渲染）。
-     几何守 px × --otscale；状态色全部走 --ot-ws-* token，不就地写 hex。 */
-  /* 五态条（roster 之下、工作面之上）：五段胶囊，走过的格点亮，当前格外描边 + 弥散光。
-     0.3s 过渡与 .tact 同一动效纪律（纯 transition，无关键帧）。 */
-  .ot-wstrip:not([hidden]) {
-    flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: calc(5px * var(--otscale, 1));
-    padding: calc(6px * var(--otscale, 1)) calc(16px * var(--otscale, 1)); border-bottom: 1px solid var(--ot-line);
-    font-size: calc(0.88px * 10 * var(--otscale, 1));
-  }
-  .ot-wstrip .wttl { color: var(--ot-ink3); letter-spacing: 0.12em; font-size: calc(0.82px * 10 * var(--otscale, 1)); }
-  .ot-wstrip .seg {
-    display: flex; align-items: center; gap: calc(5px * var(--otscale, 1));
-    padding: calc(2px * var(--otscale, 1)) calc(9px * var(--otscale, 1));
-    border: 1px solid var(--ot-line2); border-radius: calc(999px * var(--otscale, 1)); color: var(--ot-ink3);
-    transition: border-color 0.3s, color 0.3s, background 0.3s, box-shadow 0.3s;
-  }
-  .ot-wstrip .seg i { width: calc(6px * var(--otscale, 1)); height: calc(6px * var(--otscale, 1)); border-radius: 50%; background: currentColor; opacity: 0.35; transition: opacity 0.3s, background 0.3s; flex: none; }
-  .ot-wstrip .sep { color: var(--ot-ink3); opacity: 0.55; }
-  .ot-wstrip .seg.ws-planning, .ot-win.ws-planning, .ot-road .sub.ws-planning { --ws: var(--ot-ws-planning); }
-  .ot-wstrip .seg.ws-execution, .ot-win.ws-execution, .ot-road .sub.ws-execution { --ws: var(--ot-ws-execution); }
-  .ot-wstrip .seg.ws-review, .ot-win.ws-review, .ot-road .sub.ws-review { --ws: var(--ot-ws-review); }
-  .ot-wstrip .seg.ws-closeout, .ot-win.ws-closeout, .ot-road .sub.ws-closeout { --ws: var(--ot-ws-closeout); }
-  .ot-wstrip .seg.ws-closed, .ot-win.ws-closed, .ot-road .sub.ws-closed { --ws: var(--ot-ws-closed); }
-  .ot-wstrip .seg.reached { color: var(--ot-ink2); border-color: color-mix(in srgb, var(--ws) 45%, transparent); }
-  .ot-wstrip .seg.reached i { opacity: 1; background: var(--ws); }
-  .ot-wstrip .seg.current {
-    color: var(--ws); border-color: var(--ws);
-    background: color-mix(in srgb, var(--ws) 12%, transparent);
-    box-shadow: 0 0 calc(9px * var(--otscale, 1)) color-mix(in srgb, var(--ws) 32%, transparent);
-  }
-  .ot-wstrip .wms { color: var(--ot-ink3); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  /* 窗口卡（树主面：JEV 与 spawn 之间）——当前活跃窗口的 soleGoal + 关联工单 + 关口行。
-     执行中的窗口带旋转流光描边（复用 otGlowSpin，与 tcard 弥散光晕同一纪律）。 */
-  .ot-win { width: calc(470px * var(--otscale, 1)); border-color: color-mix(in srgb, var(--ws) 45%, var(--ot-line2)); margin-bottom: calc(2px * var(--otscale, 1)); }
-  .ot-win .nh .who { color: var(--ws); }
-  .ot-win .wstate {
-    color: var(--ws); border: 1px solid var(--ws); border-radius: calc(999px * var(--otscale, 1));
-    padding: 0 calc(7px * var(--otscale, 1)); font-weight: 700; font-size: calc(0.82px * 10 * var(--otscale, 1));
-  }
-  .ot-win .goal { font-size: calc(1.05px * 10 * var(--otscale, 1)); color: var(--ot-ink); line-height: 1.5; margin: calc(5px * var(--otscale, 1)) 0 calc(6px * var(--otscale, 1)); word-break: break-word; }
-  .ot-win .tks { display: flex; flex-wrap: wrap; gap: calc(4px * var(--otscale, 1)); }
-  .ot-win .chip, .ot-road .sub {
-    border: 1px solid var(--ot-line2); border-radius: calc(4px * var(--otscale, 1));
-    padding: 0 calc(5px * var(--otscale, 1)); font-size: calc(0.82px * 10 * var(--otscale, 1)); line-height: 1.7;
-  }
-  .ot-win .chip.s-draft { color: #94a3b8; } .ot-win .chip.s-confirmed { color: var(--ot-cyan); }
-  .ot-win .chip.s-dispatched { color: var(--ot-vio); } .ot-win .chip.s-running { color: var(--ot-green2); }
-  .ot-win .chip.s-done { color: var(--ot-gold); } .ot-win .chip.s-failed { color: var(--ot-red); }
-  .ot-win .chip.s-blocked { color: var(--ot-org); } .ot-win .chip.s-missing { color: var(--ot-ink3); }
-  .ot-win .gate-line {
-    display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--otscale, 1));
-    margin-top: calc(7px * var(--otscale, 1)); padding-top: calc(6px * var(--otscale, 1));
-    border-top: 1px dashed var(--ot-line); font-size: calc(0.85px * 10 * var(--otscale, 1)); color: var(--ot-ink3);
-  }
-  .ot-win .ws-adv { border-color: color-mix(in srgb, var(--ws) 60%, transparent); color: var(--ws); }
-  .ot-win .ws-adv:hover { border-color: var(--ws); }
-  .ot-win .ws-adv.armed { background: color-mix(in srgb, var(--ws) 18%, transparent); color: var(--ot-ink); }
-  .ot-win.ws-execution { --ot-glow: var(--ws); }
-  .ot-win.ws-execution::before {
-    content: ''; position: absolute; inset: calc(-1px * var(--otscale, 1)); pointer-events: none;
-    border-radius: calc(9px * var(--otscale, 1)); padding: calc(1px * var(--otscale, 1));
-    background:
-      conic-gradient(from var(--ot-a), transparent 0 238deg, var(--ot-glow) 302deg, transparent 360deg),
-      linear-gradient(color-mix(in srgb, var(--ot-glow) 14%, transparent) 0 0);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude;
-    animation: otGlowSpin 7s linear infinite;
-  }
-
-  /* 回执面板（keeper 栏内）：最近一份 StageReport —— 九项边界 ✅/❌ + 证据计数 +
-     风险/阻断判定 + 下一步。折叠只翻 .fold class 不重渲染（开合态存 otReportFold）。 */
-  .ot-report { border: 1px solid var(--ot-line2); border-radius: calc(8px * var(--otscale, 1)); background: var(--ot-panel2); margin: calc(8px * var(--otscale, 1)) 0; }
-  .ot-report .rh { display: flex; align-items: center; gap: calc(5px * var(--otscale, 1)); padding: calc(6px * var(--otscale, 1)) calc(8px * var(--otscale, 1)); cursor: pointer; font-size: calc(0.85px * 10 * var(--otscale, 1)); color: var(--ot-ink3); }
-  .ot-report .rh .v { font-weight: 700; }
-  .ot-report .rh .v.pass, .ot-report .rh .v.pwnb { color: var(--ot-green2); }
-  .ot-report .rh .v.fail, .ot-report .rh .v.blocked { color: var(--ot-red); }
-  .ot-report .rh .sp { flex: 1; }
-  .ot-report .rh .chev { flex: none; }
-  .ot-report .bd { padding: calc(4px * var(--otscale, 1)) calc(8px * var(--otscale, 1)) calc(8px * var(--otscale, 1)); border-top: 1px dashed var(--ot-line); }
-  .ot-report.fold .bd { display: none; }
-  .ot-report .brow { display: flex; gap: calc(6px * var(--otscale, 1)); line-height: 1.7; font-size: calc(0.88px * 10 * var(--otscale, 1)); color: var(--ot-ink2); }
-  .ot-report .brow .ok { color: var(--ot-green2); flex: none; } .ot-report .brow .no { color: var(--ot-red); flex: none; }
-  .ot-report .brow .note { color: var(--ot-ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ot-report .blk { border: 1px solid #4d2b2b; border-radius: calc(6px * var(--otscale, 1)); background: #171010; color: var(--ot-red); padding: calc(5px * var(--otscale, 1)) calc(7px * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); font-size: calc(0.85px * 10 * var(--otscale, 1)); line-height: 1.5; word-break: break-word; }
-  .ot-report .nx { color: var(--ot-gold); font-size: calc(0.85px * 10 * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); line-height: 1.5; word-break: break-word; }
-  .ot-report .meta { color: var(--ot-ink3); font-size: calc(0.8px * 10 * var(--otscale, 1)); margin-top: calc(6px * var(--otscale, 1)); line-height: 1.6; word-break: break-word; }
-
-  /* roadmap 带（session log 与状态行之间）：阶段 → 子任务五态芯片 + 授权旗标。
-     与五态条共享 --ws 绑定；活跃子任务芯片提亮描边。 */
-  .ot-road:not([hidden]) {
-    flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: calc(7px * var(--otscale, 1));
-    padding: calc(5px * var(--otscale, 1)) calc(14px * var(--otscale, 1)); border-top: 1px solid var(--ot-line);
-    background: var(--ot-panel); font-size: calc(0.88px * 10 * var(--otscale, 1)); color: var(--ot-ink2);
-  }
-  .ot-road .ms { color: var(--ot-gold); font-weight: 700; letter-spacing: 0.05em; }
-  .ot-road .stg { display: flex; align-items: center; gap: calc(4px * var(--otscale, 1)); }
-  .ot-road .stg .sid { color: var(--ot-ink); font-weight: 700; }
-  .ot-road .stg .lock { color: var(--ot-ink3); font-size: calc(0.78px * 10 * var(--otscale, 1)); }
-  .ot-road .stg .lock.ok { color: var(--ot-green2); }
-  .ot-road .sub { color: var(--ws); opacity: 0.75; }
-  .ot-road .sub.on { opacity: 1; border-color: var(--ws); color: var(--ot-ink); background: color-mix(in srgb, var(--ws) 14%, transparent); }
-
 
   /* ---------- 番茄钟（v0.7，仅 live 组件；烘焙壁纸完全不含此板块）---------- */
   body.bake .pomo { display: none !important; }
@@ -879,10 +624,12 @@
 <body>
 <div class="stars" id="stars"></div>
 <div class="page">
-  <!-- tab 栏（v0.7；仅 live 组件有，bake 形态整个不渲染） -->
+  <!-- tab 栏（v0.7；仅 live 组件有，bake 形态整个不渲染。R2 删单后：早报/编排台/维护，
+       编排唯一入口是「编」） -->
   <div class="tabbar" id="tabBar" hidden>
     <button class="tab on" id="tabDaily" type="button" data-tab="daily">🌅 今日早报</button>
-    <button class="tab" id="tabOrch" type="button" data-tab="orch">🎫 工单看板<span class="badge" id="orchBadge" hidden></span></button>
+    <button class="tab" id="tabOrchestra" type="button" data-tab="orch">🎼 编</button>
+    <button class="tab" id="tabMaint" type="button" data-tab="maint">🧹 世界维护<span class="badge" id="maintBadge" hidden></span></button>
   </div>
 
   <!-- tab:daily —— 原有早报两栏（内容一字未动，只被这个 panel 包住） -->
@@ -955,36 +702,55 @@
       <div class="label">📚 学习卡片 CARDS <span class="hint" id="studyHint">点开看沉淀</span></div>
       <div class="study-list" id="studyList"></div>
     </section>
+    <section class="learn" id="learnSection" hidden>
+      <div class="label">🧭 项目学习卡 LEARN <span class="hint">点开看原文</span></div>
+      <div class="learn-body" id="learnList"></div>
+    </section>
   </aside>
   </div><!-- /tabpanel:daily -->
 
-  <!-- tab:orch —— 工单调度树（v0.7 重写）。五个区：roster 带 / 守门员栏 / 树主面 / session log / 状态行。
-       整个 panel 默认 hidden：没建过工单、或 bake 形态下永不出现。
-       M2 树内写闭环：确认/派发/收敛全走 __worldOrch 桥（闸门与账本在主进程 actions 层），
-       problems 上守门员栏点击定位；开单回路仍是 CLI plan（M3 进树）。 -->
-  <div class="tabpanel orch" id="panelOrch" hidden>
-    <div class="ot-roster">
-      <span class="ttl">工单调度树</span>
-      <span class="lg"><i style="background:var(--ot-green)"></i>sol · 主会话</span>
-      <span class="lg"><i style="background:var(--ot-cyan)"></i>agents</span>
-      <span class="lg"><i style="background:var(--ot-vio)"></i>jev · 判断</span>
-      <span class="lg"><i style="background:var(--ot-gold)"></i>gate · 守门</span>
-      <span class="sp"></span>
-      <span class="sum" id="orchSum"></span>
-    </div>
-    <!-- 窗口五态条（v1.0）：有 roadmap 活跃窗口才亮；无数据永远 hidden 不占行 -->
-    <div class="ot-wstrip" id="orchWstrip" hidden></div>
-    <div class="ot-mid">
-      <aside class="ot-keeper" id="orchKeeper"></aside>
-      <div class="ot-tree" id="orchTree"></div>
-    </div>
-    <div class="ot-log" id="orchLog"></div>
-    <!-- roadmap 带（v1.0）：阶段→子任务五态芯片 + 授权旗标；无 roadmap 永远 hidden -->
-    <div class="ot-road" id="orchRoad" hidden></div>
-    <div class="ot-status" id="orchStatus"></div>
-    <!-- 派发会话选择器：点击工单卡「派发」才出现，backdrop/✕ 关闭 -->
-    <div class="ot-picker" id="orchPicker" hidden><div class="pk" id="orchPickerBox"></div></div>
+  <!-- tab:orch —— 编排台「编」（R2 删单后编排唯一入口）。orchestra.html 以 iframe 懒加载
+       （首次进台才给 src）；台与父窗同目录同源，台内桥调用经父窗 preload 桥。
+       烘焙形态由 bake 规则整关。 -->
+  <div class="tabpanel bandview" id="viewOrchestra" hidden>
+    <iframe id="orchestraFrame" title="编排台" data-src="orchestra.html"></iframe>
   </div><!-- /tabpanel:orch -->
+
+  <!-- tab:maint —— 世界维护（v0.8）。项目「如何学习」/ 三桶清理审批 / 配置减重 /
+       里程碑提示 / 30 天指标。所有扫描与写盘都在主进程 maintenance 层，渲染层只发
+       项目路径、勾选路径与确认指令；decisions.json 是唯一执行来源。 -->
+  <div class="tabpanel maint" id="panelMaint" hidden>
+    <div class="mt-head">
+      <span class="mt-ttl">🧹 世界维护</span>
+      <span class="mt-sub" id="maintSub">项目 · 学习 · 清理 · 配置 · 指标</span>
+      <span class="mt-sp"></span>
+      <button class="mt-btn" id="maintRefresh" type="button" data-mt-act="refresh">刷新</button>
+    </div>
+    <div class="mt-body" id="maintBody">
+      <section class="mt-sec" id="mtProjectsSec">
+        <h3>项目 <span class="hint">注册项目与初始化徽标；「如何学习」给出顺序、时长与前置</span></h3>
+        <div id="maintProjects"><div class="mt-empty">正在读取…</div></div>
+        <div class="mt-detail" id="maintPlan"></div>
+      </section>
+      <section class="mt-sec" id="mtCleanupSec">
+        <h3>项目清理 <span class="hint">两轮判断 → 三桶 → 勾选 → decisions.json → dry-run → 执行</span></h3>
+        <div id="maintCleanup"></div>
+      </section>
+      <section class="mt-sec" id="mtConfigSec">
+        <h3>配置减重 <span class="hint">记忆层 / 技能 / 索引；先归档，可恢复</span></h3>
+        <div id="maintConfig"></div>
+      </section>
+      <section class="mt-sec" id="mtMilestoneSec">
+        <h3>里程碑提示 <span class="hint">到点提醒清理；点开跳至对应项目</span></h3>
+        <div id="maintMilestones"></div>
+      </section>
+      <section class="mt-sec" id="mtMetricsSec">
+        <h3>30 天指标 <span class="hint">重复解释 / 配置健康 / 清理采纳与误删</span></h3>
+        <div id="maintMetrics"></div>
+      </section>
+    </div>
+    <div class="mt-msg" id="maintMsg" hidden></div>
+  </div><!-- /tabpanel:maint -->
 </div>
 
 <!-- 三态生命周期控制组（v0.6.6，仅 live；默认 hidden，JS 检测 __worldLive 桥才解开） -->
@@ -1066,8 +832,10 @@
   var techInputEl = document.getElementById('techInput');
   var techPickEl = document.getElementById('techPick');
   var studyListEl = document.getElementById('studyList'); // 学习卡片（v0.7）
+  var learnListEl = document.getElementById('learnList'); // 项目学习卡（R2）
   var techInit = false; // render 每次热刷都会来，list 只拉一次（写盘后手动刷新）
   var studyInit = false; // 学习卡片同理，但独立标记（不能挂在 techInit 上，见 render 里的注释）
+  var learnInit = false; // 项目学习卡同理
   var techBusy = false; // propose 在途拦截连击
   var techDirection = ''; // 本轮收敛的方向（选定关键词随它一起落盘）
   var techSelected = {}; // 候选点选态：keyword -> true
@@ -1135,6 +903,81 @@
           studyListEl.appendChild(el);
         })(cards[i]);
       }
+    });
+  }
+
+  // 项目学习卡（R2 需求6）：直列 world/learn 扫到的项目文档来源。
+  // 取桥与 __worldStudy 一致（preload 挂在主框架 window 上）；桥不在就亮空态，不报错。
+  // 契约：__worldLearn.list() → { ok, cards: [{file,title,kind,chars,mtime}] }；open(file) 打开原文。
+  var LEARN_KIND_LABEL = { grill: '共识', spec: '设计', adr: 'ADR', ticket: '工单', handoff: '交接', 'agent-doc': '约定', glossary: '术语' };
+  function learnKindLabel(k) { return LEARN_KIND_LABEL[k] || k || '文档'; }
+  function fmtLearnMeta(c) {
+    var bits = [];
+    if (c.chars) bits.push(c.chars + ' 字');
+    if (c.mtime) {
+      var d = new Date(c.mtime);
+      if (!isNaN(d.getTime())) bits.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
+    }
+    return bits.join(' · ');
+  }
+  function refreshLearnCards() {
+    if (!window.__worldLearn) {
+      learnListEl.innerHTML = '<div class="nohit">项目学习卡暂不可用（窗口版本偏旧，重启桌面后再试）。</div>';
+      return;
+    }
+    window.__worldLearn.list().then(function (res) {
+      var cards = (res && res.ok && res.cards) || [];
+      learnListEl.innerHTML = '';
+      if (!cards.length) {
+        learnListEl.innerHTML = '<div class="nohit">项目里还没有可学的文档来源。跑一次「如何学习」或等它自己扫到文档。</div>';
+        return;
+      }
+      // 按 kind 分组，grill（共识）组置顶；其余组保持返回顺序
+      var order = [];
+      var groups = {};
+      for (var i = 0; i < cards.length; i++) {
+        var k = cards[i].kind || '';
+        if (!groups[k]) {
+          groups[k] = [];
+          order.push(k);
+        }
+        groups[k].push(cards[i]);
+      }
+      order.sort(function (a, b) {
+        if (a === 'grill') return -1;
+        if (b === 'grill') return 1;
+        return 0;
+      });
+      order.forEach(function (k) {
+        var head = document.createElement('div');
+        head.className = 'learn-kind';
+        head.textContent = learnKindLabel(k);
+        var row = document.createElement('div');
+        row.className = 'learn-cards';
+        groups[k].forEach(function (c) {
+          var el = document.createElement('span');
+          el.className = 'learn-card';
+          el.setAttribute('data-kind', c.kind || '');
+          el.setAttribute('role', 'button');
+          el.setAttribute('tabindex', '0');
+          el.setAttribute('title', c.file || '');
+          el.innerHTML = '<span class="ttl">' + esc(c.title || c.file || '') + '</span>' +
+            '<span class="meta">' + esc(fmtLearnMeta(c)) + '</span>';
+          var open = function () {
+            if (c.file && window.__worldLearn) window.__worldLearn.open(c.file);
+          };
+          el.addEventListener('click', open);
+          el.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+              ev.preventDefault();
+              open();
+            }
+          });
+          row.appendChild(el);
+        });
+        learnListEl.appendChild(head);
+        learnListEl.appendChild(row);
+      });
     });
   }
 
@@ -1273,731 +1116,30 @@
     }, 1000);
   }
 
-  // ---------- 工单调度树（v0.7 重写）：纯渲染层 ----------
-  // 数据全部来自主进程 buildOrchView + tree-model（R.orch.tree）。
-  // 渲染层不读文件、不做可行性判断 —— 确认/派发/收敛（M2）与开单（M3）
-  // 全部只发意图过 __worldOrch 桥，硬闸门与账本写盘都在主进程 actions 层。
-  var OT_ENGINE_LABEL = { working: 'working', thinking: 'thinking', juggling: 'juggling', attention: 'attention', sweeping: 'sweeping', carrying: 'carrying', notification: 'notification', idle: 'idle', sleeping: 'sleeping' };
-  var orchTab = 'daily'; // 当前 tab；托盘可通过 __worldSetTab 切进来
-
-  // ----- M2/M3 树内写闭环的渲染侧状态（都不是持久数据：账本在主进程，刷新即重建） -----
-  var otProblems = [];  // 最近一次写操作返回的错误协议，上守门员栏；成功即清空
-  var otBusy = false;   // 一次只许一个写操作在途（按钮整列禁点，防双击双写）
-  var otSummary = {};   // 收敛结论输入的草稿（按 tid 记住，重渲染不丢正在敲的字）
-  // M3 开单条：目标/agent/cwd 的输入草稿 + 拆单预览的候选与勾选（重渲染不丢；
-  // 账本里不存在——确认前的候选单只是内存意图，落账后由主进程重推整树再清空）
-  // morph：流体形变标记，只带一帧——otPlanHtml 读完即清，主进程重推的重画不重演入场
-  var otPlan = { goal: '', agent: '', cwd: '', drafts: null, checks: [], jev: null, morph: '' };
-  // agent 下拉候选（v0.7.8）：null=还没拉 / []=拉过但空。只拉一次，回来后**只填
-  // datalist 元素**不整树重画——用户打开下拉/打字中，重画会把原生候选弹层顶掉。
-  var otAgentOpts = null;
-  // 焦点守卫：主进程推送会整树 innerHTML 重画，正在打字的开单条/收敛输入框会丢焦点、
-  // 点按可能被替换帧吞掉——推送帧若在树内输入框持焦时到达，暂存待渲（otPendingTree），
-  // 焦点离开树才落；本地意图（勾选/预览/弃单）走 force 直画，不被守卫拦住。
-  var otPendingTree = null;
-  // v1.0 窗口协作的本地意图态：推进按钮两步武装的截止时刻（0=未武装）/ 回执面板折叠态。
-  // 两个都要扛住推送帧整树重画——武装中或展开中被重画清掉，都是本地意图被远程帧吞掉。
-  var otWinArmUntil = 0;
-  var otReportFold = true;
-
-  // 工单卡按状态出操作（与 world/orch/actions.js ACTIONS 对齐；done 无操作）
-  var OT_ACTIONS = {
-    draft:      [['confirm', '确认', 'go'], ['remove', '删', 'warn']],
-    confirmed:  [['dispatch', '派发', 'go'], ['redraft', '回草案', ''], ['remove', '删', 'warn']],
-    dispatched: [['converge', '收敛', 'go'], ['fail', '标失败', 'warn'], ['reconfirm', '撤回重确', ''], ['block', '阻塞', 'warn']],
-    running:    [['block', '阻塞', 'warn'], ['fail', '标失败', 'warn']],
-    failed:     [['reconfirm', '重确', 'go'], ['block', '阻塞', 'warn']],
-    blocked:    [['redraft', '改回草案', ''], ['reconfirm', '重确', 'go']],
-    done:       [],
-  };
+  // ---------- tab 切换（R2 删单后：早报 / 编 / 维护 三个；编排唯一入口是「编」台） ----------
+  var curTab = 'daily'; // 当前 tab；托盘可通过 __worldSetTab 切进来
 
   function setTab(next) {
-    orchTab = next === 'orch' ? 'orch' : 'daily';
-    document.body.classList.toggle('tab-orch', orchTab === 'orch');
+    curTab = next === 'maint' ? 'maint' : next === 'orch' ? 'orch' : 'daily';
+    document.body.classList.toggle('tab-maint', curTab === 'maint');
+    document.body.classList.toggle('tab-orch', curTab === 'orch');
+    document.body.classList.toggle('tab-daily', curTab === 'daily');
     var d = document.getElementById('tabDaily');
-    var o = document.getElementById('tabOrch');
-    if (d) d.classList.toggle('on', orchTab !== 'orch');
-    if (o) o.classList.toggle('on', orchTab === 'orch');
-    // 面板本身用 hidden 属性收起（.orch 的 display 由 body.live + :not([hidden]) 控制）
-    document.getElementById('panelOrch').hidden = orchTab !== 'orch';
-  }
-
-  function otPct(p) { return Math.round((Number(p) || 0) * 100); }
-  function otBar(p) { return '<div class="ot-pbar"><i style="width:' + otPct(p) + '%"></i></div>'; }
-  function otTime(at) {
-    var n = Number(at);
-    if (!n) return '--:--:--';
-    var d = new Date(n);
-    function pad(x) { return (x < 10 ? '0' : '') + x; }
-    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-  }
-
-  // 设计稿（dw-office-tree.html）把 980×620 工作面上的字锁死在 9–13px。
-  // vmin 会随窗口缩到 2–5px，所以树区文字全部 calc(Xpx*10*var(--otscale))：
-  // 980px 宽窗口 = scale 1（px 原寸），窗口更宽等比放大、更窄等比缩小（有下限防糊）。
-  function setOrchScale() {
-    var w = (document.documentElement && document.documentElement.clientWidth) || 980;
-    var s = Math.max(0.82, Math.min(1.6, w / 980));
-    document.documentElement.style.setProperty('--otscale', String(Math.round(s * 100) / 100));
-  }
-  function renderOrch(o) {
-    var bar = document.getElementById('tabBar');
-    var panel = document.getElementById('panelOrch');
-    var t = o && o.tree;
-    // 没有工单 → 整个 tab 不出现（连 tab 按钮都不亮），不占界面
-    if (!o || !o.active || !t) {
-      bar.hidden = true;
-      panel.hidden = true;
-      if (orchTab === 'orch') setTab('daily');
-      return;
+    var o = document.getElementById('tabOrchestra');
+    var m = document.getElementById('tabMaint');
+    if (d) d.classList.toggle('on', curTab === 'daily');
+    if (o) o.classList.toggle('on', curTab === 'orch');
+    if (m) m.classList.toggle('on', curTab === 'maint');
+    // 面板本身用 hidden 属性收起（display 由 body.live + :not([hidden]) 控制）
+    document.getElementById('panelMaint').hidden = curTab !== 'maint';
+    var ov = document.getElementById('viewOrchestra');
+    if (ov) ov.hidden = curTab !== 'orch';
+    // 编台 iframe 懒加载：第一次进台才载 orchestra.html（不拖早报渲染、烘焙形态永不触网）
+    if (curTab === 'orch') {
+      var fr = document.getElementById('orchestraFrame');
+      if (fr && !fr.src) fr.src = fr.getAttribute('data-src');
     }
-    bar.hidden = false;
-    setOrchScale();
-
-    var sum = o.summary || { total: 0, pending: 0, active: 0 };
-    document.getElementById('orchSum').innerHTML =
-      '共 <b>' + sum.total + '</b> 张 · 待确认 <b>' + sum.pending + '</b> · 在跑 <b>' + sum.active + '</b>' +
-      (t.status.inbox ? ' · 未读信封 <b>' + t.status.inbox + '</b>' : '');
-    var badge = document.getElementById('orchBadge');
-    if (badge) {
-      var n = sum.pending || 0;
-      badge.hidden = n <= 0;
-      badge.textContent = n > 0 ? String(n) : '';
-    }
-
-    renderKeeper(t);
-    renderTree(t);
-    renderLog(t);
-    renderStatus(t);
-    renderWstrip(t);
-    renderRoad(t);
-  }
-
-  // ② 守门员栏：三闸门 + 红线常驻。M2 起 additionally 承担写操作的 problems 上墙
-  //（actions 层错误协议原样贴出，点一条定位到对应工单卡）。
-  function renderKeeper(t) {
-    var k = t.keeper || { blocked: 0, failed: 0, cycles: 0, lastAdvice: '' };
-    document.getElementById('orchKeeper').innerHTML =
-      '<h3>GATE KEEPER</h3><div class="role">三闸门 · on call</div>' +
-      '<div class="mom">只在三个时刻发言：<br><span class="m">◇</span> 派发之前<br><span class="m">◇</span> 连续失败<br><span class="m">◇</span> 收敛之前</div>' +
-      '<div class="advice"><span class="al">last advice</span>' + esc(k.lastAdvice || 'silent on every routine turn') + '</div>' +
-      '<div class="counts">' +
-        '<span>阻塞</span><b' + (k.blocked ? ' class="bad"' : '') + '>' + k.blocked + '</b>' +
-        '<span>失败</span><b' + (k.failed ? ' class="bad"' : '') + '>' + k.failed + '</b>' +
-        '<span>依赖环</span><b' + (k.cycles ? ' class="bad"' : '') + '>' + k.cycles + '</b>' +
-        '<span>jev forks</span><b>' + (t.status.jev || 0) + '</b>' +
-      '</div>' +
-      otProblemsHtml() +
-      otReportHtml(t.latestReport) +
-      '<div class="quiet">写入在树内闭环：确认 → 派发 → 收敛</div>' +
-      '<div class="oath"><b>从不 spawn 进程。</b><br>派单只写信封；动不动手，那个 agent 自己定。</div>';
-  }
-
-  // problems 上墙：code 红字 + reason 正文 + fix 金色指向；带 id/ids 的可点击定位
-  function otProblemsHtml() {
-    if (!otProblems.length) return '';
-    return '<div class="ot-problems">' + otProblems.map(function (p) {
-      var tid = p.id || (p.ids && p.ids[0]) || '';
-      return '<div class="prob"' + (tid ? ' data-prob-tid="' + esc(tid) + '"' : '') + '>' +
-        '<span class="pc">' + esc(p.code || 'problem') + '</span>' +
-        '<div class="pr">' + esc(p.reason || '') + '</div>' +
-        '<div class="pf">→ ' + esc(p.fix || '') + '</div></div>';
-    }).join('') + '</div>';
-  }
-
-  // ③ 树主面：MAIN → JEV → spawn → 工单层 → 收敛带
-  function renderTree(t, opts) {
-    // 焦点守卫：非强制帧（主进程推送）遇上树内输入框持焦 → 暂存，blur 时落（见 otBindOnce）。
-    // 树内可输入的元素：开单条三个输入 + 收敛带结论输入——它们正被碰时，画新帧 = 抢键盘。
-    if (!opts || !opts.force) {
-      var ae = document.activeElement;
-      var treeEl = document.getElementById('orchTree');
-      if (ae && treeEl && treeEl.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
-        otPendingTree = t;
-        return;
-      }
-    }
-    otPendingTree = null;
-    var html = '<svg class="wires" id="orchWires" aria-hidden="true"></svg>';
-
-    html += '<div class="ot-node ot-main">' +
-      '<div class="nh"><span class="who">MAIN · 主会话</span><span>plans + writes code</span></div>' +
-      '<div class="goal">' + (t.main.goal
-        ? esc(t.main.goal)
-        : '<span class="none">还没有立单目标——下方「开单」条打字立单（CLI 等价口：npm run world:orch -- plan "…" --agent &lt;id&gt;）</span>') + '</div>' +
-      otBar(t.main.progress) +
-      '<div class="pmeta"><span>' + t.main.tickets + ' tickets · max 8</span><span>' + otPct(t.main.progress) + '%</span></div></div>';
-
-    html += '<div class="ot-link"></div>';
-
-    if (t.judgment) {
-      html += '<div class="ot-node ot-jev"><div class="nh"><span class="who">JEV · fork layer</span><span class="forks">forks ' + t.judgment.forks + '</span></div>';
-      t.judgment.bars.forEach(function (b) {
-        html += '<div class="ot-jrow"><span class="jl">' + esc(b.label) + '</span>' +
-          '<div class="ot-jbar ot-v-' + b.verdict + '"><i style="width:' + otPct(b.p) + '%"></i></div>' +
-          '<span class="jv ot-v-' + b.verdict + '">' + b.p.toFixed(2) + ' ' + b.verdict + '</span></div>';
-      });
-      html += '<div class="legend"><span class="ot-v-sharp">sharp → 直接立单</span> · <span class="ot-v-split">split → 人来定</span> · no → 不问</div></div>';
-    } else {
-      html += '<div class="ot-node ot-jev local"><span class="who">JEV</span>judgment · local · 没问 Jev</div>';
-    }
-
-    // 窗口卡（v1.0）：活跃窗口的五态卡——无 roadmapView 时整段不出（静默纪律）
-    html += otWinHtml(t);
-
-    html += '<div class="ot-spawn-line">spawn · max 8 · <b>' + t.main.tickets + ' 张</b> · 按拓扑分列</div>';
-
-    html += '<div class="ot-lanes">';
-    t.lanes.forEach(function (lane) {
-      html += '<div class="ot-lane">';
-      lane.forEach(function (c) { html += tcardHtml(c, t.signals.byTicket[c.id] || {}); });
-      html += '</div>';
-    });
-    html += '</div>';
-
-    // 开单条（M3）：工单层之下、收敛带之上。输入态常设，预览期切勾选态
-    html += otPlanHtml();
-
-    if (t.converge.length) {
-      html += '<div class="ot-converge"><div class="nh"><span class="who">收敛 · review + verify</span><span>验收过了才算完</span></div>';
-      t.converge.forEach(function (c) {
-        var acc = c.acceptance || [];
-        var checked = c.acceptanceDone || [];
-        var done = checked.filter(Boolean).length;
-        html += '<div class="ot-crow" data-crow="' + esc(c.id) + '">' +
-          '<div class="chead"><span class="cid">' + esc(c.id) + '</span>' +
-          '<span class="cchk">验收 ' + done + '/' + acc.length + '</span></div>';
-        acc.forEach(function (a, i) {
-          html += '<label class="cacc' + (checked[i] ? ' done' : '') + '">' +
-            '<input type="checkbox" data-caccept="' + esc(c.id) + ':' + i + '"' + (checked[i] ? ' checked' : '') + '>' +
-            '<span>' + esc(a) + '</span></label>';
-        });
-        // 结论输入草稿存 otSummary（重渲染不丢字）；只有这张卡的验收能勾
-        html += '<div class="cdo"><input class="csum" data-csum="' + esc(c.id) + '" ' +
-          'placeholder="收敛结论（一句话，写进黑板）" value="' + esc(otSummary[c.id] || '') + '">' +
-          '<button class="tact go" data-converge="' + esc(c.id) + '">写入收敛</button></div></div>';
-      });
-      html += '</div>';
-    }
-
-    var el = document.getElementById('orchTree');
-    el.innerHTML = html;
-    // 依赖连线要等 DOM 落位后量坐标（与旧信封同一个纪律：JS 只在渲染时算一次）。
-    // 此刻 panel 可能还 hidden（量出来全是 0）→ 切 tab 时还会再量一次（relayoutOrchWires）。
-    requestAnimationFrame(function () { layoutTreeWires(t); });
-  }
-
-  function tcardHtml(c, sig) {
-    var label = c.statusLabel || c.status;
-    var engine = sig.engine || '';
-    var on = engine && engine !== 'idle' && engine !== 'sleeping';
-    var sigText = sig.stale ? '◌ ' + (OT_ENGINE_LABEL[engine] || '无会话')
-      : on ? '● ' + (OT_ENGINE_LABEL[engine] || engine)
-      : engine ? '◌ ' + (OT_ENGINE_LABEL[engine] || engine)
-      : '○ 无会话';
-    var flag = '';
-    if (c.status === 'blocked') flag = '<span class="flag blocked">待改派</span>';
-    else if (sig.stale) flag = '<span class="flag stale">还没接活</span>';
-    var acts = OT_ACTIONS[c.status] || [];
-    var actsHtml = acts.length
-      ? '<div class="tacts">' + acts.map(function (a) {
-          return '<button class="tact ' + a[2] + '" data-tact="' + a[0] + '" data-tid="' + esc(c.id) + '">' + a[1] + '</button>';
-        }).join('') + '</div>'
-      : '';
-    return '<div class="tcard s-' + esc(c.status) + '" data-tid="' + esc(c.id) + '">' + flag +
-      '<div class="tid"><span>' + esc(c.id) + '</span><span class="st">' + esc(label) + '</span></div>' +
-      '<div class="tname">' + esc(c.title) + '</div>' +
-      '<div class="tmeta"><span>' + esc(c.agent || '?') + '</span><span>' + esc(c.action || '') + '</span></div>' +
-      otBar(c.progress) +
-      '<div class="sig"><span class="' + (on ? 'on' : 'off') + '">' + esc(sigText) + '</span></div>' +
-      actsHtml + '</div>';
-  }
-
-  // ---------------- M2 树内写闭环：全部走 __worldOrch 桥，渲染层绝不直接 require ----------------
-
-  function otSetBusy(b) {
-    otBusy = b;
-    var p = document.getElementById('panelOrch');
-    if (p) p.classList.toggle('busy', b);
-  }
-
-  // 统一出口：成功清 problems（主进程会定向重推 orch 段，整棵面板随后刷新）；
-  // 失败把错误协议留上守门员栏并立即重画（不等下一次数据刷新）
-  function otHandle(res) {
-    otProblems = (res && res.ok) ? []
-      : (res && res.problems && res.problems.length) ? res.problems
-      : [{ code: 'bridge-down', reason: '编排桥没有回应', fix: '重启组件窗；账本在 ~/.desktop-world/orch/，CLI 仍可操作' }];
-    if (lastR && lastR.orch && lastR.orch.tree) renderKeeper(lastR.orch.tree);
-    return !!(res && res.ok);
-  }
-
-  function otCall(fn, after) {
-    if (otBusy) return;
-    if (!window.__worldOrch) { otHandle(null); return; }
-    otSetBusy(true);
-    fn().then(function (res) { otSetBusy(false); otHandle(res); if (after) after(res, true); },
-      function () { otSetBusy(false); otHandle(null); if (after) after(null, false); });
-  }
-
-  // 工单卡按钮：dispatch 开会话选择器、remove 走删除口，其余直达 actions 层
-  function otCardAction(tid, action) {
-    if (action === 'dispatch') { otOpenPicker(tid); return; }
-    if (action === 'remove') { otRemove(tid); return; }
-    otCall(function () {
-      var payload = {};
-      if (action === 'converge') payload = { summary: otSummary[tid] || '', acceptanceDone: otChecks(tid) };
-      return window.__worldOrch.transition(tid, action, payload)
-        .then(function (res) { if (res && res.ok && action === 'converge') delete otSummary[tid]; return res; });
-    });
-  }
-
-  function otRemove(tid) {
-    otCall(function () { return window.__worldOrch.remove(tid); });
-  }
-
-  // 派发会话选择器：同 agent 同 cwd 置顶（排序在主进程 actions.sessionsFor）
-  function otOpenPicker(tid) {
-    if (otBusy || !window.__worldOrch) return;
-    otSetBusy(true);
-    window.__worldOrch.sessions(tid).then(function (res) {
-      otSetBusy(false);
-      var list = (res && res.sessions) || [];
-      var html = '<h4>派发 ' + esc(tid) + ' · 选一个在线会话<span class="x">✕ 关闭</span></h4>';
-      if (!list.length) {
-        html += '<div class="pkempty">看不到在线会话。编排层不拉进程：先自己开一个 agent 会话，回来再点「派发」。同 agent、同 cwd 的会话会排在最前。</div>';
-      }
-      list.forEach(function (s) {
-        var badges = (s.sameCwd ? '<span class="bdg">同 cwd</span>' : '') +
-          (s.sameAgent ? '<span class="bdg">同 agent</span>' : '') +
-          (s.headless ? '<span class="bdg">headless</span>' : '');
-        html += '<div class="pkrow" data-pick-sid="' + esc(s.id) + '" data-tid="' + esc(tid) + '">' +
-          '<div class="l1"><span>' + esc(s.agentName || s.agentId || '?') + badges + '</span><span>' + esc(s.state || '') + '</span></div>' +
-          '<div class="l2">' + esc(s.id) + (s.cwd ? ' · ' + esc(s.cwd) : '') + '</div></div>';
-      });
-      document.getElementById('orchPickerBox').innerHTML = html;
-      document.getElementById('orchPicker').hidden = false;
-    }, function () { otSetBusy(false); otHandle(null); });
-  }
-  function otClosePicker() { document.getElementById('orchPicker').hidden = true; }
-  function otDispatchTo(tid, sid) {
-    otCall(function () {
-      return window.__worldOrch.transition(tid, 'dispatch', { sessionId: sid })
-        .then(function (res) { if (res && res.ok) otClosePicker(); return res; });
-    });
-  }
-
-  // 收敛带：验收勾选（立即落账 patch acceptanceDone）+ 结论草稿 + 写入收敛
-  function otChecks(tid) {
-    var out = [];
-    document.querySelectorAll('.ot-crow[data-crow="' + tid + '"] input[data-caccept]')
-      .forEach(function (inp) { out.push(!!inp.checked); });
-    return out;
-  }
-  function otToggleAccept(inp) {
-    var tid = String(inp.getAttribute('data-caccept') || '').split(':')[0];
-    if (!tid) return;
-    // 写操作在途时勾选先收住：浏览器已经翻好了打勾，这里翻回去，等重推后按账本重画
-    if (otBusy || !window.__worldOrch) { inp.checked = !inp.checked; return; }
-    window.__worldOrch.patch(tid, { acceptanceDone: otChecks(tid) }).then(function (res) {
-      if (!res || !res.ok) otHandle(res);
-    }, function () { otHandle(null); });
-  }
-  function otConverge(tid) {
-    otCall(function () {
-      return window.__worldOrch.transition(tid, 'converge', { summary: otSummary[tid] || '', acceptanceDone: otChecks(tid) })
-        .then(function (res) { if (res && res.ok) delete otSummary[tid]; return res; });
-    });
-  }
-
-  // ---------------- M3 树内开单回路：打字目标 → plan 预览 → 勾选 → commitPlan 落账 ----------------
-  // 与 CLI cmdPlan 同一条纪律：拆单/闸门/落账全在主进程，渲染层只递目标与勾选结果。
-
-  // 开单条两种形态：无桥（bake/老 preload）整条不出——开不了单的输入条比没有更误导
-  function otPlanHtml() {
-    if (!window.__worldOrch) return '';
-    // 流体形变：preview 是面板态；morphin=胶囊→面板延展帧 / fold=面板→胶囊收拢帧。
-    // morph 读完即清——主进程落账重推那帧不带形变，树不重演入场。
-    var play = otPlan.drafts && otPlan.morph === 'morphin';
-    var cls = 'ot-plan' + (otPlan.drafts ? ' preview' : '') + (otPlan.morph ? ' ' + otPlan.morph : '');
-    otPlan.morph = '';
-    var html = '<div class="' + cls + '"><div class="nh"><span class="who">开单 · plan</span><span>打字立单 · 闸门照旧</span></div>';
-    if (!otPlan.drafts) {
-      // agent 候选只拉一次；回来只填 datalist 元素不整树重画（下拉弹层会被重画顶掉）。
-      // datalist 是建议不是白名单——手输自由保留，闸门终审照旧。
-      if (!otAgentOpts && window.__worldOrch.agents) {
-        otAgentOpts = [];
-        window.__worldOrch.agents().then(function (res) {
-          otAgentOpts = (res && res.agents) || [];
-          var dl = document.getElementById('otAgents');
-          if (dl) dl.innerHTML = otAgentOptsHtml();
-        }).catch(function () { otAgentOpts = []; });
-      }
-      html += '<div class="prow">' +
-        '<input class="pgoal" data-pgoal placeholder="目标：先把 A 做完，然后补 B 的测试…" value="' + esc(otPlan.goal) + '">' +
-        '<button class="tact go" data-plan="1">拆单预览</button></div>' +
-        '<div class="prow2">agent <input class="popt" data-pagent list="otAgents" placeholder="claude-code" value="' + esc(otPlan.agent) + '">' +
-        '<datalist id="otAgents">' + otAgentOptsHtml() + '</datalist>' +
-        ' cwd <input class="popt" data-pcwd placeholder="cwd（闸门要用）" value="' + esc(otPlan.cwd) + '"></div>';
-    } else {
-      var on = otPlan.checks.filter(Boolean).length;
-      html += '<div class="prow2">预览 ' + otPlan.drafts.length + ' 张候选 · 勾选要立的单（已选 ' + on + '）</div>';
-      // 判断层本次开口了就把意见摆出来（与 keeper advice 同是「建议级」金色；听不听在人）
-      if (otPlan.jev) {
-        html += '<div class="prow2 pjudge">⚖ ' + (otPlan.jev.source === 'jev' ? 'JEV 判断层' : '本地判断') +
-          ' · ' + esc(otPlan.jev.reason) + '</div>';
-      }
-      // 候选列表自带滚动容器（.pdrafts）：候选一多（8 张）页脚立单/弃单仍钉在
-      // 面板里不被 max-height 裁掉——此前页脚被挤出裁切区 = 看得到预览立不了单
-      html += '<div class="pdrafts">';
-      otPlan.drafts.forEach(function (d, i) {
-        var keep = otPlan.checks[i] !== false;
-        var meta = (d.agent || '?') + ((d.dependsOn && d.dependsOn.length) ? ' ← ' + d.dependsOn.join('+') : '');
-        html += '<label class="pdraft' + (keep ? '' : ' off') + '"' +
-          (play ? ' style="animation-delay:' + i * 45 + 'ms"' : '') + '>' +
-          '<input type="checkbox" data-pcheck="' + i + '"' + (keep ? ' checked' : '') + '>' +
-          '<span class="pd-id">' + esc(d.id) + '</span><span>' + esc(d.title) + '</span>' +
-          '<span class="pd-meta">' + esc(meta) + '</span></label>';
-      });
-      html += '</div><div class="prow pacts"><button class="tact go" data-plan-commit="1">✔ 立单（' + on + '）</button>' +
-        '<button class="tact warn" data-plan-cancel="1">✕ 弃掉预览</button></div>';
-    }
-    return html + '</div>';
-  }
-
-  // datalist 候选行：value 是闸门认的 agent id，行文字给人看；非 prefs 探测来源的标注一句
-  function otAgentOptsHtml() {
-    if (!otAgentOpts || !otAgentOpts.length) return '';
-    return otAgentOpts.map(function (a) {
-      var label = a.name && a.name !== a.id ? a.name + ' · ' + a.id : a.id;
-      return '<option value="' + esc(a.id) + '">' + esc(a.detected === false ? label + '（注册表）' : label) + '</option>';
-    }).join('');
-  }
-
-  function otRedrawTree() {
-    // 本地意图帧（勾选/预览/弃单/落账回执）：force 直画——守卫只拦推送帧，不拦用户自己的动作
-    if (lastR && lastR.orch && lastR.orch.tree) renderTree(lastR.orch.tree, { force: true });
-  }
-
-  // ① 拆单预览：只读，不落账——主进程不会因此重推，靠 after 回调本地重画树
-  function otPlanPreview() {
-    var goal = otPlan.goal.trim();
-    if (!goal) {
-      otHandle({ ok: false, problems: [{ code: 'plan-goal-empty', reason: '目标还是空的', fix: '在开单条先写一句话目标（如「先把 A 做完，然后补 B 的测试」）' }] });
-      return;
-    }
-    otPlan.jev = null;
-    otCall(function () {
-      return window.__worldOrch.plan(goal, { agent: otPlan.agent.trim(), cwd: otPlan.cwd.trim() })
-        .then(function (res) {
-          if (res && res.ok) {
-            otPlan.drafts = res.drafts || [];
-            otPlan.checks = otPlan.drafts.map(function () { return true; });
-            // P2：判断层这次开口了就留一句话在预览头部（⚖ 金色建议级；听不听在人）
-            otPlan.jev = (res.jev && res.jev.modelTried && res.jev.reason)
-              ? { source: res.jev.source === 'jev' ? 'jev' : 'local', reason: String(res.jev.reason) }
-              : null;
-            otPlan.morph = 'morphin'; // 水滴：输入胶囊 → 预览面板（只此一帧）
-          }
-          return res;
-        });
-    }, otRedrawTree);
-  }
-
-  // 勾选切的是本地意图，不过桥：只翻 class + 刷新两个计数，整张树不重画（不闪、不丢滚动位）
-  function otTogglePlan(inp) {
-    var i = Number(inp.getAttribute('data-pcheck'));
-    if (!otPlan.drafts || !(i >= 0 && i < otPlan.checks.length)) return;
-    otPlan.checks[i] = inp.checked;
-    var lab = inp.closest('.pdraft');
-    if (lab) lab.classList.toggle('off', !inp.checked);
-    var on = otPlan.checks.filter(Boolean).length;
-    var btn = document.querySelector('.ot-plan [data-plan-commit]');
-    if (btn) btn.textContent = '✔ 立单（' + on + '）';
-    var cnt = document.querySelector('.ot-plan .prow2');
-    if (cnt) cnt.textContent = '预览 ' + otPlan.drafts.length + ' 张候选 · 勾选要立的单（已选 ' + on + '）';
-  }
-
-  // ② 确认立单：勾中的候选原样递主进程——白名单重建/重跑闸门/修依赖/落账全在那边
-  function otPlanCommit() {
-    if (!otPlan.drafts || otBusy) return;
-    var picked = otPlan.drafts.filter(function (d, i) { return otPlan.checks[i] !== false; });
-    if (!picked.length) {
-      otHandle({ ok: false, problems: [{ code: 'plan-commit-empty', reason: '预览里的候选全被取消了勾选', fix: '至少勾一张再立单，或点 ✕ 弃掉预览' }] });
-      return;
-    }
-    otCall(function () {
-      return window.__worldOrch.commitPlan(picked).then(function (res) {
-        // 落账成功：清开单草稿回输入态（整树随后由主进程重推刷新，本地先画一帧不等推送）
-        if (res && res.ok) { otPlan.goal = ''; otPlan.drafts = null; otPlan.checks = []; otPlan.jev = null; otPlan.morph = 'fold'; }
-        return res;
-      });
-    }, otRedrawTree);
-  }
-
-  function otPlanCancel() {
-    otPlan.drafts = null; otPlan.checks = []; otPlan.jev = null;
-    otPlan.morph = 'fold'; // 水滴收回去：面板 → 胶囊（反向复用同一关键帧）
-    otRedrawTree();
-  }
-
-  // problems 点击定位：滚到工单卡 + 金色脉冲两拍
-  function otLocate(tid) {
-    var card = document.querySelector('#orchTree .tcard[data-tid="' + tid + '"]');
-    if (!card) return;
-    card.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
-    card.classList.remove('flash');
-    void card.offsetWidth; // 重触动画
-    card.classList.add('flash');
-    setTimeout(function () { card.classList.remove('flash'); }, 1300);
-  }
-
-  // 面板事件代理：一次绑定扛住每次 innerHTML 重渲染
-  function otPanelClick(e) {
-    var el = e.target;
-    if (!el || !el.closest) return;
-    var actBtn = el.closest('[data-tact]');
-    if (actBtn) {
-      var tid = actBtn.getAttribute('data-tid');
-      var action = actBtn.getAttribute('data-tact');
-      if (action === 'remove') otRemove(tid);
-      else otCardAction(tid, action);
-      return;
-    }
-    // 窗口推进（v1.0）：两步确认，第一击只武装
-    var adv = el.closest('[data-win-advance]');
-    if (adv) { otAdvance(); return; }
-    // 回执面板折叠：只翻 class 不重渲染（开合态存 otReportFold，推送帧不抢本地意图）
-    var rpt = el.closest('[data-report-toggle]');
-    if (rpt) {
-      otReportFold = !otReportFold;
-      var rp = rpt.closest('.ot-report');
-      if (rp) {
-        rp.classList.toggle('fold', otReportFold);
-        var chev = rpt.querySelector('.chev');
-        if (chev) chev.textContent = otReportFold ? '▸' : '▾';
-      }
-      return;
-    }
-    var prob = el.closest('[data-prob-tid]');
-    if (prob) { otLocate(prob.getAttribute('data-prob-tid')); return; }
-    var pick = el.closest('[data-pick-sid]');
-    if (pick) { otDispatchTo(pick.getAttribute('data-tid'), pick.getAttribute('data-pick-sid')); return; }
-    var acc = el.closest('input[data-caccept]');
-    if (acc) { otToggleAccept(acc); return; }
-    var conv = el.closest('[data-converge]');
-    if (conv) { otConverge(conv.getAttribute('data-converge')); return; }
-    // 开单条（M3）：预览勾选是本地意图不过桥；三个按钮才发桥调用
-    var pcheck = el.closest('input[data-pcheck]');
-    if (pcheck) { otTogglePlan(pcheck); return; }
-    if (el.closest('[data-plan]')) { otPlanPreview(); return; }
-    if (el.closest('[data-plan-commit]')) { otPlanCommit(); return; }
-    if (el.closest('[data-plan-cancel]')) { otPlanCancel(); return; }
-    // 选择器已是非模态小浮层：不挡工作面，只有它自己的 ✕ 负责关闭
-    if (el.closest('.ot-picker .x')) { otClosePicker(); return; }
-  }
-  function otPanelInput(e) {
-    var el = e.target;
-    if (!el || !el.closest) return;
-    var s = el.closest('input[data-csum]');
-    if (s) { otSummary[s.getAttribute('data-csum')] = s.value; return; }
-    // 开单条三个输入进 otPlan 草稿（重渲染不丢字）
-    if (el.closest('input[data-pgoal]')) otPlan.goal = el.value;
-    else if (el.closest('input[data-pagent]')) otPlan.agent = el.value;
-    else if (el.closest('input[data-pcwd]')) otPlan.cwd = el.value;
-  }
-  (function otBindOnce() {
-    var panel = document.getElementById('panelOrch');
-    if (!panel || !window.__worldOrch) return; // bake/无桥形态：M2 交互整段不存在（只读渲染照旧）
-    panel.addEventListener('click', otPanelClick);
-    panel.addEventListener('input', otPanelInput);
-    // 焦点守卫的落地口：焦点彻底离开树（blank 区/其他面板）时，把暂存的推送帧画出来。
-    // 焦点只在树内几个输入框之间挪（relatedTarget 仍在树里）时不落——还在打字。
-    panel.addEventListener('focusout', function (e) {
-      if (!otPendingTree) return;
-      var treeEl = document.getElementById('orchTree');
-      if (treeEl && e.relatedTarget && treeEl.contains(e.relatedTarget)) return;
-      var t = otPendingTree;
-      renderTree(t, { force: true });
-    });
-  })();
-
-  // 依赖连线（dependsOn 边）：DOM 落位后量一次坐标，画静态贝塞尔，不做动画。
-  function layoutTreeWires(t) {
-    var svg = document.getElementById('orchWires');
-    var host = document.getElementById('orchTree');
-    if (!svg || !host || !t) return;
-    var hb = host.getBoundingClientRect();
-    if (!hb.width) return; // panel 还 hidden：等切 tab 时重量
-    function port(id, side) {
-      var card = host.querySelector('.tcard[data-tid="' + id + '"]');
-      if (!card) return null;
-      var b = card.getBoundingClientRect();
-      var x = (side === 'left' ? b.left : b.right) - hb.left + host.scrollLeft;
-      return { x: x, y: b.top - hb.top + host.scrollTop + b.height / 2 };
-    }
-    svg.setAttribute('viewBox', '0 0 ' + host.scrollWidth + ' ' + host.scrollHeight);
-    svg.textContent = '';
-    var ns = 'http://www.w3.org/2000/svg';
-    (t.edges || []).forEach(function (e) {
-      var a = port(e.from, 'right');
-      var b = port(e.to, 'left');
-      if (!a || !b) return;
-      var mx = (a.x + b.x) / 2;
-      var p = document.createElementNS(ns, 'path');
-      p.setAttribute('d', 'M ' + a.x + ' ' + a.y + ' C ' + mx + ' ' + a.y + ' ' + mx + ' ' + b.y + ' ' + b.x + ' ' + b.y);
-      p.setAttribute('fill', 'none');
-      p.setAttribute('stroke', '#2c3442');
-      p.setAttribute('stroke-width', '1.2');
-      svg.appendChild(p);
-    });
-  }
-
-  // 切到 orch tab 时重量一次连线（渲染那刻 panel 可能还藏着的补救）。
-  function relayoutOrchWires() {
-    if (orchTab === 'orch' && lastR && lastR.orch && lastR.orch.tree) layoutTreeWires(lastR.orch.tree);
-  }
-
-  // ④ session log：黑板即日志，最新在下（终端语义），自动滚到底
-  function renderLog(t) {
-    var el = document.getElementById('orchLog');
-    var rows = t.log || [];
-    el.innerHTML = '<div class="lh">SESSION LOG · 黑板即日志</div>' + (rows.length
-      ? rows.map(function (r) {
-          return '<div class="r ' + esc(r.who) + '"><span class="ts">' + otTime(r.at) + '</span>' +
-            '<span class="who">' + esc(r.who) + '</span><span class="tx">' + esc(r.text) + '</span></div>';
-        }).join('')
-      : '<div class="none">黑板还是空的——CLI 开第一张单：npm run world:orch -- plan "…"</div>');
-    el.scrollTop = el.scrollHeight;
-  }
-
-  // ⑤ 状态行
-  function renderStatus(t) {
-    var s = t.status || {};
-    document.getElementById('orchStatus').innerHTML =
-      '<span class="prompt">~/.desktop-world/orch $</span>' +
-      '<span>tickets [<b>' + (s.total || 0) + '</b>]</span>' +
-      '<span>pending [<b>' + (s.pending || 0) + '</b>]</span>' +
-      '<span>active [<b>' + (s.active || 0) + '</b>]</span>' +
-      '<span>inbox [<b>' + (s.inbox || 0) + '</b>]</span>' +
-      '<span class="' + (s.cycles ? 'bad' : '') + '">cycles [<b>' + (s.cycles || 0) + '</b>]</span>' +
-      '<span>jev [<b>' + (s.jev || 0) + '</b>]</span>' +
-      '<span class="cur"></span><span class="prompt">▊</span>';
-  }
-
-  // ---------- 五级窗口协作（v1.0）：数据全部来自 t.roadmapView / t.latestReport ----------
-  // （tree-model 投影自 stage-lead.windowStatus）。渲染层不裁定、不读盘、不存状态机——
-  // 唯一写动作是「推进」两步确认，裁定七道关全在主进程 stage-lead（与 CLI 同一套）。
-
-  // 下一态的显示文案：roadmapView.strip 里按 id 查 label（五态文案的唯一来源是 protocol）
-  function otNextStateLabel(rv) {
-    if (!rv || !rv.nextAllowed) return '';
-    for (var i = 0; i < rv.strip.length; i++) if (rv.strip[i].id === rv.nextAllowed) return rv.strip[i].label;
-    return rv.nextAllowed;
-  }
-
-  // 五态条：走过的格点亮、当前格外描边 + 弥散光；无活跃窗口 → 整条 hidden 不占行
-  function renderWstrip(t) {
-    var el = document.getElementById('orchWstrip');
-    var rv = t && t.roadmapView;
-    if (!rv) { el.hidden = true; el.innerHTML = ''; return; }
-    el.hidden = false;
-    el.innerHTML = '<span class="wttl">窗口五态</span>' + rv.strip.map(function (s, i) {
-      var cls = 'seg ws-' + s.id + (s.reached ? ' reached' : '') + (s.current ? ' current' : '');
-      return (i ? '<span class="sep">›</span>' : '') + '<span class="' + cls + '"><i></i>' + esc(s.label) + '</span>';
-    }).join('') + (rv.milestone ? '<span class="wms">' + esc(rv.milestone) + '</span>' : '');
-  }
-
-  // 窗口卡（JEV 与 spawn 之间）：soleGoal + 关联工单芯片 + 关口行（两步确认推进按钮）。
-  // 无 roadmapView → 空串（一个像素不出）；已到 closed → 关口行换提示，不再给按钮。
-  function otWinHtml(t) {
-    var rv = t && t.roadmapView;
-    if (!rv) return '';
-    var chips = (rv.tickets || []).map(function (tk) {
-      return '<span class="chip s-' + esc(tk.status) + '" title="' + esc(tk.title) + '">' + esc(tk.id) + '</span>';
-    }).join('') || '<span class="chip s-missing">未关联工单</span>';
-    var gate = rv.nextAllowed
-      ? '<span>关口：回执 pass + 人确认</span>' +
-        '<button class="tact ws-adv' + (Date.now() < otWinArmUntil ? ' armed' : '') + '" data-win-advance="1">' +
-        esc('推进 ' + rv.stateLabel + ' → ' + otNextStateLabel(rv)) + '</button>'
-      : '<span>终态——下个任务回 roadmap 开新窗口（cli: roadmap link）</span>';
-    return '<div class="ot-node ot-win ws-' + esc(rv.state) + '">' +
-      '<div class="nh"><span class="who">窗口 · ' + esc(rv.windowId) + '</span><span class="wstate">' + esc(rv.stateLabel) + '</span></div>' +
-      '<div class="goal">' + esc(rv.soleGoal || '（soleGoal 缺失——回执协议要求每态给出唯一目标）') + '</div>' +
-      '<div class="tks">' + chips + '</div>' +
-      '<div class="gate-line">' + gate + '</div></div>';
-  }
-
-  // 回执面板（keeper 栏内）：最近一份 StageReport 的九项边界 ✅/❌ + 证据计数 + 风险/阻断
-  // 判定 + 下一步。折叠只翻 .fold class——开合是本地意图，不进重渲染（推送帧读 otReportFold）。
-  function otReportHtml(rep) {
-    if (!rep) return '';
-    var vcls = rep.verdict === 'pass' ? 'pass' : rep.verdict === 'pass-with-non-blocker' ? 'pwnb'
-      : rep.verdict === 'fail' ? 'fail' : 'blocked';
-    var rows = (rep.checklist || []).map(function (c) {
-      return '<div class="brow"><span class="' + (c.passed ? 'ok">✅' : 'no">❌') + '</span>' +
-        '<span>' + esc(c.id) + '</span>' + (c.note ? '<span class="note">' + esc(c.note) + '</span>' : '') + '</div>';
-    }).join('');
-    var risks = rep.risks || {};
-    var blk = [];
-    if ((risks.blocker || []).length) blk.push('<div class="blk">blocker：' + esc(risks.blocker.join('；')) + '</div>');
-    var bd = rep.blockingDecision || {};
-    if (bd.blocksStageClose === true || bd.blocksNextStage === true) {
-      blk.push('<div class="blk">阻断：' + esc(bd.blocker || '（未说明）') + '</div>');
-    }
-    return '<div class="ot-report' + (otReportFold ? ' fold' : '') + '">' +
-      '<div class="rh" data-report-toggle="1"><span>📋</span>' +
-      '<span class="v ' + vcls + '">' + esc(rep.verdict || '?') + '</span>' +
-      '<span>' + esc(rep.windowId || '') + ' · ' + esc(rep.windowState || '') + '</span>' +
-      '<span class="sp"></span><span class="chev">' + (otReportFold ? '▸' : '▾') + '</span></div>' +
-      '<div class="bd">' + rows +
-      '<div class="meta">证据 ' + (Number(rep.evidenceCount) || 0) + ' 条 · ' + otTime(rep.at) +
-      ((risks.nonBlocker || []).length ? ' · 非阻塞风险 ' + risks.nonBlocker.length : '') + '</div>' +
-      blk.join('') +
-      (rep.recommendedNextStep ? '<div class="nx">→ ' + esc(rep.recommendedNextStep) + '</div>' : '') +
-      '</div></div>';
-  }
-
-  // roadmap 带：阶段 → 子任务五态芯片 + 授权旗标（未授权明说，不装作已开工）。
-  // 无 roadmap 或无阶段 → 整条 hidden。
-  function renderRoad(t) {
-    var el = document.getElementById('orchRoad');
-    var rv = t && t.roadmapView;
-    if (!rv || !rv.stages || !rv.stages.length) { el.hidden = true; el.innerHTML = ''; return; }
-    el.hidden = false;
-    el.innerHTML = '<span class="ms">roadmap · ' + esc(rv.milestone || '未命名') + '</span>' +
-      rv.stages.map(function (s) {
-        return '<span class="stg"><span class="sid">' + esc(s.id) + '</span>' +
-          '<span class="lock' + (s.authorized ? ' ok' : '') + '">' + (s.authorized ? '已授权' : '未授权') + '</span>' +
-          s.subtasks.map(function (u) {
-            return '<span class="sub ws-' + esc(u.state) + (u.active ? ' on' : '') + '" title="' + esc(u.title) + '">' +
-              esc(s.id + '.' + u.id) + '·' + esc(u.stateLabel) + '</span>';
-          }).join('') + '</span>';
-      }).join('');
-  }
-
-  // 推进两步确认：第一击武装 3s（按钮变 armed 亮文），第二击才发 confirm:true。
-  // 武装态存 otWinArmUntil（模块级）——推送帧整树重画不清武装；超时自动回原样。
-  function otAdvance() {
-    var now = Date.now();
-    if (now < otWinArmUntil) {
-      otWinArmUntil = 0;
-      otCall(function () { return window.__worldOrch.advanceWindow({ confirm: true }); });
-      return;
-    }
-    otWinArmUntil = now + 3000;
-    var btn = document.querySelector('#orchTree [data-win-advance]');
-    if (btn) { btn.classList.add('armed'); btn.textContent = '再点一次确认推进'; }
-    setTimeout(function () {
-      if (otWinArmUntil && Date.now() >= otWinArmUntil) {
-        otWinArmUntil = 0;
-        var b2 = document.querySelector('#orchTree [data-win-advance]');
-        if (b2 && lastR && lastR.orch && lastR.orch.tree && lastR.orch.tree.roadmapView) {
-          var rv = lastR.orch.tree.roadmapView;
-          b2.classList.remove('armed');
-          b2.textContent = '推进 ' + rv.stateLabel + ' → ' + otNextStateLabel(rv);
-        }
-      }
-    }, 3100);
+    if (curTab === 'maint') mtOpen();
   }
 
   function render(R) {
@@ -2105,11 +1247,19 @@
     }
   }
 
-  // 工单看板（v0.7）：仅 live 显示，且只有真有工单时才亮 tab。热刷复用上次的 tab，
-  // 不然每 15 分钟刷新会把人正在看的编排视图弹回早报。
+  // 项目学习卡区：仅 live 显示。桥不在也要亮区（空态说明原因），与学习卡片同节奏只拉一次
   if (LIVE) {
-    renderOrch(R.orch);
-    if (orchTab === 'orch' && R.orch && R.orch.active) setTab('orch');
+    document.getElementById('learnSection').hidden = false;
+    if (!learnInit) {
+      learnInit = true;
+      refreshLearnCards();
+    }
+  }
+
+  // tab 栏（删单后剩 早报/维护）：仅 live 显示；编排入口只剩「编」orchestra 台，
+  // 这里不再消费工单数据。热刷复用 curTab，不弹回早报。
+  if (LIVE) {
+    document.getElementById('tabBar').hidden = false;
   }
 
   // 生长条：每个完成会话一株 🌿，进行中 🔆，封顶 14 株（无世界数据时的兜底展示）
@@ -2438,35 +1588,990 @@
     });
   }
 
+  // ---------- 维护 tab（v0.8）----------
+  // 渲染层只发项目路径 / 勾选路径 / 确认指令；扫描、模型调用、归档与写盘全在主进程
+  // maintenance 层。decisions.json 是执行的唯一来源，预览永远是 dry-run。
+  var mtState = {
+    ready: false,
+    loading: false,
+    busy: false,
+    loadedAt: 0,
+    overview: null,
+    projectPath: null,
+    project: null,
+    planError: null,
+    config: null,
+    metrics: null,
+    dirty: { project: false, config: false },
+    preview: { project: null, config: null },
+    scrollToCleanup: false,
+  };
+
+  function mtBridge() { return window.__worldMaintenance || null; }
+
+  function mtMsg(text, kind) {
+    var el = document.getElementById('maintMsg');
+    if (!el) return;
+    el.hidden = !text;
+    el.className = 'mt-msg' + (kind ? ' ' + kind : '');
+    el.textContent = text || '';
+  }
+
+  function mtErr(res) {
+    if (res && res.message) return res.message;
+    if (res && res.problems && res.problems.length) {
+      return res.problems.map(function (p) { return p.reason || p.code || '错误'; }).join('；');
+    }
+    return '操作失败，稍后重试。';
+  }
+
+  function mtTime(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    function p(x) { return (x < 10 ? '0' : '') + x; }
+    return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function mtRange(r) {
+    if (!r || typeof r.low !== 'number' || typeof r.high !== 'number') return '—';
+    return r.low + '–' + r.high + ' 分钟';
+  }
+
+  function mtPct(v) {
+    if (v == null || !isFinite(v)) return '—';
+    return (Number(v) * 100).toFixed(1) + '%';
+  }
+
+  function mtProjectName(path) {
+    var ov = mtState.overview || {};
+    var hit = (ov.projects || []).filter(function (p) { return p.path === path; })[0];
+    return hit ? hit.name : String(path || '').split('/').pop();
+  }
+
+  function mtSetBusy(on, text) {
+    mtState.busy = on;
+    if (on && text) mtMsg(text, '');
+  }
+
+  function mtUpdateBadge() {
+    var badge = document.getElementById('maintBadge');
+    if (!badge) return;
+    var ov = mtState.overview || {};
+    var n = (ov.milestones || []).length;
+    (ov.projects || []).forEach(function (p) {
+      if (p.badge) n += 1;
+      if (p.proposal && p.proposal.status !== 'complete') n += 1;
+    });
+    if (ov.config && ov.config.status && ov.config.status !== 'complete') n += 1;
+    badge.hidden = n <= 0;
+    badge.textContent = n > 0 ? String(n) : '';
+  }
+
+  async function mtLoadOverview(opts) {
+    var b = mtBridge();
+    if (!b || mtState.loading) return;
+    var quiet = Boolean(opts && opts.quiet);
+    mtState.loading = true;
+    if (!quiet) mtMsg('正在读取世界状态…', '');
+    try {
+      var ov = await b.overview();
+      if (!ov || ov.ok !== true) throw new Error(mtErr(ov));
+      var cfg = null;
+      try { cfg = await b.configLoad(); } catch (e) { cfg = { ok: false, message: String(e.message || e) }; }
+      mtState.overview = ov;
+      mtState.metrics = ov.metrics || null;
+      mtState.config = cfg && cfg.ok
+        ? cfg
+        : { ok: false, hasProposal: false, proposal: null, message: mtErr(cfg) };
+      mtState.ready = true;
+      mtState.loadedAt = Date.now();
+      mtRenderProjects();
+      mtRenderConfig();
+      mtRenderMilestones();
+      mtRenderMetrics();
+      mtUpdateBadge();
+
+      var projects = ov.projects || [];
+      var stillThere = mtState.projectPath && projects.some(function (p) { return p.path === mtState.projectPath; });
+      if (!stillThere && projects.length) {
+        await mtSelectProject(projects[0].path, { quiet: true });
+      } else if (stillThere) {
+        await mtSelectProject(mtState.projectPath, { quiet: true });
+      } else {
+        mtState.project = null;
+        mtState.projectPath = null;
+        mtRenderPlan();
+        mtRenderCleanup();
+      }
+      if (!quiet) mtMsg('已读取 ' + projects.length + ' 个注册项目。', 'good');
+    } catch (e) {
+      mtState.ready = false;
+      mtMsg('读取失败：' + String(e.message || e) + '。点右上角「刷新」重试。', 'bad');
+    } finally {
+      mtState.loading = false;
+    }
+  }
+
+  function mtOpen() {
+    if (!LIVE) return;
+    if (!mtBridge()) {
+      mtMsg('维护桥未加载（可能是旧版窗口）。重启动态桌面后再试。', 'bad');
+      return;
+    }
+    if (!mtState.loading && (!mtState.ready || Date.now() - mtState.loadedAt > 60000)) {
+      mtLoadOverview({ quiet: mtState.ready });
+    }
+  }
+
+  // ---- 项目与学习计划 ----
+
+  function mtRenderProjects() {
+    var el = document.getElementById('maintProjects');
+    if (!el) return;
+    var projects = (mtState.overview && mtState.overview.projects) || [];
+    if (!projects.length) {
+      el.innerHTML = '<div class="mt-empty">还没有注册项目。先在终端运行 <b>npm run world:project -- add &lt;path&gt;</b>，再回来刷新。</div>';
+      return;
+    }
+    el.innerHTML = projects.map(function (p) {
+      var badge = p.badge
+        ? '<span class="mt-badge ' + esc(p.badge.tone || 'warn') + '" title="' + esc((p.missing || []).join('、')) + '">' + esc(p.badge.label) + '</span>'
+        : '';
+      var planTxt = p.plan
+        ? '计划 ' + p.plan.cards + ' 张 · ' + mtRange(p.plan.totalMinutes)
+        : '未生成学习计划';
+      var propTxt = p.proposal
+        ? '提案 ' + esc(p.proposal.date) + ' · 确认 ' + ((p.proposal.counts && p.proposal.counts.confirmed) || 0) + (p.proposal.status === 'complete' ? '' : ' · 不完整')
+        : '未生成清理提案';
+      return '<div class="mt-proj' + (p.path === mtState.projectPath ? ' sel' : '') + '" data-mt-project="' + esc(p.path) + '">' +
+        '<span class="nm">' + esc(p.name) + '</span>' + badge +
+        '<span class="pth" title="' + esc(p.path) + '">' + esc(p.path) + '</span>' +
+        '<span class="mt-note">' + esc(planTxt) + ' · ' + esc(propTxt) + '</span>' +
+        '<button class="mt-btn" type="button" data-mt-act="study" data-mt-project="' + esc(p.path) + '">如何学习</button>' +
+        '<button class="mt-btn" type="button" data-mt-act="propose-project" data-mt-project="' + esc(p.path) + '">生成清理提案</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  function mtRenderPlan() {
+    var el = document.getElementById('maintPlan');
+    if (!el) return;
+    var project = mtState.project;
+    if (!project) { el.innerHTML = ''; return; }
+    var plan = project.plan;
+    var err = mtState.planError
+      ? '<div class="mt-empty mt-bad">' + esc(mtState.planError) + ' <button class="mt-btn" type="button" data-mt-act="study" data-mt-project="' + esc(mtState.projectPath) + '">重试</button></div>'
+      : '';
+    if (!plan) {
+      el.innerHTML = err + '<div class="mt-empty">这个项目还没有学习计划。点项目行上的「如何学习」生成：会按前置拓扑排序，给出每张卡与每天的时长区间。</div>';
+      return;
+    }
+    var byId = {};
+    (plan.cards || []).forEach(function (c) { byId[c.id] = c; });
+    var ord = plan.ordering || {};
+    var mode = ord.mode === 'jev'
+      ? 'JEV' + (ord.model ? '（' + esc(ord.model) + '）' : '')
+      : '确定性规则';
+    var head = '<div class="mt-plan-head">' +
+      '共 <b>' + (plan.cards || []).length + '</b> 张 · 总计 <b>' + mtRange(plan.totalMinutes) + '</b> · 排序 ' + mode +
+      ' · 生成于 ' + esc(mtTime(plan.generatedAt)) +
+      ' · 单日上限 ' + (plan.dailyCapMinutes || '—') + ' 分钟</div>';
+    var cards = (plan.cards || []).map(function (c, i) {
+      var pre = (c.prerequisites || []).map(function (id) {
+        return byId[id] ? byId[id].topic : id;
+      }).slice(0, 3);
+      return '<div class="mt-pcard">' +
+        '<span class="idx">' + (i + 1) + '</span>' +
+        '<span class="topic">' + esc(c.topic) + '</span>' +
+        '<span class="pre">前置：' + (pre.length ? esc(pre.join('、')) : '—') + '</span>' +
+        '<span class="min">' + mtRange(c.minutes) + '</span>' +
+        '</div>';
+    }).join('');
+    var days = (plan.days || []).map(function (d) {
+      var topics = (d.cards || []).map(function (id) { return byId[id] ? byId[id].topic : id; });
+      return '第 ' + d.day + ' 天（' + mtRange(d.minutes) + '）：' + esc(topics.join(' → '));
+    }).join('<br>');
+    var diff = plan.diff;
+    var diffHtml = '';
+    if (diff) {
+      var lines = [];
+      (diff.added || []).forEach(function (x) { lines.push('<span class="add">＋新增 ' + esc(x.topic) + '</span>'); });
+      (diff.removed || []).forEach(function (x) { lines.push('<span class="rem">－移除 ' + esc(x.topic) + '</span>'); });
+      (diff.changed || []).forEach(function (x) {
+        lines.push('± 内容变化 ' + esc(x.topic) + '（' + (x.chars ? x.chars.from + ' → ' + x.chars.to + ' 字' : '来源更新') + '）');
+      });
+      (diff.moved || []).forEach(function (x) {
+        lines.push('<span class="mv">↕ 顺序变化 ' + esc(x.topic) + '（第 ' + x.from + ' → 第 ' + x.to + '）</span>');
+      });
+      if (!lines.length) lines.push('与上一版无差异。');
+      diffHtml = '<div class="mt-diff"><b>重新规划差异</b> · 上一版 ' + esc(mtTime(diff.previousGeneratedAt)) + '<br>' + lines.join('<br>') + '</div>';
+    }
+    el.innerHTML = err + head +
+      '<div class="mt-cards">' + cards + '</div>' +
+      (days ? '<div class="mt-days"><b>每日分组</b><br>' + days + '</div>' : '') +
+      diffHtml +
+      '<div class="mt-actions"><button class="mt-btn" type="button" data-mt-act="replan" data-mt-project="' + esc(mtState.projectPath) + '">重新规划</button></div>';
+  }
+
+  async function mtSelectProject(path, opts) {
+    if (!path) return;
+    var b = mtBridge();
+    if (!b) return;
+    mtState.projectPath = path;
+    mtRenderProjects();
+    if (!opts || !opts.quiet) mtMsg('正在读取项目…', '');
+    try {
+      var res = await b.project(path);
+      if (!res || res.ok !== true) {
+        mtState.project = null;
+        mtRenderPlan();
+        mtRenderCleanup();
+        mtMsg('项目读取失败：' + mtErr(res), 'bad');
+        return;
+      }
+      mtState.project = res;
+      mtState.planError = null;
+      mtRenderPlan();
+      mtRenderCleanup();
+      if (!opts || !opts.quiet) mtMsg('已选项目：' + mtProjectName(path), '');
+      if (mtState.scrollToCleanup) {
+        mtState.scrollToCleanup = false;
+        setTimeout(function () {
+          var sec = document.getElementById('mtCleanupSec');
+          if (sec && sec.scrollIntoView) sec.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }, 50);
+      }
+    } catch (e) {
+      mtState.project = null;
+      mtRenderPlan();
+      mtRenderCleanup();
+      mtMsg('项目读取失败：' + String(e.message || e), 'bad');
+    }
+  }
+
+  async function mtStudy(path, force) {
+    var b = mtBridge();
+    if (!b || mtState.busy) return;
+    var projectPath = path || mtState.projectPath;
+    if (!projectPath) { mtMsg('先选一个项目。', 'warn'); return; }
+    if (projectPath !== mtState.projectPath) await mtSelectProject(projectPath, { quiet: true });
+    if (!force && mtState.project && mtState.project.plan) {
+      mtRenderPlan();
+      mtMsg('已加载最近一次学习计划；点「重新规划」生成新版并显示与上一版的差异。', '');
+      var sec = document.getElementById('mtProjectsSec');
+      if (sec && sec.scrollIntoView) sec.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      return;
+    }
+    mtSetBusy(true, '正在生成学习计划…（同层排序可能调用 JEV；不会写项目文件）');
+    try {
+      var res = await b.plan(projectPath);
+      if (!res || res.ok !== true) {
+        mtState.planError = mtErr(res);
+        mtRenderPlan();
+        mtMsg('学习计划未生成：' + mtErr(res), 'bad');
+        return;
+      }
+      mtState.planError = null;
+      mtState.project = mtState.project || { ok: true, projectPath: projectPath, plan: null, proposal: null };
+      mtState.project.plan = res.plan;
+      var ov = mtState.overview;
+      if (ov) {
+        (ov.projects || []).forEach(function (p) {
+          if (p.path === projectPath) {
+            p.plan = {
+              generatedAt: res.plan.generatedAt,
+              cards: (res.plan.cards || []).length,
+              totalMinutes: res.plan.totalMinutes,
+            };
+          }
+        });
+      }
+      mtRenderProjects();
+      mtRenderPlan();
+      mtMsg('学习计划已生成：' + (res.plan.cards || []).length + ' 张 · ' + mtRange(res.totalMinutes || res.plan.totalMinutes) +
+        (res.diff ? ' · 下方已标出与上一版的差异' : ''), 'good');
+    } catch (e) {
+      mtState.planError = String(e.message || e);
+      mtRenderPlan();
+      mtMsg('学习计划未生成：' + mtState.planError, 'bad');
+    } finally {
+      mtSetBusy(false);
+    }
+  }
+
+  // ---- 清理 / 配置：三桶审批面板 ----
+
+  function mtProposalData(scope) {
+    if (scope === 'config') {
+      var c = mtState.config;
+      if (!c || !c.hasProposal || !c.proposal) return null;
+      return { proposal: c.proposal, decisions: c.decisions, receipt: c.receipt, date: c.date, kind: 'config' };
+    }
+    var p = mtState.project && mtState.project.proposal;
+    if (!p || !p.proposal) return null;
+    return { proposal: p.proposal, decisions: p.decisions, receipt: p.receipt, date: p.date, kind: 'project' };
+  }
+
+  function mtSelectedSet(data) {
+    var set = {};
+    if (!data || !data.decisions || !Array.isArray(data.decisions.items)) return set;
+    data.decisions.items.forEach(function (i) {
+      if (i.action === 'delete') set[i.path] = true;
+    });
+    return set;
+  }
+
+  function mtItemHtml(scope, bucket, item, selectable, selectedSet) {
+    var box = selectable
+      ? '<input class="mt-check" type="checkbox" data-mt-check="' + scope + '" data-mt-bucket="' + bucket + '" value="' + esc(item.path) + '"' +
+        (selectedSet[item.path] ? ' checked' : '') + '>'
+      : '<span class="mt-check" style="visibility:hidden"></span>';
+    var meta = [];
+    if (item.category) meta.push(item.category);
+    if (item.kind) meta.push(item.kind);
+    if (item.risk) meta.push('风险 ' + item.risk);
+    if (item.tracked) meta.push('git 已跟踪');
+    if (item.size) meta.push(item.size + ' B');
+    if (item.archiveTo) meta.push('归档 ' + item.archiveTo);
+    var ev = [];
+    (item.evidenceLines || []).forEach(function (line) { ev.push('<div>· ' + esc(line) + '</div>'); });
+    if (item.jev && item.jev.reason) ev.push('<div>JEV：' + esc(item.jev.reason) + '</div>');
+    if (item.glm && item.glm.evidence) ev.push('<div>GLM：' + esc(item.glm.evidence) + '</div>');
+    if (item.bucketReason) ev.push('<div>结论：' + esc(item.bucketReason) + '</div>');
+    if (item.entries && item.entries.length) {
+      item.entries.slice(0, 10).forEach(function (entry) {
+        ev.push('<div>待移除索引：' + esc(entry.target || entry.line || '') + '</div>');
+      });
+    }
+    return '<div class="mt-item">' +
+      '<label class="mt-row">' + box +
+        '<span class="mt-main"><span class="path">' + esc(item.path) + '</span>' +
+        '<span class="meta">' + esc(meta.join(' · ')) + '</span></span>' +
+      '</label>' +
+      '<details class="mt-ev"><summary>证据与结论</summary><div class="ev">' + (ev.length ? ev.join('') : '<div>无额外证据</div>') + '</div></details>' +
+      '</div>';
+  }
+
+  function mtBucketsHtml(scope, data) {
+    var proposal = data.proposal;
+    var selectable = (proposal.policy && Array.isArray(proposal.policy.selectableBuckets))
+      ? proposal.policy.selectableBuckets
+      : ['confirmed'];
+    var selectedSet = mtSelectedSet(data);
+    var titles = { confirmed: '确认删除', pending: '待定', keep: '保留' };
+    var html = ['confirmed', 'pending', 'keep'].map(function (bucket) {
+      var items = (proposal.buckets && proposal.buckets[bucket]) || [];
+      var can = selectable.indexOf(bucket) >= 0;
+      var selected = items.filter(function (i) { return selectedSet[i.path]; }).length;
+      var head = '<div class="bh">' + titles[bucket] +
+        '<span class="n" data-mt-count="' + scope + ':' + bucket + '">' + selected + '/' + items.length + '</span>' +
+        (can && items.length ? '<input class="mt-check" type="checkbox" data-mt-all="' + scope + ':' + bucket + '" title="全选本桶">' : '') +
+        '</div>';
+      var list = items.length
+        ? items.map(function (item) { return mtItemHtml(scope, bucket, item, can, selectedSet); }).join('')
+        : '<div class="mt-empty">无</div>';
+      return '<div class="mt-bucket ' + bucket + '">' + head + '<div class="bl">' + list + '</div></div>';
+    }).join('');
+    return '<div class="mt-buckets">' + html + '</div>';
+  }
+
+  function mtActionsHtml(scope, data) {
+    var hasDecisions = Boolean(data.decisions);
+    var dirty = mtState.dirty[scope];
+    var canPreview = hasDecisions && !dirty;
+    var receipt = data.receipt;
+    return '<div class="mt-actions">' +
+      '<button class="mt-btn" type="button" data-mt-act="decide" data-mt-scope="' + scope + '">写入勾选</button>' +
+      '<button class="mt-btn" type="button" data-mt-act="select-all" data-mt-scope="' + scope + '">全选确认删除</button>' +
+      '<button class="mt-btn primary" type="button" data-mt-act="preview" data-mt-scope="' + scope + '"' + (canPreview ? '' : ' disabled') + '>预演删除（dry-run）</button>' +
+      (receipt ? '<button class="mt-btn" type="button" data-mt-act="restore" data-mt-scope="' + scope + '">恢复最近一次</button>' : '') +
+      '</div>' +
+      '<div class="mt-note">' + (hasDecisions ? 'decisions.json 已写入（' + esc(mtTime(data.decisions.createdAt)) + '）' : '还没有 decisions.json；勾选后先写入决策。') +
+      ' 执行只会处理 decisions.json 中 action=delete 的条目。</div>' +
+      '<div class="mt-preview" id="mtPreviewBox-' + scope + '"' + (mtState.preview[scope] ? '' : ' hidden') + '></div>';
+  }
+
+  function mtRenderCleanup() { mtRenderPanel('project'); }
+  function mtRenderConfig() { mtRenderPanel('config'); }
+
+  function mtRenderPanel(scope) {    var el = document.getElementById(scope === 'config' ? 'maintConfig' : 'maintCleanup');
+    if (!el) return;
+    var data = mtProposalData(scope);
+    if (!data) {
+      if (scope === 'config') {
+        var c = mtState.config;
+        var cm = c && c.message ? c.message : '';
+        el.innerHTML = (cm ? '<div class="mt-empty mt-bad">' + esc(cm) + '</div>' : '') +
+          '<div class="mt-empty">还没有配置审计提案。审计只读记忆层/技能/索引的元数据，不读 settings、session 正文或密钥。</div>' +
+          '<div class="mt-actions"><button class="mt-btn primary" type="button" data-mt-act="propose-config">生成配置审计</button></div>';
+      } else {
+        el.innerHTML =
+          '<div class="mt-empty">还没有项目清理提案。生成需要 JEV 可用：第一轮 JEV 挑候选与风险，第二轮 GLM 在临时 worktree 复核；两轮都 delete 才进入确认桶。' +
+          (mtState.projectPath ? '' : '先选一个项目。') + '</div>' +
+          '<div class="mt-actions"><button class="mt-btn primary" type="button" data-mt-act="propose-project" data-mt-project="' + esc(mtState.projectPath || '') + '"' +
+          (mtState.projectPath ? '' : ' disabled') + '>生成清理提案</button></div>';
+      }
+      return;
+    }
+    var p = data.proposal;
+    var counts = p.counts || {};
+    var incomplete = p.status !== 'complete';
+    var rounds = p.rounds || {};
+    var roundTxt = scope === 'config'
+      ? '本地确定性审计 · 未调用模型'
+      : 'JEV ' + (rounds.jev && rounds.jev.ok ? '✓' : '✗') + ' · GLM ' + (rounds.glm && rounds.glm.ok ? '✓' : '✗');
+    var audit = p.audit;
+    var auditTxt = '';
+    if (scope === 'config' && audit) {
+      var mem = audit.memory && audit.memory.layers ? audit.memory.layers : {};
+      var sk = audit.skills || {};
+      var ix = audit.indexes || {};
+      var se = audit.sessions || {};
+      auditTxt = '<div class="mt-note">身份 ' + ((mem.identity && mem.identity.count) || 0) + '/' + ((mem.identity && mem.identity.limit) || '—') +
+        ' · 工作流 ' + ((mem.workflow && mem.workflow.count) || 0) + '/' + ((mem.workflow && mem.workflow.limit) || '—') +
+        ' · 项目事实 ' + ((mem.project && mem.project.count) || 0) + '/' + ((audit.memory && audit.memory.ttlDays) || '—') + ' 天' +
+        ' · 技能 ' + (sk.uniqueCount || 0) + '/' + (sk.limit || '—') +
+        ' · 悬空索引 ' + (ix.danglingEntries || 0) + ' · 超 30 天 session ' + (se.oldCount || 0) + '</div>';
+    }
+    el.innerHTML =
+      '<div class="mt-counts">' +
+        '<span>' + esc(data.date || '') + '</span>' +
+        '<span>状态 ' + esc(p.status || '—') + '</span>' +
+        '<span>候选 ' + (p.totalCandidates || 0) + '</span>' +
+        '<span>确认 ' + (counts.confirmed || 0) + '</span>' +
+        '<span>待定 ' + (counts.pending || 0) + '</span>' +
+        '<span>保留 ' + (counts.keep || 0) + '</span>' +
+      '</div>' +
+      '<div class="mt-note">' + esc(roundTxt) +
+        (incomplete ? ' · <span class="mt-warn">提案不完整，不能执行删除</span>' : '') + '</div>' +
+      auditTxt +
+      mtBucketsHtml(scope, data) +
+      (incomplete ? '' : mtActionsHtml(scope, data));
+    mtRenderPreview(scope);
+  }
+
+  function mtRenderPreview(scope) {
+    var box = document.getElementById('mtPreviewBox-' + scope);
+    if (!box) return;
+    var result = mtState.preview[scope];
+    if (!result) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.hidden = false;
+    var rows = (result.preview || []).slice(0, 200).map(function (row) {
+      return '<div class="row"><b>' + esc(row.path) + '</b><span>' + esc(row.action || '') + '</span>' +
+        '<span>' + esc(row.destination || row.archiveTo || '') + '</span>' +
+        (row.valid === false ? '<span class="mt-bad">路径无效</span>' : '') + '</div>';
+    }).join('');
+    box.innerHTML = '<div class="mt-note">dry-run：没有删除任何文件。可恢复至 ' + esc(result.recoverableUntil || '—') + '</div>' +
+      (rows || '<div class="mt-empty">没有可执行条目。</div>') +
+      (result.preview && result.preview.length > 200 ? '<div class="mt-note">仅显示前 200 条，共 ' + result.preview.length + ' 条。</div>' : '') +
+      '<div class="mt-actions"><button class="mt-btn danger" type="button" data-mt-act="execute" data-mt-scope="' + scope + '"' +
+      (mtState.dirty[scope] ? ' disabled' : '') + '>确认执行（先归档，可恢复）</button></div>';
+  }
+
+  function mtUpdateCounts(scope) {
+    var panel = document.getElementById('panelMaint');
+    if (!panel) return;
+    ['confirmed', 'pending', 'keep'].forEach(function (bucket) {
+      var boxes = panel.querySelectorAll('input[data-mt-check="' + scope + '"][data-mt-bucket="' + bucket + '"]');
+      var checked = 0;
+      for (var i = 0; i < boxes.length; i += 1) if (boxes[i].checked) checked += 1;
+      var el = panel.querySelector('[data-mt-count="' + scope + ':' + bucket + '"]');
+      if (el) el.textContent = checked + '/' + boxes.length;
+      var all = panel.querySelector('input[data-mt-all="' + scope + ':' + bucket + '"]');
+      if (all) {
+        all.checked = boxes.length > 0 && checked === boxes.length;
+        all.indeterminate = checked > 0 && checked < boxes.length;
+      }
+    });
+  }
+
+  function mtSelectionChanged(scope) {
+    mtState.dirty[scope] = true;
+    mtState.preview[scope] = null;
+    mtUpdateCounts(scope);
+    var box = document.getElementById('mtPreviewBox-' + scope);
+    if (box) {
+      box.hidden = false;
+      box.innerHTML = '<div class="mt-note mt-warn">勾选已变化：先「写入勾选」，再重新预演删除。</div>';
+    }
+    var previewBtn = document.querySelector('#panelMaint button[data-mt-act="preview"][data-mt-scope="' + scope + '"]');
+    if (previewBtn) previewBtn.disabled = true;
+  }
+
+  function mtRefreshProjectSummary(projectPath, loaded) {
+    var ov = mtState.overview;
+    if (!ov) return;
+    (ov.projects || []).forEach(function (p) {
+      if (p.path !== projectPath) return;
+      p.plan = loaded.plan
+        ? { generatedAt: loaded.plan.generatedAt, cards: (loaded.plan.cards || []).length, totalMinutes: loaded.plan.totalMinutes }
+        : null;
+      p.proposal = loaded.proposal
+        ? {
+          dir: loaded.proposal.dir,
+          date: loaded.proposal.date,
+          proposalId: loaded.proposal.proposal.proposalId,
+          status: loaded.proposal.proposal.status,
+          counts: loaded.proposal.proposal.counts,
+          kind: loaded.proposal.proposal.kind || 'project',
+        }
+        : null;
+    });
+    mtRenderProjects();
+    mtUpdateBadge();
+  }
+
+  async function mtReloadProject(quiet) {
+    if (!mtState.projectPath) return;
+    var b = mtBridge();
+    if (!b) return;
+    var res = await b.project(mtState.projectPath);
+    if (res && res.ok) {
+      mtState.project = res;
+      mtState.planError = null;
+      mtRefreshProjectSummary(mtState.projectPath, res);
+      mtRenderPlan();
+      mtRenderCleanup();
+      if (!quiet) mtMsg('已刷新项目状态。', 'good');
+    }
+  }
+
+  async function mtReloadConfig(quiet) {
+    var b = mtBridge();
+    if (!b) return;
+    var cfg = await b.configLoad();
+    mtState.config = cfg && cfg.ok ? cfg : { ok: false, hasProposal: false, proposal: null, message: mtErr(cfg) };
+    if (mtState.overview) {
+      mtState.overview.config = mtState.config.hasProposal
+        ? {
+          date: mtState.config.date,
+          proposalId: mtState.config.proposal.proposalId,
+          status: mtState.config.proposal.status,
+          counts: mtState.config.proposal.counts,
+          totalCandidates: mtState.config.proposal.totalCandidates,
+          hasDecisions: Boolean(mtState.config.decisions),
+          hasReceipt: Boolean(mtState.config.receipt),
+        }
+        : null;
+    }
+    mtRenderConfig();
+    mtUpdateBadge();
+    if (!quiet) mtMsg('已刷新配置状态。', 'good');
+  }
+
+  async function mtProposeProject(path) {
+    var b = mtBridge();
+    if (!b || mtState.busy) return;
+    var projectPath = path || mtState.projectPath;
+    if (!projectPath) { mtMsg('先选一个项目。', 'warn'); return; }
+    if (projectPath !== mtState.projectPath) await mtSelectProject(projectPath, { quiet: true });
+    mtSetBusy(true, '正在生成清理提案：JEV 第一轮 + GLM 第二轮，不会删除任何文件…');
+    try {
+      var res = await b.propose(projectPath);
+      if (!res || res.ok !== true) {
+        mtMsg('提案未生成：' + mtErr(res), 'bad');
+        return;
+      }
+      if (res.empty) {
+        mtMsg(res.message || '扫描没有候选；14 天保护期内或没有可清理文件。', 'warn');
+        return;
+      }
+      await mtReloadProject(true);
+      mtState.dirty.project = false;
+      mtState.preview.project = null;
+      mtRenderCleanup();
+      var c = res.proposal && res.proposal.counts ? res.proposal.counts : {};
+      mtMsg('提案已生成：确认 ' + (c.confirmed || 0) + ' · 待定 ' + (c.pending || 0) + ' · 保留 ' + (c.keep || 0) +
+        '。下一步：勾选 → 写入决策 → 预演删除。' + (res.incomplete ? ' 第二轮 GLM 不可用，提案不完整、不能执行。' : ''),
+        res.incomplete ? 'warn' : 'good');
+    } catch (e) {
+      mtMsg('提案未生成：' + String(e.message || e), 'bad');
+    } finally {
+      mtSetBusy(false);
+    }
+  }
+
+  async function mtProposeConfig() {
+    var b = mtBridge();
+    if (!b || mtState.busy) return;
+    mtSetBusy(true, '正在审计配置层：只读元数据，不读 settings / session 正文 / 密钥…');
+    try {
+      var res = await b.configPropose();
+      if (!res || res.ok !== true) {
+        mtMsg('配置审计失败：' + mtErr(res), 'bad');
+        return;
+      }
+      await mtReloadConfig(true);
+      mtState.dirty.config = false;
+      mtState.preview.config = null;
+      mtRenderConfig();
+      var c = res.proposal && res.proposal.counts ? res.proposal.counts : {};
+      mtMsg('配置提案已生成：确认 ' + (c.confirmed || 0) + ' · 待定 ' + (c.pending || 0) + '。确认桶与待定桶都可勾选；删除前会先归档。', 'good');
+    } catch (e) {
+      mtMsg('配置审计失败：' + String(e.message || e), 'bad');
+    } finally {
+      mtSetBusy(false);
+    }
+  }
+
+  function mtSelectedPaths(scope) {
+    var panel = document.getElementById('panelMaint');
+    if (!panel) return [];
+    var boxes = panel.querySelectorAll('input[data-mt-check="' + scope + '"]:checked');
+    var out = [];
+    for (var i = 0; i < boxes.length; i += 1) out.push(boxes[i].value);
+    return out;
+  }
+
+  async function mtDecide(scope, selectAll) {
+    var b = mtBridge();
+    if (!b || mtState.busy) return;
+    var paths = selectAll ? [] : mtSelectedPaths(scope);
+    if (!selectAll && !paths.length) {
+      mtMsg('没有勾选任何文件。勾选后写决策，或点「全选确认删除」。', 'warn');
+      return;
+    }
+    mtSetBusy(true, selectAll ? '正在把全部可执行条目写入 decisions.json…' : '正在写入 decisions.json…');
+    try {
+      var res;
+      if (scope === 'config') res = await b.configDecide(paths, Boolean(selectAll));
+      else res = await b.decide(mtState.projectPath, paths, Boolean(selectAll));
+      if (!res || res.ok !== true) {
+        mtMsg('决策未写入：' + mtErr(res), 'bad');
+        return;
+      }
+      mtState.dirty[scope] = false;
+      mtState.preview[scope] = null;
+      if (scope === 'config') {
+        if (mtState.config) mtState.config.decisions = res.decisions;
+        mtRenderConfig();
+      } else {
+        if (mtState.project && mtState.project.proposal) mtState.project.proposal.decisions = res.decisions;
+        mtRenderCleanup();
+      }
+      mtMsg('已写入 decisions.json：选中 ' + res.decisions.selectedCount + ' 项。下一步点「预演删除」看 dry-run。', 'good');
+    } catch (e) {
+      mtMsg('决策未写入：' + String(e.message || e), 'bad');
+    } finally {
+      mtSetBusy(false);
+    }
+  }
+
+  async function mtPreview(scope) {
+    var b = mtBridge();
+    if (!b || mtState.busy) return;
+    if (mtState.dirty[scope]) {
+      mtMsg('勾选已变化，先把勾选写入 decisions.json，再预演。', 'warn');
+      return;
+    }
+    mtSetBusy(true, '正在 dry-run：只计算将删除/移动的条目，不动文件…');
+    try {
+      var res = scope === 'config'
+        ? await b.configPreview()
+        : await b.preview(mtState.projectPath);
+      if (!res || res.ok !== true) {
+        mtMsg('预演失败：' + mtErr(res), 'bad');
+        return;
+      }
+      mtState.preview[scope] = res;
+      mtRenderPreview(scope);
+      mtMsg(res.deleteCount > 0
+        ? '预演完成：将处理 ' + res.deleteCount + ' 项，尚未删除任何文件。确认无误后点「确认执行」。'
+        : '预演完成：没有可执行条目（可能都未勾选或已被移除）。', res.deleteCount > 0 ? 'good' : 'warn');
+    } catch (e) {
+      mtMsg('预演失败：' + String(e.message || e), 'bad');
+    } finally {
+      mtSetBusy(false);
+    }
+  }
+
+  // 危险动作两步确认：第一次点击武装 4 秒并换文案，
+  // 4 秒内再点才执行；不用阻塞式确认框。
+  var mtArmed = { project: {}, config: {} };
+
+  function mtArm(scope, act, btn) {
+    var until = (mtArmed[scope] && mtArmed[scope][act]) || 0;
+    if (Date.now() <= until) {
+      mtArmed[scope][act] = 0;
+      return true;
+    }
+    if (!mtArmed[scope]) mtArmed[scope] = {};
+    mtArmed[scope][act] = Date.now() + 4000;
+    if (btn) {
+      if (!btn.getAttribute('data-mt-label')) btn.setAttribute('data-mt-label', btn.textContent);
+      btn.textContent = act === 'restore' ? '再点一次确认恢复' : '再点一次确认执行';
+      setTimeout(function () {
+        mtArmed[scope][act] = 0;
+        var orig = btn.getAttribute('data-mt-label');
+        if (orig && btn.isConnected) btn.textContent = orig;
+      }, 4000);
+    }
+    return false;
+  }
+
+  async function mtExecute(scope, btn) {
+    var b = mtBridge();
+    if (!b || mtState.busy) return;
+    if (mtState.dirty[scope]) {
+      mtMsg('勾选已变化：重新写入决策并预演后才能执行。', 'warn');
+      return;
+    }
+    if (!mtState.preview[scope]) {
+      mtMsg('先预演一次 dry-run，再确认执行。', 'warn');
+      return;
+    }
+    if (!mtArm(scope, 'execute', btn)) {
+      mtMsg(scope === 'config'
+        ? '再点一次确认执行：配置会先归档，30 天内可恢复。'
+        : '再点一次确认执行：未跟踪文件移到 .trash/，已跟踪文件在专用分支上 git rm，30 天内可恢复。', 'warn');
+      return;
+    }
+    mtSetBusy(true, '正在执行：逐项归档/移动并写回执…');
+    try {
+      var res = scope === 'config'
+        ? await b.configExecute()
+        : await b.execute(mtState.projectPath);
+      if (!res || res.ok !== true) {
+        mtMsg('执行失败：' + mtErr(res), 'bad');
+        return;
+      }
+      mtState.preview[scope] = null;
+      if (scope === 'config') {
+        mtState.dirty.config = false;
+        await mtReloadConfig(true);
+      } else {
+        mtState.dirty.project = false;
+        await mtReloadProject(true);
+      }
+      await mtLoadOverview({ quiet: true });
+      var detail = scope === 'config'
+        ? '归档删除 ' + (res.archivedDeleted || 0) + ' · 失败 ' + (res.failed || 0) + ' · 未找到 ' + (res.notFound || 0)
+        : '删除 ' + (res.removed || 0) + ' · 移动 ' + (res.moved || 0) + ' · 失败 ' + (res.failed || 0) + ' · 未找到 ' + (res.notFound || 0);
+      mtMsg(res.noop ? '没有可执行条目，未做任何改动。' : '执行完成：' + detail + '。回执：' + (res.receiptPath || '—') + '（可恢复）',
+        res.noop ? 'warn' : 'good');
+    } catch (e) {
+      mtMsg('执行失败：' + String(e.message || e), 'bad');
+    } finally {
+      mtSetBusy(false);
+    }
+  }
+
+  async function mtRestore(scope, btn) {
+    var b = mtBridge();
+    if (!b || mtState.busy) return;
+    if (!mtArm(scope, 'restore', btn)) {
+      mtMsg('再点一次确认恢复：会把回执里的条目放回原位置。', 'warn');
+      return;
+    }
+    mtSetBusy(true, '正在恢复…');
+    try {
+      var res = scope === 'config'
+        ? await b.configRestore()
+        : await b.restore(mtState.projectPath);
+      if (!res || res.ok !== true) {
+        mtMsg('恢复失败：' + mtErr(res), 'bad');
+        return;
+      }
+      if (scope === 'config') {
+        mtState.dirty.config = false;
+        await mtReloadConfig(true);
+      } else {
+        mtState.dirty.project = false;
+        await mtReloadProject(true);
+      }
+      await mtLoadOverview({ quiet: true });
+      mtMsg('已恢复 ' + ((res.restored && res.restored.length) || 0) + ' 项。', 'good');
+    } catch (e) {
+      mtMsg('恢复失败：' + String(e.message || e), 'bad');
+    } finally {
+      mtSetBusy(false);
+    }
+  }
+
+  // ---- 里程碑提示 ----
+
+  function mtRenderMilestones() {
+    var el = document.getElementById('maintMilestones');
+    if (!el) return;
+    var list = (mtState.overview && mtState.overview.milestones) || [];
+    if (!list.length) {
+      el.innerHTML = '<div class="mt-empty">没有待处理的清理提示。阶段或里程碑全部关闭后会自动出现在这里。</div>';
+      return;
+    }
+    el.innerHTML = list.map(function (p) {
+      var nav = p.navigate || {};
+      var openBtn = nav.projectPath
+        ? '<button class="mt-btn primary" type="button" data-mt-act="milestone-open" data-mt-project="' + esc(nav.projectPath) + '" data-mt-key="' + esc(p.key) + '">打开项目清理</button>'
+        : '<span class="mt-note">未关联项目，先手动选择项目。</span>';
+      return '<div class="mt-prompt">' +
+        '<div class="msg">' + esc(p.message || '到点清理提醒') + '</div>' +
+        '<div class="meta">' + esc(p.kind === 'milestone' ? '里程碑' : '阶段') + ' · ' + esc(mtTime(p.at)) +
+        ' · ' + esc(nav.projectPath || '未关联项目') + '</div>' +
+        '<div class="mt-actions">' + openBtn +
+        '<button class="mt-btn" type="button" data-mt-act="ack" data-mt-key="' + esc(p.key) + '">知道了</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  async function mtOpenMilestone(btn) {
+    var projectPath = btn.getAttribute('data-mt-project');
+    var key = btn.getAttribute('data-mt-key');
+    if (!projectPath) { mtMsg('这条提示没有关联项目。', 'warn'); return; }
+    mtState.scrollToCleanup = true;
+    await mtSelectProject(projectPath, { quiet: true });
+    if (key) {
+      var b = mtBridge();
+      if (b) {
+        try {
+          var res = await b.ack(key);
+          if (res && res.ok) {
+            var ov = mtState.overview;
+            if (ov) ov.milestones = (ov.milestones || []).filter(function (p) { return p.key !== key; });
+            mtRenderMilestones();
+            mtUpdateBadge();
+          }
+        } catch (e) {
+          // 提示已打开，确认失败不影响导航；错误上墙
+          mtMsg('提示已打开，但确认失败：' + String(e.message || e), 'warn');
+        }
+      }
+    }
+  }
+
+  async function mtAck(key) {
+    var b = mtBridge();
+    if (!b || !key) return;
+    try {
+      var res = await b.ack(key);
+      if (!res || !res.ok) { mtMsg('确认失败：' + mtErr(res), 'bad'); return; }
+      var ov = mtState.overview;
+      if (ov) ov.milestones = (ov.milestones || []).filter(function (p) { return p.key !== key; });
+      mtRenderMilestones();
+      mtUpdateBadge();
+      mtMsg('提示已确认（账本保留，仍可审计）。', 'good');
+    } catch (e) {
+      mtMsg('确认失败：' + String(e.message || e), 'bad');
+    }
+  }
+
+  // ---- 指标 ----
+
+  function mtRenderMetrics() {
+    var el = document.getElementById('maintMetrics');
+    if (!el) return;
+    var report = mtState.metrics;
+    if (!report) { el.innerHTML = '<div class="mt-empty">指标读取失败；点「刷新」重试。</div>'; return; }
+    var m = report.metrics || {};
+    var rep = m.repetition || {};
+    var cfg = m.config || {};
+    var cl = m.cleanup || {};
+    var latest = cfg.latest;
+    var top = (rep.topSubjects || []).slice(0, 3).map(function (s) { return s.subject + ' ×' + s.count; }).join(' · ');
+    var cfgLines = latest
+      ? ['悬空索引 ' + latest.dangling + '（目标 0）', '重复技能 ' + latest.duplicates + '（目标 0）', '超预算层 ' + latest.overBudget + ' · 技能 ' + latest.skillsUnique]
+      : ['尚无审计快照'];
+    el.innerHTML =
+      '<div class="mt-metrics">' +
+        '<div class="mt-metric"><div class="n">' + (rep.events || 0) + '</div><div class="l">重复解释 / 纠正（' + (rep.repeatedSubjects || 0) + ' 个主题 ≥2 次）</div>' +
+          '<ul>' + (top ? '<li>' + esc(top) + '</li>' : '<li>本周期无记录</li>') + '</ul></div>' +
+        '<div class="mt-metric"><div class="n">' + (latest ? (latest.dangling + latest.duplicates) : '—') + '</div><div class="l">配置健康：悬空 + 重复（目标 0）</div>' +
+          '<ul>' + cfgLines.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+        '<div class="mt-metric"><div class="n">' + (cl.confirmedDeletes || 0) + '</div><div class="l">确认删除 · 采纳率 ' + mtPct(cl.adoptionRate) + '</div>' +
+          '<ul><li>误删率 ' + mtPct(cl.falseDeleteRate) + ' · 恢复 ' + (cl.restores || 0) + ' 项</li><li>提案 ' + (cl.proposals || 0) + ' · 执行 ' + (cl.executes || 0) + '</li></ul></div>' +
+      '</div>' +
+      '<div class="mt-note">窗口 ' + esc(report.sinceLabel || '') + ' → ' + esc(report.untilLabel || '') + '（' + (report.windowDays || 0) + ' 天）· 报告只读事件日志，不含原文或密钥。</div>' +
+      (report.hasData ? '' : '<div class="mt-empty">本周期还没有事件；运行清理或记录解释/纠正后会开始积累。</div>');
+  }
+
+  // ---- 事件绑定 ----
+
+  function mtAct(btn) {
+    var act = btn.getAttribute('data-mt-act');
+    var scope = btn.getAttribute('data-mt-scope');
+    var projectPath = btn.getAttribute('data-mt-project') || mtState.projectPath;
+    if (mtState.busy && act !== 'refresh') {
+      mtMsg('上一项操作还在进行，等它结束再操作。', 'warn');
+      return;
+    }
+    if (act === 'refresh') mtLoadOverview();
+    else if (act === 'study') mtStudy(projectPath, false);
+    else if (act === 'replan') mtStudy(projectPath, true);
+    else if (act === 'propose-project') mtProposeProject(projectPath);
+    else if (act === 'propose-config') mtProposeConfig();
+    else if (act === 'decide') mtDecide(scope, false);
+    else if (act === 'select-all') mtDecide(scope, true);
+    else if (act === 'preview') mtPreview(scope);
+    else if (act === 'execute') mtExecute(scope, btn);
+    else if (act === 'restore') mtRestore(scope, btn);
+    else if (act === 'ack') mtAck(btn.getAttribute('data-mt-key'));
+    else if (act === 'milestone-open') mtOpenMilestone(btn);
+  }
+
+  function mtBind() {
+    var panel = document.getElementById('panelMaint');
+    if (!panel) return;
+    panel.addEventListener('click', function (e) {
+      var actEl = e.target.closest ? e.target.closest('[data-mt-act]') : null;
+      if (actEl) {
+        e.preventDefault();
+        mtAct(actEl);
+        return;
+      }
+      var row = e.target.closest ? e.target.closest('[data-mt-project]') : null;
+      if (row && !(e.target.closest && e.target.closest('button'))) {
+        mtSelectProject(row.getAttribute('data-mt-project'), {});
+      }
+    });
+    panel.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t) return;
+      if (t.getAttribute && t.getAttribute('data-mt-all')) {
+        var parts = String(t.getAttribute('data-mt-all')).split(':');
+        var scope = parts[0];
+        var bucket = parts[1];
+        var panelEl = document.getElementById('panelMaint');
+        var boxes = panelEl.querySelectorAll('input[data-mt-check="' + scope + '"][data-mt-bucket="' + bucket + '"]');
+        for (var i = 0; i < boxes.length; i += 1) boxes[i].checked = t.checked;
+        mtSelectionChanged(scope);
+        return;
+      }
+      if (t.getAttribute && t.getAttribute('data-mt-check')) {
+        mtSelectionChanged(t.getAttribute('data-mt-check'));
+      }
+    });
+  }
+
+  mtBind();
+
   render(window.__REPORT__ || {});
   window.__worldRender = render; // live 桌面模式的热刷新入口
 
-  // ---------- tab 交互（v0.7）----------
-  // tab 栏与工单看板只在 live 组件存在；bake 形态的 tabBar 保持 hidden。
+  // ---------- tab 交互（早报 / 编 / 维护）----------
+  // tab 栏只在 live 组件存在；bake 形态的 tabBar 由 body.bake 规则硬关。
   var tabBar = document.getElementById('tabBar');
   if (tabBar) {
     tabBar.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('.tab') : null;
       if (!btn) return;
       setTab(btn.getAttribute('data-tab'));
-      // 切到调度树时面板刚可见：依赖连线需要以可见 DOM 重量一次坐标
-      relayoutOrchWires();
     });
-    // 键盘：Ctrl/Cmd + 1/2 在两个 tab 间切（桌面上没有鼠标时也够得着）
+    // 键盘：Ctrl/Cmd + 1/2/3 → 早报 / 编 / 维护（2 从「单」改指「编」，其余键位不动）
     document.addEventListener('keydown', function (e) {
       if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.key !== '1' && e.key !== '2') return;
+      if (e.key !== '1' && e.key !== '2' && e.key !== '3') return;
       e.preventDefault();
-      setTab(e.key === '2' ? 'orch' : 'daily');
-      relayoutOrchWires();
+      setTab(e.key === '3' ? 'maint' : e.key === '2' ? 'orch' : 'daily');
     });
   }
-  // 主进程（托盘「工单看板」）切 tab 的入口：与渲染层点按钮走同一个 setTab
+  // 主进程（托盘「工单看板」）切 tab 的入口：与渲染层点按钮走同一个 setTab。
+  // 'orch' → 「编」台；未知 tab 由 setTab 兜底落到 daily。
   window.__worldSetTab = function (tab) {
-    if (tab !== 'orch' || (lastR && lastR.orch && lastR.orch.active)) {
-      setTab(tab);
-      relayoutOrchWires();
-    }
+    setTab(tab);
   };
   setTab('daily');
 })();

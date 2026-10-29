@@ -380,8 +380,12 @@ function validateTicket(ticket) {
 module.exports = {
   ID_RE,
   MAX_SEQ,
+  MIN_CLAUSE_LEN,
+  MAX_TICKETS,
   STATUSES,
   TRANSITIONS,
+  ACCEPTANCE_TEMPLATES,
+  ACTION_RULES,
   seqOf,
   formatId,
   nextTicketId,

@@ -594,6 +594,29 @@ const SCHEMA = {
   // future version update. (Contrast showDock, which is migration-backfilled so
   // ONLY fresh installs pick up its new default.)
   tutorialSeen: { type: "boolean", default: false },
+
+  // ── desktop-world fork：编排层的 JEV 决策通道（v0.7）──────────────
+  // 全部默认关闭。JEV 是**唯一**会把本机数据发出去的外部依赖，所以"不开启就不出网"
+  // 必须是默认态：enabled 默认为 false，未开启时编排层连请求都不构造。
+  //
+  // 为什么不从环境变量读 enabled：环境变量是你 shell 里顺手带的，不等于"我在这个
+  // 应用里同意把数据发出去"。开关只认 Settings 里的显式值。
+  //
+  // 密钥默认值是空字符串而非环境变量回填 —— 决定"配没配"的是 Settings，
+  // env 只是 GUI 进程拿不到 shell 配置时的兜底读取源（见 world/orch/llm.js 的双通道）。
+  orchJevEnabled: { type: "boolean", default: false },
+  orchJevApiKey: { type: "string", default: "", validate: (v) => typeof v === "string" && v.length <= 512 },
+  orchJevBaseUrl: {
+    type: "string",
+    default: "",
+    // 只允许 http/https —— 端点最终会变成真实网络请求，协议白名单是
+    // "数据不会被发到别处"的第一道闸（llm.js 的 parseChatUrl 会再校验一次）。
+    validate: (v) =>
+      typeof v === "string" &&
+      v.length <= 300 &&
+      (v === "" || /^https?:\/\/[^\s]+$/.test(v)),
+  },
+  orchJevModel: { type: "string", default: "", validate: (v) => typeof v === "string" && v.length <= 120 },
 };
 
 const SCHEMA_KEYS = Object.freeze(Object.keys(SCHEMA));

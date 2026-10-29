@@ -9,7 +9,17 @@ const pkg = require("../package.json");
 const ROOT = path.join(__dirname, "..");
 
 function matchedByAnyGlob(globs, target) {
-  return globs.some((g) => minimatch(target, g));
+  // 与 scripts/audit-repository-assets.js 的 matchesAnyGlob 保持一致：
+  // 按声明顺序逐条应用，「最后一条命中的规则获胜」。
+  // 不能写成 globs.some(g => minimatch(target, g))：minimatch 会把 "!x" 当成
+  // 「匹配所有不满足 x 的路径」，于是任何负向模式都会让断言恒为 true。
+  let matched = false;
+  for (const glob of globs || []) {
+    const negated = glob.startsWith("!");
+    const pattern = negated ? glob.slice(1) : glob;
+    if (minimatch(target, pattern)) matched = !negated;
+  }
+  return matched;
 }
 
 function loadWorkflow(name) {

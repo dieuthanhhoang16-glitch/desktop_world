@@ -176,3 +176,6 @@ Microsoft/
 # Emoji export scratch
 clawd-emoji-final/
 world/out/
+
+# generated media (not part of the package or the asset policy)
+/generated-videos/

@@ -16,12 +16,41 @@
 
 const { hashStr, mulberry32 } = require('../garden/scene');
 
-const CELL = 2;
-const GW = 160; // 画布宽（格）
-const GH = 48; // 画布高（格）
-const FLOOR_Y = 40; // 地板起始行
-const MAX_STATIONS = 8;
+// ── 画布尺寸 ──────────────────────────────────────────────────
+// v0.7 放大：GW/GH 从 160×48 提到 240×72，CELL 从 2 提到 3（像素块更大更清楚），
+// 工位从 8 个增到 12 个（3 行 × 4 列）。
+//
+// 为什么工位数跟着涨：COLS=4 时 8 个工位只能摆 2 行，画面上下留白很大、地板空旷。
+// 12 个填满 3 行后画布密度才和放大后的尺寸匹配。
+//
+// ── 分层地板的几何（改尺寸时照这个推）─────────────────────────
+// 工位自身的纵向占位（drawStation）：
+//   头顶信号 y-3 ┐
+//   屏幕/小人 y+1~y+4│
+//   桌面 y+5,y+6   │ 共约 13 格
+//   桌腿 y+7~y+8  ┘ y+9 处结束
+//
+// 3 排工位 = 3 条地板线（row 0 最前/最近/y 最大，row 越大越远/y 越小）：
+//   floorLineForRow(row) = FLOOR_Y - row * ROW_H      ← 地板线
+//   floorYForRow(row)    = 地板线 - DESK_DROP         ← 工位基准 y
+//
+// 硬约束（三条都要满足，否则工位出界或没有天花板留白）：
+//   ① 最远排头顶 ≥ 0：FLOOR_Y - (ROWS-1)*ROW_H - DESK_DROP - 3 ≥ 0
+//   ② 最近排桌腿 < GH：FLOOR_Y + 9 < GH
+//   ③ 墙要留得住：WALL_H ≥ 14（天花板不能只剩几格，否则画面没有纵深）
+// 当前 56 - 40 - 11 = 5 ≥ 0 ✅；56 + 9 = 65 < 72 ✅；WALL_H = 56-40-11-4 = 1 →上调 FLOOR_Y
+const CELL = 3;
+const GW = 240; // 画布宽（格）
+const GH = 72; // 画布高（格）
+const ROW_H = 16; // 每排的地板线间距（格）
+const MAX_STATIONS = 12;
 const COLS = 4;
+const ROWS = Math.ceil(MAX_STATIONS / COLS); // 3
+// 工位基准 y 到它脚下地板线的距离：桌腿画到 y+9，地板线要落在 y+8 那一格
+const DESK_DROP = 8;
+// 最前排的地板线。取值让①③ 同时成立：WALL_H = FLOOR_Y - 32 - 11 - 4 ≥ 14 → FLOOR_Y ≥ 61
+const FLOOR_Y = 62;
+const WALL_H = Math.max(14, FLOOR_Y - (ROWS - 1) * ROW_H - DESK_DROP - 3 - 4);
 
 // 动作 → 状态语义（与 pomodoro.taskActionFor 的规则同源，键名一致）
 const ACTION_THINKING = 'thinking';
@@ -98,20 +127,44 @@ function normalizeStation(item = {}) {
   };
 }
 
+/**
+ * 第 row 排的**地板线** y（该排工位脚下那条地面的起始行）。
+ * row 0 = **最前排**（画面最下方，最近），row 越大越靠里/越上（远排）——
+ * 所以地板线y 随 row **递减**。画的时候从 row 0 往后画，近的覆盖远的，天然形成遮挡。
+ */
+function floorLineForRow(row) {
+  return FLOOR_Y - row * ROW_H;
+}
+
+/**
+ * 第 row 排工位的基准 y。**layout() 与几何校验都必须走这个函数** ——
+ * 各自算一遍的话，工位和它脚下的地板会错位（v0.7 初次实现时就踩了：3 行工位
+ * 只有第 1 行有地板，后两行悬空）。
+ */
+function floorYForRow(row) {
+  return floorLineForRow(row) - DESK_DROP;
+}
+
 // 工位布局：网格排布 + 哈希决定的微抖动。抖动幅度小，保证不越界、不重叠。
+//
+// 行基准 y 用 floorYForRow 而不是魔法数字 —— v0.7 把工位从 2 行 8 个扩到 3 行 12 个，
+// 行高必须跟着 FLOOR_Y 一起算，否则第 3 行的桌腿会踩到画布外。
 function layout(index, seed) {
   const rand = mulberry32(hashStr(`orch:${seed}`) + index * 2654435761);
   const col = index % COLS;
   const row = Math.floor(index / COLS);
-  const baseX = 6 + col * ((GW - 12) / COLS);
-  const baseY = FLOOR_Y - 1 - row * 12;
+  const colW = (GW - 12) / COLS;
+  const baseX = 6 + col * colW;
+  const baseY = floorYForRow(row);
   // 抖动限制在 ±1 格，既能打散机械感又不会把工位挤出画布
-  const jitterX = Math.round((rand() * 2 - 1)) ;
+  const jitterX = Math.round(rand() * 2 - 1);
   const jitterY = rand() > 0.5 ? 0 : -1;
   return {
-    x: Math.max(1, Math.min(GW - 12, Math.round(baseX + jitterX))),
-    y: Math.max(6, Math.round(baseY + jitterY)),
+    x: Math.max(2, Math.min(GW - 12, Math.round(baseX + jitterX))),
+    // 下界要留给"头顶信号点"（画在 y-3）：y 至少 5，否则信号点会被画到墙外甚至负坐标
+    y: Math.max(5, Math.round(baseY + jitterY)),
     hue: rand(),
+    row,
   };
 }
 
@@ -202,19 +255,48 @@ function renderAgentScene(items = [], opts = {}) {
   const seed = opts.seed || list.map((s) => s.id).join(',');
   const out = [];
 
-  // 房间：墙 + 地板
-  rect(out, 0, 0, GW, FLOOR_Y, WALL);
-  rect(out, 0, FLOOR_Y, GW, 2, FLOOR_A);
-  rect(out, 0, FLOOR_Y + 2, GW, GH - FLOOR_Y - 2, FLOOR_B);
-  // 地板缝（确定性散布）
-  const rand = mulberry32(hashStr(`orch-floor:${seed}`));
-  for (let i = 0; i < 14; i += 1) {
-    rect(out, Math.floor(rand() * GW), FLOOR_Y + 2 + Math.floor(rand() * 4), 2, 1, '#37304f', 0.7);
+  // 房间：墙 + **多层**地板（v0.7 起 3 行工位）。
+  //
+  // 为什么必须分层：工位从 2 行扩到 3 行后，只有一层地板的话，第 2、3 行会悬空挂在
+  // 墙上 —— 那不是透视效果，是没画地板。所以每行工位配一条自己的地板带。
+  //
+  // ⚠️ 每行的地板线**由行号直接算出**（floorYForRow），不要写成
+  // `Math.max(FLOOR_Y, deskY + k)` —— FLOOR_Y 是**最前排**的地板线，用它兜底会把
+  // 上层地板带全拉到同一条线上，分层就没了（v0.7 初次实现正是这么错的）。
+  rect(out, 0, 0, GW, WALL_H, WALL);
+  const floorRand = mulberry32(hashStr(`orch-floor:${seed}`));
+  // 地板同样**远排先画、近排后画**（与工位同一个方向，两者才能对齐）：
+  // floorLineForRow 随 row 递减，所以循环要从 ROWS-1 倒着走。
+  // 近处的地板带画在后面，才能盖住远处地板带的边缘，不会出现"地板穿过小人"的错位。
+  for (let row = ROWS - 1; row >= 0; row -= 1) {
+    const bandTop = floorLineForRow(row);
+    const bandH = GH - bandTop;
+    if (bandH <= 0) continue;
+    // 上层压暗一点，做出远近层次（row 0 = 最前排，最亮）
+    const depth = 0.6 + 0.4 * (row / Math.max(1, ROWS - 1));
+    rect(out, 0, bandTop, GW, Math.min(2, bandH), FLOOR_A, depth);
+    rect(out, 0, bandTop + 2, GW, bandH - 2, FLOOR_B, depth);
+    // 地板缝：数量跟这条带的面积走
+    const seams = Math.max(4, Math.round((GW * bandH) / 700));
+    for (let i = 0; i < seams; i += 1) {
+      rect(
+        out,
+        Math.floor(floorRand() * (GW - 2)),
+        bandTop + 2 + Math.floor(floorRand() * Math.max(1, bandH - 2)),
+        2, 1, '#37304f', 0.7 * depth,
+      );
+    }
   }
 
+  // 工位绘制顺序：**远排先画，近排后画**（SVG 后画覆盖先画，近的才能挡住远的）。
+  // row 0 的地板线 y 最大（最靠近观者），所以按 y **升序**排 —— 远的（y 小）先落笔，
+  // 近的（y 大）后落笔并正确遮住它。y 相同按原索引兜底，保证确定性。
+  // 用带 y 排序的副本，不打乱 list 本身（stations 数组顺序仍按 id，与画序解耦）。
   const stations = [];
-  list.forEach((st, i) => {
-    const place = layout(i, seed);
+  const drawOrder = list
+    .map((st, i) => ({ st, i, place: layout(i, seed) }))
+    .sort((a, b) => a.place.y - b.place.y || a.i - b.i);
+  for (const { st, i, place } of drawOrder) {
     const pos = drawStation(out, st, { ...place, index: i }, seed);
     stations.push({
       id: st.id,
@@ -228,7 +310,9 @@ function renderAgentScene(items = [], opts = {}) {
       y: pos.y,
       icon: STATUS_ICONS[st.status] || '·',
     });
-  });
+  }
+  // stations 的顺序对调用方（信封路线、UI 列表）要稳定 → 按原输入顺序排回去
+  stations.sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
   if (!list.length) {
     // 没有工单时不画空房间，给一句安静的话（同一状态永远同一句）
@@ -277,12 +361,19 @@ module.exports = {
   CELL,
   GW,
   GH,
+  FLOOR_Y,
+  ROW_H,
+  WALL_H,
+  DESK_DROP,
   MAX_STATIONS,
   COLS,
+  ROWS,
   POSE,
   STATUS_ICONS,
   actionFor,
   normalizeStation,
+  floorLineForRow,
+  floorYForRow,
   layout,
   renderAgentScene,
   envelopeRoute,

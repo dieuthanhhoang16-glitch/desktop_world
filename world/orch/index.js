@@ -89,6 +89,11 @@ function buildOrchView(opts = {}) {
     id: t.id,
     title: t.title,
     status: t.status,
+    // action 必须透传工单账本里已经算好的那个。少了这一行，scene-agents 会用自己那套
+    // 更粗的规则表重新猜一次，于是「实现胶囊收起态」在账本是 change、在画面变成
+    // working —— 画面和账本说法不一致，姿态映射也就失去了意义。
+    // 只有老工单（没有 action 字段）才让 scene 回退自己猜。
+    action: t.action || '',
     agent: t.agent,
     agentName: (session && session.agentName) || t.agent,
     cwd: t.cwd,

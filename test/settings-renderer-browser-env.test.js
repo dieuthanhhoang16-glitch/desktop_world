@@ -583,10 +583,16 @@ class FakeElement {
 
   _matches(selector) {
     if (selector.startsWith(".")) return this.classList.contains(selector.slice(1));
-    const tagAttribute = /^([a-zA-Z][\w-]*)\[([:\w-]+)\]$/.exec(selector);
+    // 属性等值选择器：[data-settings-focus-key="recap-clear"] 或 button[...]
+    const attrEquals = /^([a-zA-Z][\w-]*)?\[([:\w-]+)=["']([^"']*)["']\]$/.exec(selector);
+    if (attrEquals) {
+      if (attrEquals[1] && this.tagName.toLowerCase() !== attrEquals[1].toLowerCase()) return false;
+      return this.attributes[attrEquals[2]] === attrEquals[3];
+    }
+    const tagAttribute = /^([a-zA-Z][\w-]*)?\[([:\w-]+)\]$/.exec(selector);
     if (tagAttribute) {
-      return this.tagName.toLowerCase() === tagAttribute[1].toLowerCase()
-        && Object.prototype.hasOwnProperty.call(this.attributes, tagAttribute[2]);
+      if (tagAttribute[1] && this.tagName.toLowerCase() !== tagAttribute[1].toLowerCase()) return false;
+      return Object.prototype.hasOwnProperty.call(this.attributes, tagAttribute[2]);
     }
     return this.tagName.toLowerCase() === selector.toLowerCase();
   }
@@ -2766,7 +2772,7 @@ describe("settings renderer browser environment", () => {
       harness.content.querySelector(".switch").getAttribute("data-settings-focus-key"),
       "recap-recording-toggle"
     );
-    const clearButton = harness.content.querySelector(".soft-btn");
+    const clearButton = harness.content.querySelector('[data-settings-focus-key="recap-clear"]');
     assert.strictEqual(clearButton.getAttribute("data-settings-focus-key"), "recap-clear");
     assert.strictEqual(
       clearButton.getAttribute("data-settings-focus-fallback-key"),
@@ -2817,7 +2823,7 @@ describe("settings renderer browser environment", () => {
       ...harness.content.querySelectorAll(".recap-agent-row"),
       harness.content.querySelector(".recap-grid"),
       harness.content.querySelector(".switch"),
-      harness.content.querySelector(".soft-btn"),
+      harness.content.querySelector('[data-settings-focus-key="recap-clear"]'),
     ].map((element) => element.getAttribute("data-settings-focus-key"));
     const before = focusKeys();
     assert.ok(before.every(Boolean));
